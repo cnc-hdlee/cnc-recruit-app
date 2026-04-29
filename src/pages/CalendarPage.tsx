@@ -1,37 +1,60 @@
 import { useMemo, useState } from 'react';
 import { useData, getTodayStr } from '../store';
+import { useLiveData, liveCalendarEventsNormalized } from '../store/liveData';
 import type { CalEvent } from '../types';
 
 type Kind = '면접' | '입사' | '퇴사';
+type Source = 'sheet' | 'calendar';
 interface DayEvent extends CalEvent {
   kind: Kind;
+  source: Source;
+  htmlLink?: string | null;
+  location?: string;
+  attendees?: string[];
 }
 
 type FilterKind = '전체' | Kind;
 
 export function CalendarPage() {
   const D = useData();
+  const live = useLiveData();
   const today = getTodayStr();
   const [filter, setFilter] = useState<FilterKind>('전체');
   const [query, setQuery] = useState('');
   const [showPast, setShowPast] = useState(false);
 
   const allEvents = useMemo<DayEvent[]>(() => {
-    const merged: DayEvent[] = [
-      ...D.calIntv.map((e) => ({ ...e, kind: '면접' as const })),
-      ...D.calJoin.map((e) => ({ ...e, kind: '입사' as const })),
-      ...D.calLeave.map((e) => ({ ...e, kind: '퇴사' as const })),
+    const sheetEvents: DayEvent[] = [
+      ...D.calIntv.map((e) => ({ ...e, kind: '면접' as const, source: 'sheet' as const })),
+      ...D.calJoin.map((e) => ({ ...e, kind: '입사' as const, source: 'sheet' as const })),
+      ...D.calLeave.map((e) => ({ ...e, kind: '퇴사' as const, source: 'sheet' as const })),
     ];
+
+    // ★ Google Calendar 이벤트 (snapshot 경유) — 면접/입사/퇴사만 통합, 비공개는 서버에서 이미 필터됨
+    const calEvents: DayEvent[] = liveCalendarEventsNormalized()
+      .filter((e) => e.kind !== '기타')
+      .map((e) => ({
+        dt: e.dt,
+        tm: e.tm,
+        title: e.title,
+        kind: e.kind as Kind,
+        source: 'calendar' as const,
+        htmlLink: e.htmlLink,
+        location: e.location,
+        attendees: e.attendees,
+      }));
+
+    const merged = [...sheetEvents, ...calEvents];
     const seen = new Set<string>();
     const deduped: DayEvent[] = [];
     for (const e of merged) {
-      const key = `${e.kind}|${e.dt}|${e.tm}|${(e.title || '').trim()}`;
+      const key = `${e.kind}|${e.dt}|${e.tm}|${(e.title || '').trim().slice(0, 30)}`;
       if (seen.has(key)) continue;
       seen.add(key);
       deduped.push(e);
     }
     return deduped;
-  }, [D.calIntv, D.calJoin, D.calLeave]);
+  }, [D.calIntv, D.calJoin, D.calLeave, live.calendarEvents]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -64,7 +87,7 @@ export function CalendarPage() {
           <span className="text-xs text-slate-400 mr-1">필터:</span>
           <Pill active={filter === '전체'} onClick={() => setFilter('전체')}>전체 ({counts.면접 + counts.입사 + counts.퇴사})</Pill>
           <Pill active={filter === '면접'} onClick={() => setFilter('면접')} tone="blue">면접 ({counts.면접})</Pill>
-          <Pill active={filter === '입사'} onClick={() => setFilter('입사')} tone="green">입사 ({counts.입사})</Pill>
+          <Pill active={filter === '입사'} onClick={() => setFilter('입사')} tone="yellow">입사 ({counts.입사})</Pill>
           <Pill active={filter === '퇴사'} onClick={() => setFilter('퇴사')} tone="pink">퇴사 ({counts.퇴사})</Pill>
           <span className="mx-1 h-4 w-px bg-bg-line" />
           <Pill active={showPast} onClick={() => setShowPast((v) => !v)}>지난 일정 포함</Pill>
@@ -121,14 +144,41 @@ function EventRow({ event }: { event: DayEvent }) {
     event.kind === '면접'
       ? 'bg-accent-blue/15 text-accent-blue border-accent-blue/30'
       : event.kind === '입사'
-      ? 'bg-accent-green/15 text-accent-green border-accent-green/30'
+      ? 'bg-accent-yellow/15 text-accent-yellow border-accent-yellow/30'
       : 'bg-accent-pink/15 text-accent-pink border-accent-pink/30';
-  return (
-    <div className={`flex items-center gap-3 p-2 rounded-lg border ${tone} ${event.done ? 'opacity-60' : ''}`}>
+  const content = (
+    <>
       <span className="chip text-[10px] font-medium shrink-0">{event.kind}</span>
       <span className="font-mono text-xs text-slate-300 w-14 shrink-0">{event.tm || '종일'}</span>
-      <span className={`text-sm flex-1 ${event.done ? 'line-through' : 'text-slate-100'}`}>{event.title}</span>
+      <span className={`text-sm flex-1 truncate ${event.done ? 'line-through' : 'text-slate-100'}`}>
+        {event.title}
+        {event.location && (
+          <span className="ml-2 text-[11px] text-slate-400">📍 {event.location}</span>
+        )}
+      </span>
+      {event.source === 'calendar' && (
+        <span className="chip text-[10px] bg-bg-deep/60 text-slate-400 shrink-0" title="Google Calendar">📅</span>
+      )}
       {event.done && <span className="text-[10px] text-slate-500 shrink-0">✓ 완료</span>}
+    </>
+  );
+
+  if (event.htmlLink) {
+    return (
+      <a
+        href={event.htmlLink}
+        target="_blank"
+        rel="noopener noreferrer"
+        className={`flex items-center gap-3 p-2 rounded-lg border ${tone} ${event.done ? 'opacity-60' : ''} hover:brightness-125`}
+      >
+        {content}
+      </a>
+    );
+  }
+
+  return (
+    <div className={`flex items-center gap-3 p-2 rounded-lg border ${tone} ${event.done ? 'opacity-60' : ''}`}>
+      {content}
     </div>
   );
 }
@@ -141,7 +191,7 @@ function Pill({
 }: {
   active: boolean;
   onClick: () => void;
-  tone?: 'blue' | 'green' | 'pink';
+  tone?: 'blue' | 'green' | 'pink' | 'yellow';
   children: React.ReactNode;
 }) {
   const activeBg =
@@ -149,6 +199,8 @@ function Pill({
       ? 'bg-accent-blue text-white border-accent-blue'
       : tone === 'green'
       ? 'bg-accent-green text-white border-accent-green'
+      : tone === 'yellow'
+      ? 'bg-accent-yellow text-bg-deep border-accent-yellow'
       : tone === 'pink'
       ? 'bg-accent-pink text-white border-accent-pink'
       : 'bg-accent-purple text-white border-accent-purple';

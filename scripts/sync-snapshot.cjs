@@ -3,8 +3,8 @@
  * sync-snapshot.cjs
  *
  * 24/7 server-side sync runner — designed for GitHub Actions cron.
- * Fetches all configured Google Sheets using a stored OAuth refresh token,
- * writes a snapshot.json that the viewer build reads.
+ * Fetches all configured Google Sheets + Google Calendar events using a stored
+ * OAuth refresh token, writes a snapshot.json that the viewer build reads.
  *
  * Required env vars (provide via GitHub Secrets):
  *   GOOGLE_CLIENT_ID
@@ -15,6 +15,9 @@
  * Optional:
  *   OUT_PATH                   default ./snapshot.json
  *   EXPORTED_BY                free-form label written into the snapshot
+ *   CALENDAR_ID                default 'primary'
+ *   CALENDAR_RANGE_PAST_DAYS   default 30
+ *   CALENDAR_RANGE_FUTURE_DAYS default 90
  */
 
 const fs = require('node:fs');
@@ -23,6 +26,22 @@ const { google } = require('googleapis');
 const { OAuth2Client } = require('google-auth-library');
 
 const SNAPSHOT_VERSION = 1;
+
+// ★ 비공개 채용 키워드 — 일치하는 캘린더 이벤트는 snapshot에서 제외 (팀원 뷰어에 노출 X)
+//    사용자(이형도)의 본체에는 maintainer-only private tracker로 별도 등록됨.
+const CONFIDENTIAL_PATTERNS = [
+  /볼트엑스/i,
+  /이나영/,
+  /서치펌|서치 ?폼|서치 ?펌/i,
+  /비공개\s*(채용|면접|이력|후보)/,
+  /\bC&D\b/i,
+  /헤드헌팅|헤드 ?헌터/i,
+];
+
+function isConfidentialEvent(ev) {
+  const haystack = [ev.summary || '', ev.description || '', ev.location || ''].join(' ');
+  return CONFIDENTIAL_PATTERNS.some((re) => re.test(haystack));
+}
 
 function requireEnv(name) {
   const v = process.env[name];
@@ -34,7 +53,6 @@ function requireEnv(name) {
 }
 
 function loadConfig() {
-  // Either SHEETS_CONFIG (JSON string in env) or scripts/sheets-config.json (committed file).
   if (process.env.SHEETS_CONFIG) {
     try {
       return JSON.parse(process.env.SHEETS_CONFIG);
@@ -91,6 +109,70 @@ async function fetchSheet(auth, spreadsheetId) {
   };
 }
 
+async function fetchCalendar(auth) {
+  const calendar = google.calendar({ version: 'v3', auth });
+  const calendarId = process.env.CALENDAR_ID || 'primary';
+  const pastDays = Number(process.env.CALENDAR_RANGE_PAST_DAYS || 30);
+  const futureDays = Number(process.env.CALENDAR_RANGE_FUTURE_DAYS || 90);
+
+  const now = Date.now();
+  const timeMin = new Date(now - pastDays * 86400e3).toISOString();
+  const timeMax = new Date(now + futureDays * 86400e3).toISOString();
+
+  const items = [];
+  let pageToken;
+  do {
+    const res = await calendar.events.list({
+      calendarId,
+      timeMin,
+      timeMax,
+      singleEvents: true,
+      orderBy: 'startTime',
+      maxResults: 250,
+      pageToken,
+    });
+    items.push(...(res.data.items || []));
+    pageToken = res.data.nextPageToken;
+  } while (pageToken);
+
+  let total = items.length;
+  let dropped = 0;
+  const events = [];
+  for (const e of items) {
+    if (e.status === 'cancelled') continue;
+    if (isConfidentialEvent(e)) {
+      dropped += 1;
+      continue;
+    }
+    const start = e.start || {};
+    const end = e.end || {};
+    events.push({
+      id: e.id,
+      summary: e.summary || '',
+      description: e.description || '',
+      location: e.location || '',
+      colorId: e.colorId || null,
+      allDay: !start.dateTime,
+      start: start.dateTime || start.date || null,
+      end: end.dateTime || end.date || null,
+      timeZone: start.timeZone || null,
+      htmlLink: e.htmlLink || null,
+      attendees: (e.attendees || []).map((a) => ({
+        email: a.email,
+        responseStatus: a.responseStatus,
+        organizer: !!a.organizer,
+        self: !!a.self,
+      })),
+      conferenceUrl: e.conferenceData?.entryPoints?.[0]?.uri || e.hangoutLink || null,
+      status: e.status || 'confirmed',
+      updated: e.updated || null,
+    });
+  }
+
+  console.log(`[sync] calendar: ${total - dropped}/${total} events kept (${dropped} confidential filtered)`);
+  return { events, fetchedAt: new Date().toISOString(), calendarId, range: { timeMin, timeMax } };
+}
+
 async function main() {
   const config = loadConfig();
   const auth = await buildOAuth();
@@ -110,8 +192,15 @@ async function main() {
       console.log(`[sync]   ✓ ${data.title} (${Object.keys(data.tabs).length} tabs, modified ${data.modifiedTime})`);
     } catch (e) {
       console.error(`[sync]   ✗ ${id}: ${e.message}`);
-      // Don't fail the whole run — write what we have
     }
+  }
+
+  let calendarOut = null;
+  try {
+    console.log('[sync] fetching calendar events...');
+    calendarOut = await fetchCalendar(auth);
+  } catch (e) {
+    console.error(`[sync] calendar fetch failed (non-fatal): ${e.message}`);
   }
 
   const snapshot = {
@@ -121,12 +210,14 @@ async function main() {
     appName: 'CNC 채용 커맨드센터',
     sheets: sheetsOut,
     mappings: config.mappings || {},
+    calendar: calendarOut, // null if fetch failed (snapshot still usable)
   };
 
   const outPath = process.env.OUT_PATH || path.join(process.cwd(), 'snapshot.json');
   fs.mkdirSync(path.dirname(outPath), { recursive: true });
   fs.writeFileSync(outPath, JSON.stringify(snapshot, null, 2), 'utf8');
-  console.log(`[sync] wrote ${outPath} (${Object.keys(sheetsOut).length} sheets)`);
+  const eventCount = calendarOut?.events?.length || 0;
+  console.log(`[sync] wrote ${outPath} (${Object.keys(sheetsOut).length} sheets, ${eventCount} cal events)`);
 }
 
 main().catch((e) => {

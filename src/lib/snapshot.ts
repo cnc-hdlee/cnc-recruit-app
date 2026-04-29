@@ -11,6 +11,37 @@ export interface SnapshotSheet {
   tabs: Record<string, string[][]>;
 }
 
+export interface SnapshotCalendarAttendee {
+  email?: string;
+  responseStatus?: string;
+  organizer?: boolean;
+  self?: boolean;
+}
+
+export interface SnapshotCalendarEvent {
+  id: string;
+  summary: string;
+  description: string;
+  location: string;
+  colorId: string | null;
+  allDay: boolean;
+  start: string | null; // ISO dateTime or YYYY-MM-DD
+  end: string | null;
+  timeZone: string | null;
+  htmlLink: string | null;
+  attendees: SnapshotCalendarAttendee[];
+  conferenceUrl: string | null;
+  status: string;
+  updated: string | null;
+}
+
+export interface SnapshotCalendar {
+  events: SnapshotCalendarEvent[];
+  fetchedAt: string;
+  calendarId: string;
+  range: { timeMin: string; timeMax: string };
+}
+
 export interface Snapshot {
   version: number;
   exportedAt: string; // ISO timestamp
@@ -18,6 +49,7 @@ export interface Snapshot {
   appName: string;
   sheets: Record<string, SnapshotSheet>; // keyed by spreadsheetId
   mappings: SheetMappings;
+  calendar?: SnapshotCalendar | null; // optional — older snapshots won't have it
 }
 
 export function buildSnapshot(input: {

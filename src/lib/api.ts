@@ -45,11 +45,15 @@ export interface GCalEvent {
   summary: string;
   description: string;
   location: string;
+  colorId: string | null;
+  allDay: boolean;
   start: string;
   end: string;
+  timeZone: string | null;
   htmlLink?: string;
   status: string;
-  attendees: { email?: string; name?: string; responseStatus?: string }[];
+  conferenceUrl: string | null;
+  attendees: { email?: string; name?: string; responseStatus?: string; organizer?: boolean; self?: boolean }[];
 }
 
 export interface GCalListItem {

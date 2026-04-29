@@ -14,6 +14,7 @@ import { SlackFeed } from './pages/SlackFeed';
 import { Settings } from './pages/Settings';
 import { Usage } from './pages/Usage';
 import { AutoAnalysis } from './pages/AutoAnalysis';
+import { PrivateTracker } from './pages/PrivateTracker';
 import type { PageId } from './types';
 
 const PAGE_TITLES: Record<PageId, string> = {
@@ -24,6 +25,7 @@ const PAGE_TITLES: Record<PageId, string> = {
   mail: '메일 / 커뮤니케이션',
   slack: 'Slack 피드',
   auto: '🔗 자동 분석',
+  private: '🔒 비공개 트래커',
   settings: '설정 / 연동',
   usage: '사용법 (필독)',
 };
@@ -50,6 +52,7 @@ export default function App() {
           {page === 'mail' && <MailLog />}
           {page === 'slack' && <SlackFeed />}
           {page === 'auto' && <AutoAnalysis />}
+          {page === 'private' && !IS_VIEWER && <PrivateTracker />}
           {page === 'settings' && <Settings />}
           {page === 'usage' && <Usage />}
         </main>

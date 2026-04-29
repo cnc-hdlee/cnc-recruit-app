@@ -86,4 +86,18 @@ export interface DataShape {
   [k: string]: unknown;
 }
 
-export type PageId = 'dashboard' | 'headcount' | 'pipeline' | 'calendar' | 'mail' | 'slack' | 'auto' | 'settings' | 'usage';
+export type PageId = 'dashboard' | 'headcount' | 'pipeline' | 'calendar' | 'mail' | 'slack' | 'auto' | 'private' | 'settings' | 'usage';
+
+export interface PrivateInterview {
+  id: string;
+  candidate: string;
+  department: string;
+  position: string;
+  scheduledAt: string; // ISO datetime, empty if 미정
+  location: string;
+  source: string; // 볼트엑스 / 헤드헌터 / 직접 등
+  status: '면접예정' | '면접완료' | '결과대기' | '오퍼' | '입사확정' | '취소' | '보류';
+  notes: string;
+  createdAt: string;
+  updatedAt: string;
+}

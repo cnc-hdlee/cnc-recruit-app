@@ -1,12 +1,14 @@
 import type { PageId } from '../types';
 import { useData } from '../store';
 import { useLiveData } from '../store/liveData';
+import { IS_VIEWER } from '../lib/mode';
 
 interface NavItem {
   id: PageId;
   icon: string;
   label: string;
   badgeKey?: 'urgent' | 'todayIntv' | 'pipeline';
+  maintainerOnly?: boolean;
 }
 
 const NAV: NavItem[] = [
@@ -17,6 +19,7 @@ const NAV: NavItem[] = [
   { id: 'mail', icon: '✉️', label: '메일 / 커뮤니케이션' },
   { id: 'slack', icon: '💬', label: 'Slack 피드' },
   { id: 'auto', icon: '🔗', label: '자동 분석' },
+  { id: 'private', icon: '🔒', label: '비공개 트래커', maintainerOnly: true },
   { id: 'settings', icon: '⚙️', label: '설정 / 연동' },
   { id: 'usage', icon: '📖', label: '사용법 (필독)' },
 ];
@@ -44,7 +47,7 @@ export function Sidebar({ active, onChange }: { active: PageId; onChange: (p: Pa
         </div>
       </div>
       <nav className="flex-1 p-3 space-y-1">
-        {NAV.map((item) => {
+        {NAV.filter((item) => !item.maintainerOnly || !IS_VIEWER).map((item) => {
           const isActive = item.id === active;
           const badge = item.badgeKey ? counts[item.badgeKey] : 0;
           return (

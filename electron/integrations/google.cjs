@@ -212,11 +212,21 @@ async function listCalendar(timeMin, timeMax, calendarId = 'primary') {
     summary: e.summary || '',
     description: e.description || '',
     location: e.location || '',
+    colorId: e.colorId || null,
+    allDay: !e.start?.dateTime,
     start: e.start?.dateTime || e.start?.date || '',
     end: e.end?.dateTime || e.end?.date || '',
+    timeZone: e.start?.timeZone || null,
     htmlLink: e.htmlLink,
     status: e.status,
-    attendees: (e.attendees || []).map((a) => ({ email: a.email, name: a.displayName, responseStatus: a.responseStatus })),
+    conferenceUrl: e.conferenceData?.entryPoints?.[0]?.uri || e.hangoutLink || null,
+    attendees: (e.attendees || []).map((a) => ({
+      email: a.email,
+      name: a.displayName,
+      responseStatus: a.responseStatus,
+      organizer: !!a.organizer,
+      self: !!a.self,
+    })),
   }));
 }
 
