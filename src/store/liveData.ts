@@ -333,18 +333,21 @@ function isoToDateTime(iso: string | null): { dt: string; tm: string; allDay: bo
   if (!iso) return { dt: '', tm: '종일', allDay: true };
   // YYYY-MM-DD (all-day)
   if (/^\d{4}-\d{2}-\d{2}$/.test(iso)) return { dt: iso, tm: '종일', allDay: true };
-  // ISO datetime
+  // ISO datetime — Google Calendar always sends "...+09:00" for KST events.
+  // Parse the offset directly so we display the wall-clock time the user saw in Calendar,
+  // regardless of which timezone the machine is set to.
+  const m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::\d{2}(?:\.\d+)?)?([+-]\d{2}:?\d{2}|Z)?$/.exec(iso);
+  if (m) {
+    return { dt: `${m[1]}-${m[2]}-${m[3]}`, tm: `${m[4]}:${m[5]}`, allDay: false };
+  }
+  // Fallback — let JS interpret in machine local time (KST for the user)
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return { dt: '', tm: '종일', allDay: true };
-  // Local KST format
-  const kstOffset = 9 * 60;
-  const localMs = d.getTime() + kstOffset * 60 * 1000 + d.getTimezoneOffset() * 60 * 1000;
-  const local = new Date(localMs);
-  const yy = local.getUTCFullYear();
-  const mm = String(local.getUTCMonth() + 1).padStart(2, '0');
-  const dd = String(local.getUTCDate()).padStart(2, '0');
-  const hh = String(local.getUTCHours()).padStart(2, '0');
-  const mi = String(local.getUTCMinutes()).padStart(2, '0');
+  const yy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  const hh = String(d.getHours()).padStart(2, '0');
+  const mi = String(d.getMinutes()).padStart(2, '0');
   return { dt: `${yy}-${mm}-${dd}`, tm: `${hh}:${mi}`, allDay: false };
 }
 
