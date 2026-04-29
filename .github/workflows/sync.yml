@@ -1,23 +1,28 @@
-name: Snapshot Sync (Sheets → GitHub Pages)
+name: Snapshot Sync & Deploy (Sheets → Cloudflare Pages)
 
-# 5분마다 자동 실행 + 수동 실행 가능
+# 5분마다 자동 + main push 시 + 수동 실행
 on:
   schedule:
     - cron: '*/5 * * * *'
+  push:
+    branches: [main]
+    paths-ignore:
+      - 'electron/**'
+      - 'scripts/extract-secrets.cjs'
+      - 'README.md'
+      - '**.md'
   workflow_dispatch:
 
 # 동시에 두 개 안 돌도록
 concurrency:
-  group: snapshot-sync
+  group: snapshot-sync-deploy
   cancel-in-progress: true
 
 permissions:
   contents: write
-  pages: write
-  id-token: write
 
 jobs:
-  sync:
+  sync-and-deploy:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout main
@@ -29,10 +34,10 @@ jobs:
           node-version: '20'
           cache: 'npm'
 
-      - name: Install minimal deps
-        run: npm ci --omit=optional --no-audit --no-fund
+      - name: Install deps
+        run: npm ci --no-audit --no-fund
 
-      - name: Run snapshot sync
+      - name: Fetch snapshot from Sheets
         env:
           GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
           GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
@@ -42,7 +47,23 @@ jobs:
           OUT_PATH: snapshot.json
         run: node scripts/sync-snapshot.cjs
 
-      - name: Commit snapshot to gh-pages
+      - name: Build viewer (PWA)
+        env:
+          VITE_VIEWER_MODE: 'true'
+        run: npm run build:viewer
+
+      - name: Bundle snapshot into build
+        run: cp snapshot.json dist-viewer/snapshot.json
+
+      - name: Deploy to Cloudflare Pages
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages deploy dist-viewer --project-name=cnc-recruit-viewer --branch=main --commit-dirty=true
+
+      - name: Backup snapshot to gh-pages branch
+        continue-on-error: true
         run: |
           set -e
           git config user.name "github-actions[bot]"
@@ -50,18 +71,25 @@ jobs:
 
           git fetch origin gh-pages || true
           if ! git show-ref --verify --quiet refs/remotes/origin/gh-pages; then
-            echo "[sync] gh-pages 브랜치가 아직 없어요 — Deploy workflow를 먼저 실행해주세요."
-            echo "[sync] (Actions 탭 > Deploy Viewer to GitHub Pages > Run workflow)"
-            exit 0
+            echo "[backup] gh-pages 없음 — orphan 생성"
+            git checkout --orphan gh-pages-init
+            git reset --hard
+            cp snapshot.json /tmp/snap.json
+            echo '# CNC snapshot backup' > README.md
+            git add README.md
+            git commit -m "init gh-pages backup"
+            git push origin gh-pages-init:gh-pages
+            git checkout main
+            git fetch origin gh-pages
+            cp /tmp/snap.json snapshot.json
           fi
 
           git worktree add ghp gh-pages
           cp snapshot.json ghp/snapshot.json
-
           cd ghp
           git add snapshot.json
           if git diff --cached --quiet; then
-            echo "[sync] no changes — sheet not modified"
+            echo "[backup] no changes"
           else
             git commit -m "data: snapshot $(date -u +%Y-%m-%dT%H:%M:%SZ)"
             git push origin gh-pages
