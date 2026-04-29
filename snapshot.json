@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "exportedAt": "2026-04-29T17:09:16.233Z",
+  "exportedAt": "2026-04-29T20:44:37.230Z",
   "exportedBy": "github-actions-cron",
   "appName": "CNC 채용 커맨드센터",
   "sheets": {
@@ -69844,7 +69844,7 @@
         ],
         "conferenceUrl": "https://meet.google.com/fia-iuhu-mwe",
         "status": "confirmed",
-        "updated": "2026-04-29T08:26:39.658Z"
+        "updated": "2026-04-29T17:46:57.998Z"
       },
       {
         "id": "kcimnjie5s5oe86tbkkin2ipd0",
@@ -69949,7 +69949,7 @@
         ],
         "conferenceUrl": "https://meet.google.com/ywm-yujw-bhm",
         "status": "confirmed",
-        "updated": "2026-04-28T06:29:23.036Z"
+        "updated": "2026-04-29T19:43:26.721Z"
       },
       {
         "id": "067eob5mrkau88ac967i41nl5r",
@@ -70407,11 +70407,11 @@
         "updated": "2026-04-15T02:32:00.297Z"
       }
     ],
-    "fetchedAt": "2026-04-29T17:09:16.233Z",
+    "fetchedAt": "2026-04-29T20:44:37.230Z",
     "calendarId": "primary",
     "range": {
-      "timeMin": "2026-03-30T17:09:16.014Z",
-      "timeMax": "2026-07-28T17:09:16.014Z"
+      "timeMin": "2026-03-30T20:44:36.936Z",
+      "timeMax": "2026-07-28T20:44:36.936Z"
     }
   }
 }
