@@ -1,0 +1,22 @@
+{
+  "_comment": "이 파일을 sheets-config.json으로 복사 후 본인 sheet ID로 수정하세요. 또는 GitHub Secret 'SHEETS_CONFIG'에 JSON 문자열로 넣으세요.",
+  "sheetIds": [
+    "1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY",
+    "1TtCbTyZ9XIItZ08APYNuYbxPppZHN3iAJGiWewmcJGw"
+  ],
+  "mappings": {
+    "office_headcount": [
+      { "spreadsheetId": "1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY", "tabName": "★전사인원현황", "headerRow": 0 }
+    ],
+    "recruit_request": [
+      { "spreadsheetId": "1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY", "tabName": "채용요청(정규직)DB", "headerRow": 0 },
+      { "spreadsheetId": "1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY", "tabName": "채용요청(도급직)DB", "headerRow": 0 }
+    ],
+    "incoming": [
+      { "spreadsheetId": "1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY", "tabName": "입사예정(정규직)DB", "headerRow": 0 }
+    ],
+    "field_incoming": [
+      { "spreadsheetId": "1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY", "tabName": "입사예정(도급직)DB", "headerRow": 0 }
+    ]
+  }
+}

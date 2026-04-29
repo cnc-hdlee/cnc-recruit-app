@@ -1,0 +1,68 @@
+name: Snapshot Sync (Sheets → GitHub Pages)
+
+# 5분마다 자동 실행 + 수동 실행 가능
+on:
+  schedule:
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
+
+# 동시에 두 개 안 돌도록
+concurrency:
+  group: snapshot-sync
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install minimal deps
+        run: npm ci --omit=optional --no-audit --no-fund
+
+      - name: Run snapshot sync
+        env:
+          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+          GOOGLE_REFRESH_TOKEN: ${{ secrets.GOOGLE_REFRESH_TOKEN }}
+          SHEETS_CONFIG: ${{ secrets.SHEETS_CONFIG }}
+          EXPORTED_BY: github-actions-cron
+          OUT_PATH: snapshot.json
+        run: node scripts/sync-snapshot.cjs
+
+      - name: Commit snapshot to gh-pages
+        run: |
+          set -e
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git fetch origin gh-pages || true
+          if ! git show-ref --verify --quiet refs/remotes/origin/gh-pages; then
+            echo "[sync] gh-pages 브랜치가 아직 없어요 — Deploy workflow를 먼저 실행해주세요."
+            echo "[sync] (Actions 탭 > Deploy Viewer to GitHub Pages > Run workflow)"
+            exit 0
+          fi
+
+          git worktree add ghp gh-pages
+          cp snapshot.json ghp/snapshot.json
+
+          cd ghp
+          git add snapshot.json
+          if git diff --cached --quiet; then
+            echo "[sync] no changes — sheet not modified"
+          else
+            git commit -m "data: snapshot $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            git push origin gh-pages
+          fi

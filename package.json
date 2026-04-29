@@ -1,0 +1,61 @@
+{
+  "name": "cnc-recruit-app",
+  "version": "2.0.0",
+  "description": "CNC 채용 커맨드센터 — React + Electron",
+  "type": "module",
+  "main": "electron/main.cjs",
+  "scripts": {
+    "dev": "concurrently -k -n VITE,ELECTRON -c blue,green \"npm:dev:vite\" \"npm:dev:electron\"",
+    "dev:vite": "vite",
+    "dev:electron": "wait-on tcp:5173 && cross-env NODE_ENV=development electron .",
+    "build": "vite build && electron-builder --win portable --x64",
+    "build:viewer": "cross-env VITE_VIEWER_MODE=true vite build --outDir dist-viewer --base ./",
+    "preview": "vite preview",
+    "preview:viewer": "vite preview --outDir dist-viewer"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "@vitejs/plugin-react": "^4.3.3",
+    "autoprefixer": "^10.4.20",
+    "concurrently": "^9.0.1",
+    "cross-env": "^7.0.3",
+    "electron": "^33.0.0",
+    "electron-builder": "^25.1.8",
+    "postcss": "^8.4.47",
+    "tailwindcss": "^3.4.14",
+    "typescript": "^5.6.3",
+    "vite": "^5.4.10",
+    "wait-on": "^8.0.1"
+  },
+  "dependencies": {
+    "@slack/web-api": "^7.15.1",
+    "google-auth-library": "^10.6.2",
+    "googleapis": "^171.4.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "build": {
+    "appId": "com.cnccosmetic.recruit",
+    "productName": "CNC Recruit",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "electron/**/*",
+      "icon.png"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "icon.png"
+    }
+  }
+}
