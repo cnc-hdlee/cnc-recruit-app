@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "exportedAt": "2026-04-29T11:17:34.015Z",
+  "exportedAt": "2026-04-29T17:09:16.233Z",
   "exportedBy": "github-actions-cron",
   "appName": "CNC 채용 커맨드센터",
   "sheets": {
@@ -68143,70 +68143,6 @@
   "calendar": {
     "events": [
       {
-        "id": "218b6mh9slob4ps946ta2f01ee",
-        "summary": "볼펜(단색/3색) 샘플 확인 후 기안",
-        "description": "",
-        "location": "",
-        "colorId": "11",
-        "allDay": true,
-        "start": "2026-03-30",
-        "end": "2026-03-31",
-        "timeZone": null,
-        "htmlLink": "https://www.google.com/calendar/event?eid=MjE4YjZtaDlzbG9iNHBzOTQ2dGEyZjAxZWUgaGRsZWVAY25jY29zbWV0aWMuY29t",
-        "attendees": [],
-        "conferenceUrl": null,
-        "status": "confirmed",
-        "updated": "2026-03-25T03:20:25.609Z"
-      },
-      {
-        "id": "35go6n31lg9qqthhrskjlokh68",
-        "summary": "정부 지원사업 최신화",
-        "description": "",
-        "location": "",
-        "colorId": "4",
-        "allDay": true,
-        "start": "2026-03-30",
-        "end": "2026-03-31",
-        "timeZone": null,
-        "htmlLink": "https://www.google.com/calendar/event?eid=MzVnbzZuMzFsZzlxcXRoaHJza2psb2toNjggaGRsZWVAY25jY29zbWV0aWMuY29t",
-        "attendees": [],
-        "conferenceUrl": null,
-        "status": "confirmed",
-        "updated": "2026-03-27T08:46:49.651Z"
-      },
-      {
-        "id": "369t35nmu140gqh3mon569pdj1",
-        "summary": "사내 오피스 당근마켓 기안",
-        "description": "",
-        "location": "",
-        "colorId": "11",
-        "allDay": true,
-        "start": "2026-03-30",
-        "end": "2026-03-31",
-        "timeZone": null,
-        "htmlLink": "https://www.google.com/calendar/event?eid=MzY5dDM1bm11MTQwZ3FoM21vbjU2OXBkajEgaGRsZWVAY25jY29zbWV0aWMuY29t",
-        "attendees": [],
-        "conferenceUrl": null,
-        "status": "confirmed",
-        "updated": "2026-03-25T03:20:42.044Z"
-      },
-      {
-        "id": "701tvsghrgqpg2b08ss4hvcg84",
-        "summary": "씨앤씨 연필 결제",
-        "description": "",
-        "location": "",
-        "colorId": "11",
-        "allDay": true,
-        "start": "2026-03-30",
-        "end": "2026-03-31",
-        "timeZone": null,
-        "htmlLink": "https://www.google.com/calendar/event?eid=NzAxdHZzZ2hyZ3FwZzJiMDhzczRodmNnODQgaGRsZWVAY25jY29zbWV0aWMuY29t",
-        "attendees": [],
-        "conferenceUrl": null,
-        "status": "confirmed",
-        "updated": "2026-04-01T02:53:13.225Z"
-      },
-      {
         "id": "562l9b9nfnkgbsko4f7205j3mq",
         "summary": "주주총회",
         "description": "",
@@ -69873,7 +69809,7 @@
         ],
         "conferenceUrl": "https://meet.google.com/ijo-fctt-gzo",
         "status": "confirmed",
-        "updated": "2026-04-29T07:39:00.386Z"
+        "updated": "2026-04-29T16:20:33.552Z"
       },
       {
         "id": "146d2scv1tv4eqduin887bl0i4",
@@ -69978,7 +69914,7 @@
         ],
         "conferenceUrl": "https://meet.google.com/ncx-yeki-ccu",
         "status": "confirmed",
-        "updated": "2026-04-28T06:29:19.704Z"
+        "updated": "2026-04-29T12:34:59.649Z"
       },
       {
         "id": "00bqh8ng5bkg6nfn0u26532ldk",
@@ -70471,11 +70407,11 @@
         "updated": "2026-04-15T02:32:00.297Z"
       }
     ],
-    "fetchedAt": "2026-04-29T11:17:34.015Z",
+    "fetchedAt": "2026-04-29T17:09:16.233Z",
     "calendarId": "primary",
     "range": {
-      "timeMin": "2026-03-30T11:17:33.686Z",
-      "timeMax": "2026-07-28T11:17:33.686Z"
+      "timeMin": "2026-03-30T17:09:16.014Z",
+      "timeMax": "2026-07-28T17:09:16.014Z"
     }
   }
 }
