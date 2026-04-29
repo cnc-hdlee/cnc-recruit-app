@@ -60,7 +60,8 @@ jobs:
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: pages deploy dist-viewer --project-name=cnc-recruit-viewer --branch=main --commit-dirty=true
+          wranglerVersion: '4.86.0'
+          command: pages deploy dist-viewer --project-name=cnc-recruit-viewer --branch=main --commit-dirty=true --commit-message="auto sync deploy"
 
       - name: Backup snapshot to gh-pages branch
         continue-on-error: true
