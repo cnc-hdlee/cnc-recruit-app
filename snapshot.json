@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "exportedAt": "2026-04-29T08:49:57.679Z",
+  "exportedAt": "2026-04-29T09:11:28.675Z",
   "exportedBy": "github-actions-cron",
   "appName": "CNC 채용 커맨드센터",
   "sheets": {
@@ -69713,6 +69713,22 @@
         "updated": "2026-04-29T08:28:00.934Z"
       },
       {
+        "id": "0g22rc1ab6pabok2t6igpof89p",
+        "summary": "제조1팀 김도현 처우협의 안내",
+        "description": "",
+        "location": "",
+        "colorId": null,
+        "allDay": true,
+        "start": "2026-04-30",
+        "end": "2026-05-01",
+        "timeZone": null,
+        "htmlLink": "https://www.google.com/calendar/event?eid=MGcyMnJjMWFiNnBhYm9rMnQ2aWdwb2Y4OXAgaGRsZWVAY25jY29zbWV0aWMuY29t",
+        "attendees": [],
+        "conferenceUrl": null,
+        "status": "confirmed",
+        "updated": "2026-04-29T09:07:45.109Z"
+      },
+      {
         "id": "0q6sosocvt7i0o2t7s1rbnmq75",
         "summary": "제조2팀 칭량 작업자 확인 (asap",
         "description": "",
@@ -70455,11 +70471,11 @@
         "updated": "2026-04-15T02:32:00.297Z"
       }
     ],
-    "fetchedAt": "2026-04-29T08:49:57.679Z",
+    "fetchedAt": "2026-04-29T09:11:28.675Z",
     "calendarId": "primary",
     "range": {
-      "timeMin": "2026-03-30T08:49:57.404Z",
-      "timeMax": "2026-07-28T08:49:57.404Z"
+      "timeMin": "2026-03-30T09:11:28.327Z",
+      "timeMax": "2026-07-28T09:11:28.327Z"
     }
   }
 }
