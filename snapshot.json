@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "exportedAt": "2026-05-01T11:47:32.690Z",
+  "exportedAt": "2026-05-01T15:34:46.781Z",
   "exportedBy": "github-actions-cron",
   "appName": "CNC 채용 커맨드센터",
   "sheets": {
@@ -74254,102 +74254,6 @@
   "calendar": {
     "events": [
       {
-        "id": "1kpkjcdhlkpm768lq0e69prjjq",
-        "summary": "에스원 넘버링 작업 준비",
-        "description": "",
-        "location": "",
-        "colorId": "4",
-        "allDay": true,
-        "start": "2026-04-01",
-        "end": "2026-04-02",
-        "timeZone": null,
-        "htmlLink": "https://www.google.com/calendar/event?eid=MWtwa2pjZGhsa3BtNzY4bHEwZTY5cHJqanEgaGRsZWVAY25jY29zbWV0aWMuY29t",
-        "attendees": [],
-        "conferenceUrl": null,
-        "status": "confirmed",
-        "updated": "2026-03-26T08:36:09.748Z"
-      },
-      {
-        "id": "2cosgmmoq1hqbi8tq4jg19sp08",
-        "summary": "제품개발본부 사원증 1개 행낭 전달",
-        "description": "",
-        "location": "",
-        "colorId": "11",
-        "allDay": true,
-        "start": "2026-04-01",
-        "end": "2026-04-02",
-        "timeZone": null,
-        "htmlLink": "https://www.google.com/calendar/event?eid=MmNvc2dtbW9xMWhxYmk4dHE0amcxOXNwMDggaGRsZWVAY25jY29zbWV0aWMuY29t",
-        "attendees": [],
-        "conferenceUrl": null,
-        "status": "confirmed",
-        "updated": "2026-04-01T06:12:28.037Z"
-      },
-      {
-        "id": "2gdvphodpaqf2q5i0gm2d35dbe",
-        "summary": "3색 볼펜 출고 예정",
-        "description": "",
-        "location": "",
-        "colorId": "6",
-        "allDay": true,
-        "start": "2026-04-01",
-        "end": "2026-04-02",
-        "timeZone": null,
-        "htmlLink": "https://www.google.com/calendar/event?eid=MmdkdnBob2RwYXFmMnE1aTBnbTJkMzVkYmUgaGRsZWVAY25jY29zbWV0aWMuY29t",
-        "attendees": [],
-        "conferenceUrl": null,
-        "status": "confirmed",
-        "updated": "2026-03-27T08:44:47.453Z"
-      },
-      {
-        "id": "3bqm67dbbboaaoe5skm82j57ig",
-        "summary": "전기차 충전 카드 추가 구매",
-        "description": "",
-        "location": "",
-        "colorId": "11",
-        "allDay": true,
-        "start": "2026-04-01",
-        "end": "2026-04-02",
-        "timeZone": null,
-        "htmlLink": "https://www.google.com/calendar/event?eid=M2JxbTY3ZGJiYm9hYW9lNXNrbTgyajU3aWcgaGRsZWVAY25jY29zbWV0aWMuY29t",
-        "attendees": [],
-        "conferenceUrl": null,
-        "status": "confirmed",
-        "updated": "2026-04-01T06:12:25.030Z"
-      },
-      {
-        "id": "4h6fbe8kbf6sgbp8vktgktf3tr",
-        "summary": "차건아 대표님 법인도장 만들기",
-        "description": "",
-        "location": "",
-        "colorId": "11",
-        "allDay": true,
-        "start": "2026-04-01",
-        "end": "2026-04-02",
-        "timeZone": null,
-        "htmlLink": "https://www.google.com/calendar/event?eid=NGg2ZmJlOGtiZjZzZ2JwOHZrdGdrdGYzdHIgaGRsZWVAY25jY29zbWV0aWMuY29t",
-        "attendees": [],
-        "conferenceUrl": null,
-        "status": "confirmed",
-        "updated": "2026-04-01T06:12:17.734Z"
-      },
-      {
-        "id": "5ffb1e5c9osc3t66r90b0lp5jb",
-        "summary": "퍼시스 전표 처리",
-        "description": "",
-        "location": "",
-        "colorId": "11",
-        "allDay": true,
-        "start": "2026-04-01",
-        "end": "2026-04-02",
-        "timeZone": null,
-        "htmlLink": "https://www.google.com/calendar/event?eid=NWZmYjFlNWM5b3NjM3Q2NnI5MGIwbHA1amIgaGRsZWVAY25jY29zbWV0aWMuY29t",
-        "attendees": [],
-        "conferenceUrl": null,
-        "status": "confirmed",
-        "updated": "2026-04-01T06:27:20.766Z"
-      },
-      {
         "id": "2o7lvv2rqaq76h7l990h6q56vc",
         "summary": "제품개발본부 회식 확인",
         "description": "",
@@ -76427,13 +76331,29 @@
         "conferenceUrl": null,
         "status": "confirmed",
         "updated": "2026-04-23T01:14:11.547Z"
+      },
+      {
+        "id": "6dltt2c1m5kv4nk7qmokb26213",
+        "summary": "씨앤씨 여름 휴가",
+        "description": "",
+        "location": "",
+        "colorId": null,
+        "allDay": true,
+        "start": "2026-07-31",
+        "end": "2026-08-01",
+        "timeZone": null,
+        "htmlLink": "https://www.google.com/calendar/event?eid=NmRsdHQyYzFtNWt2NG5rN3Ftb2tiMjYyMTMgaGRsZWVAY25jY29zbWV0aWMuY29t",
+        "attendees": [],
+        "conferenceUrl": null,
+        "status": "confirmed",
+        "updated": "2026-04-23T01:14:10.710Z"
       }
     ],
-    "fetchedAt": "2026-05-01T11:47:32.690Z",
+    "fetchedAt": "2026-05-01T15:34:46.781Z",
     "calendarId": "primary",
     "range": {
-      "timeMin": "2026-04-01T11:47:32.403Z",
-      "timeMax": "2026-07-30T11:47:32.403Z"
+      "timeMin": "2026-04-01T15:34:46.502Z",
+      "timeMax": "2026-07-30T15:34:46.502Z"
     }
   }
 }
