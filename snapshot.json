@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "exportedAt": "2026-05-02T12:05:12.223Z",
+  "exportedAt": "2026-05-02T15:06:52.354Z",
   "exportedBy": "github-actions-cron",
   "appName": "CNC 채용 커맨드센터",
   "sheets": {
@@ -74254,86 +74254,6 @@
   "calendar": {
     "events": [
       {
-        "id": "2o7lvv2rqaq76h7l990h6q56vc",
-        "summary": "제품개발본부 회식 확인",
-        "description": "",
-        "location": "",
-        "colorId": "11",
-        "allDay": true,
-        "start": "2026-04-02",
-        "end": "2026-04-03",
-        "timeZone": null,
-        "htmlLink": "https://www.google.com/calendar/event?eid=Mm83bHZ2MnJxYXE3Nmg3bDk5MGg2cTU2dmMgaGRsZWVAY25jY29zbWV0aWMuY29t",
-        "attendees": [],
-        "conferenceUrl": null,
-        "status": "confirmed",
-        "updated": "2026-04-03T09:14:56.735Z"
-      },
-      {
-        "id": "5iti4lhvatkcfjv6vplf7cg0bs",
-        "summary": "인사팀 세부 운영 사항 ppt 제작",
-        "description": "",
-        "location": "",
-        "colorId": "11",
-        "allDay": true,
-        "start": "2026-04-02",
-        "end": "2026-04-03",
-        "timeZone": null,
-        "htmlLink": "https://www.google.com/calendar/event?eid=NWl0aTRsaHZhdGtjZmp2NnZwbGY3Y2cwYnMgaGRsZWVAY25jY29zbWV0aWMuY29t",
-        "attendees": [],
-        "conferenceUrl": null,
-        "status": "confirmed",
-        "updated": "2026-04-03T09:14:49.468Z"
-      },
-      {
-        "id": "5jn80g70l48th8qmmocniplk6q",
-        "summary": "전기차 충전 카드 확인 ",
-        "description": "",
-        "location": "",
-        "colorId": "11",
-        "allDay": true,
-        "start": "2026-04-02",
-        "end": "2026-04-03",
-        "timeZone": null,
-        "htmlLink": "https://www.google.com/calendar/event?eid=NWpuODBnNzBsNDh0aDhxbW1vY25pcGxrNnEgaGRsZWVAY25jY29zbWV0aWMuY29t",
-        "attendees": [],
-        "conferenceUrl": null,
-        "status": "confirmed",
-        "updated": "2026-04-03T09:14:47.246Z"
-      },
-      {
-        "id": "64dj1g29o45cn5kn6jafni5gdb",
-        "summary": "Audit 서류 실물 최신화",
-        "description": "",
-        "location": "",
-        "colorId": "11",
-        "allDay": true,
-        "start": "2026-04-02",
-        "end": "2026-04-03",
-        "timeZone": null,
-        "htmlLink": "https://www.google.com/calendar/event?eid=NjRkajFnMjlvNDVjbjVrbjZqYWZuaTVnZGIgaGRsZWVAY25jY29zbWV0aWMuY29t",
-        "attendees": [],
-        "conferenceUrl": null,
-        "status": "confirmed",
-        "updated": "2026-04-03T09:14:54.155Z"
-      },
-      {
-        "id": "656vlfi62e51ib1los0ul64m34",
-        "summary": "에코백 기안",
-        "description": "",
-        "location": "",
-        "colorId": "11",
-        "allDay": true,
-        "start": "2026-04-02",
-        "end": "2026-04-03",
-        "timeZone": null,
-        "htmlLink": "https://www.google.com/calendar/event?eid=NjU2dmxmaTYyZTUxaWIxbG9zMHVsNjRtMzQgaGRsZWVAY25jY29zbWV0aWMuY29t",
-        "attendees": [],
-        "conferenceUrl": null,
-        "status": "confirmed",
-        "updated": "2026-04-03T09:14:52.802Z"
-      },
-      {
         "id": "04rn9716do4ocn7d1es6di7v4j",
         "summary": "씨앤씨 볼펜 불출 일정 및 주문 금지 안내",
         "description": "",
@@ -76331,13 +76251,29 @@
         "conferenceUrl": null,
         "status": "confirmed",
         "updated": "2026-04-23T01:14:10.710Z"
+      },
+      {
+        "id": "13341rp0qr7f75maidqim2ffgu",
+        "summary": "씨앤씨 여름 휴가",
+        "description": "",
+        "location": "",
+        "colorId": null,
+        "allDay": true,
+        "start": "2026-08-01",
+        "end": "2026-08-02",
+        "timeZone": null,
+        "htmlLink": "https://www.google.com/calendar/event?eid=MTMzNDFycDBxcjdmNzVtYWlkcWltMmZmZ3UgaGRsZWVAY25jY29zbWV0aWMuY29t",
+        "attendees": [],
+        "conferenceUrl": null,
+        "status": "confirmed",
+        "updated": "2026-04-23T01:14:14.037Z"
       }
     ],
-    "fetchedAt": "2026-05-02T12:05:12.223Z",
+    "fetchedAt": "2026-05-02T15:06:52.354Z",
     "calendarId": "primary",
     "range": {
-      "timeMin": "2026-04-02T12:05:11.925Z",
-      "timeMax": "2026-07-31T12:05:11.925Z"
+      "timeMin": "2026-04-02T15:06:52.030Z",
+      "timeMax": "2026-07-31T15:06:52.030Z"
     }
   }
 }
