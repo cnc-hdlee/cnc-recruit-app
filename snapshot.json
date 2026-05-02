@@ -1,19 +1,19 @@
 {
   "version": 1,
-  "exportedAt": "2026-05-01T22:36:46.808Z",
+  "exportedAt": "2026-05-02T06:22:22.172Z",
   "exportedBy": "github-actions-cron",
   "appName": "CNC 채용 커맨드센터",
   "sheets": {
     "1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY": {
       "title": "(인사) 인사팀 인원현황 관리(실무)_최종",
-      "modifiedTime": "2026-05-01T04:41:49.368Z",
+      "modifiedTime": "2026-05-02T01:11:56.840Z",
       "tabs": {
         "★전사인원현황": [
           [
             "전사 인원현황"
           ],
           [
-            "2026-05-01 기준 | 본부 > 팀 | 충원필요 vs 채용요청+입사예정"
+            "2026-05-02 기준 | 본부 > 팀 | 충원필요 vs 채용요청+입사예정"
           ],
           [
             "본부",
@@ -1589,7 +1589,7 @@
             "월별 입퇴사 현황"
           ],
           [
-            "2026-05-01 기준 | 2026년 월별 입사/퇴사 집계"
+            "2026-05-02 기준 | 2026년 월별 입사/퇴사 집계"
           ],
           [
             "본부",
@@ -12768,7 +12768,7 @@
             "PO",
             "",
             "필요충원",
-            "2026-05-01 이후 채용예정",
+            "2026-05-02 이후 채용예정",
             "",
             "",
             "비고"
@@ -74334,22 +74334,6 @@
         "updated": "2026-04-03T09:14:52.802Z"
       },
       {
-        "id": "4mubekc8ele5urh4lpd7pjigk0",
-        "summary": "이전 주간업무보고",
-        "description": "",
-        "location": "",
-        "colorId": "11",
-        "allDay": false,
-        "start": "2026-04-02T10:00:00+09:00",
-        "end": "2026-04-02T11:00:00+09:00",
-        "timeZone": "Asia/Seoul",
-        "htmlLink": "https://www.google.com/calendar/event?eid=NG11YmVrYzhlbGU1dXJoNGxwZDdwamlnazAgaGRsZWVAY25jY29zbWV0aWMuY29t",
-        "attendees": [],
-        "conferenceUrl": null,
-        "status": "confirmed",
-        "updated": "2026-04-03T09:14:58.158Z"
-      },
-      {
         "id": "04rn9716do4ocn7d1es6di7v4j",
         "summary": "씨앤씨 볼펜 불출 일정 및 주문 금지 안내",
         "description": "",
@@ -76349,11 +76333,11 @@
         "updated": "2026-04-23T01:14:10.710Z"
       }
     ],
-    "fetchedAt": "2026-05-01T22:36:46.808Z",
+    "fetchedAt": "2026-05-02T06:22:22.172Z",
     "calendarId": "primary",
     "range": {
-      "timeMin": "2026-04-01T22:36:46.595Z",
-      "timeMax": "2026-07-30T22:36:46.595Z"
+      "timeMin": "2026-04-02T06:22:21.918Z",
+      "timeMax": "2026-07-31T06:22:21.918Z"
     }
   }
 }
