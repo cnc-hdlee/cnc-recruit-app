@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "exportedAt": "2026-05-03T19:58:38.470Z",
+  "exportedAt": "2026-05-03T22:07:58.420Z",
   "exportedBy": "github-actions-cron",
   "appName": "CNC 채용 커맨드센터",
   "sheets": {
@@ -78607,11 +78607,11 @@
         "updated": "2026-04-23T01:14:14.037Z"
       }
     ],
-    "fetchedAt": "2026-05-03T19:58:38.470Z",
+    "fetchedAt": "2026-05-03T22:07:58.420Z",
     "calendarId": "primary",
     "range": {
-      "timeMin": "2026-04-03T19:58:38.217Z",
-      "timeMax": "2026-08-01T19:58:38.217Z"
+      "timeMin": "2026-04-03T22:07:58.152Z",
+      "timeMax": "2026-08-01T22:07:58.152Z"
     }
   }
 }
