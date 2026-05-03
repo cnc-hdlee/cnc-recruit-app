@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "exportedAt": "2026-05-03T14:15:51.286Z",
+  "exportedAt": "2026-05-03T17:11:56.312Z",
   "exportedBy": "github-actions-cron",
   "appName": "CNC 채용 커맨드센터",
   "sheets": {
@@ -76672,86 +76672,6 @@
   "calendar": {
     "events": [
       {
-        "id": "04rn9716do4ocn7d1es6di7v4j",
-        "summary": "씨앤씨 볼펜 불출 일정 및 주문 금지 안내",
-        "description": "",
-        "location": "",
-        "colorId": "11",
-        "allDay": true,
-        "start": "2026-04-03",
-        "end": "2026-04-04",
-        "timeZone": null,
-        "htmlLink": "https://www.google.com/calendar/event?eid=MDRybjk3MTZkbzRvY243ZDFlczZkaTd2NGogaGRsZWVAY25jY29zbWV0aWMuY29t",
-        "attendees": [],
-        "conferenceUrl": null,
-        "status": "confirmed",
-        "updated": "2026-04-03T09:14:32.132Z"
-      },
-      {
-        "id": "0qsl3t274mqc9e3fselqqkqecp",
-        "summary": "정수기 관련 수정씨에게 인계",
-        "description": "",
-        "location": "",
-        "colorId": "11",
-        "allDay": true,
-        "start": "2026-04-03",
-        "end": "2026-04-04",
-        "timeZone": null,
-        "htmlLink": "https://www.google.com/calendar/event?eid=MHFzbDN0Mjc0bXFjOWUzZnNlbHFxa3FlY3AgaGRsZWVAY25jY29zbWV0aWMuY29t",
-        "attendees": [],
-        "conferenceUrl": null,
-        "status": "confirmed",
-        "updated": "2026-04-03T09:14:43.762Z"
-      },
-      {
-        "id": "4lhfgiq0ohap0mot1jlmogqftf",
-        "summary": "입사자 사원증 준비",
-        "description": "",
-        "location": "",
-        "colorId": "11",
-        "allDay": true,
-        "start": "2026-04-03",
-        "end": "2026-04-04",
-        "timeZone": null,
-        "htmlLink": "https://www.google.com/calendar/event?eid=NGxoZmdpcTBvaGFwMG1vdDFqbG1vZ3FmdGYgaGRsZWVAY25jY29zbWV0aWMuY29t",
-        "attendees": [],
-        "conferenceUrl": null,
-        "status": "confirmed",
-        "updated": "2026-04-03T09:14:36.832Z"
-      },
-      {
-        "id": "4r1jkuml3adpueeb74th9dslk5",
-        "summary": "은범대리님 인수인계",
-        "description": "1. 제품개발본부 회식 관련 정리\n\n2. 볼펜 & 연필 도착 예정\n\n3. 분기별 동아회원소 견적서 재경팀 전달 → 전반석 팀장 \n\n4. 전기차 충전 카드 3개 도착 예정",
-        "location": "",
-        "colorId": "11",
-        "allDay": true,
-        "start": "2026-04-03",
-        "end": "2026-04-04",
-        "timeZone": null,
-        "htmlLink": "https://www.google.com/calendar/event?eid=NHIxamt1bWwzYWRwdWVlYjc0dGg5ZHNsazUgaGRsZWVAY25jY29zbWV0aWMuY29t",
-        "attendees": [],
-        "conferenceUrl": null,
-        "status": "confirmed",
-        "updated": "2026-04-03T09:14:35.621Z"
-      },
-      {
-        "id": "63bqsgmdkmfc6gnmingipd4gjl",
-        "summary": "화성신문 공고 회신",
-        "description": "031-232-1980",
-        "location": "",
-        "colorId": "11",
-        "allDay": true,
-        "start": "2026-04-03",
-        "end": "2026-04-04",
-        "timeZone": null,
-        "htmlLink": "https://www.google.com/calendar/event?eid=NjNicXNnbWRrbWZjNmdubWluZ2lwZDRnamwgaGRsZWVAY25jY29zbWV0aWMuY29t",
-        "attendees": [],
-        "conferenceUrl": null,
-        "status": "confirmed",
-        "updated": "2026-04-03T09:14:45.591Z"
-      },
-      {
         "id": "3126q4s7lgqrh0og88lrf9ppis",
         "summary": "벼룩시장 채용 공고 게시",
         "description": "",
@@ -78687,11 +78607,11 @@
         "updated": "2026-04-23T01:14:14.037Z"
       }
     ],
-    "fetchedAt": "2026-05-03T14:15:51.286Z",
+    "fetchedAt": "2026-05-03T17:11:56.312Z",
     "calendarId": "primary",
     "range": {
-      "timeMin": "2026-04-03T14:15:50.962Z",
-      "timeMax": "2026-08-01T14:15:50.962Z"
+      "timeMin": "2026-04-03T17:11:56.045Z",
+      "timeMax": "2026-08-01T17:11:56.045Z"
     }
   }
 }
