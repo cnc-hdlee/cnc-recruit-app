@@ -88,7 +88,9 @@ export function Settings() {
     const r = await api.google.startAuth();
     setBusy(false);
     if (!r.ok) return setError(`인증 실패: ${r.error}`);
-    flash('Google 인증 완료');
+    flash('Google 인증 완료 — 시트 동기화 시작');
+    // 로그인 직후 sync 엔진을 깨워 박혀있는 기본 시트들 즉시 가져오기 시작
+    try { await refreshNow(); } catch { /* ignore */ }
     refresh();
   };
   const addSheet = async () => {

@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react';
 import { initLiveSync } from './store/liveData';
 import { initIntegrationsSync } from './store/integrations';
 import { loadOverrides } from './store/columnOverrides';
-import { applyFirstRunDefaultsIfNeeded } from './lib/firstRunDefaults';
+import { applyFirstRunDefaultsIfNeeded, autoTriggerLoginIfNeeded } from './lib/firstRunDefaults';
+import { refreshNow } from './store/liveData';
 import { IS_VIEWER } from './lib/mode';
 import { Sidebar } from './components/Sidebar';
 import { TopBar } from './components/TopBar';
@@ -35,10 +36,23 @@ export default function App() {
   const [page, setPage] = useState<PageId>('dashboard');
 
   useEffect(() => {
-    // 첫 실행: 빌드에 박힌 OAuth + 시트 기본값 자동 적용 (이미 있으면 no-op)
-    applyFirstRunDefaultsIfNeeded()
-      .then(() => initLiveSync())
-      .catch(() => {});
+    // 첫 실행: 빌드에 박힌 OAuth + 시트 기본값 자동 적용 → 로그인 필요하면 자동 OAuth → sync 시작
+    (async () => {
+      try {
+        const { needsLogin } = await applyFirstRunDefaultsIfNeeded();
+        await initLiveSync();
+        if (needsLogin) {
+          // 첫 실행이면 자동으로 OAuth 팝업 (브라우저 열림)
+          const ok = await autoTriggerLoginIfNeeded(true);
+          if (ok) {
+            // 로그인 성공 → 시트 즉시 가져오기
+            await refreshNow();
+          }
+        }
+      } catch {
+        // non-fatal — 사용자가 수동으로 ⚙️ 설정에서 로그인하면 됨
+      }
+    })();
     if (!IS_VIEWER) initIntegrationsSync().catch(() => {});
     loadOverrides().catch(() => {});
   }, []);

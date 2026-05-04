@@ -29,18 +29,25 @@ try {
   // ignore — 잘못된 JSON이면 그냥 무시
 }
 
-export async function applyFirstRunDefaultsIfNeeded(): Promise<void> {
-  if (!api?.google || !api?.cfg) return;
+export async function applyFirstRunDefaultsIfNeeded(): Promise<{ needsLogin: boolean }> {
+  if (!api?.google || !api?.cfg) return { needsLogin: false };
+
+  let needsLogin = false;
 
   // 1) OAuth Client ID/Secret — 비어있을 때만 기본값 박기
   if (DEFAULT_CLIENT_ID && DEFAULT_CLIENT_SECRET) {
     try {
       const status = await api.google.status();
       const alreadyHasCreds = status.ok && status.data?.hasClient;
+      const alreadyAuthed = status.ok && status.data?.authed;
       if (!alreadyHasCreds) {
         await api.google.setCreds({ clientId: DEFAULT_CLIENT_ID, clientSecret: DEFAULT_CLIENT_SECRET });
         // eslint-disable-next-line no-console
         console.info('[first-run] OAuth Client 기본값 적용 완료');
+      }
+      // 로그인이 한 번도 안 된 상태면 자동으로 OAuth 시작 — 팀원이 버튼 찾을 필요 X
+      if (!alreadyAuthed) {
+        needsLogin = true;
       }
     } catch {
       // non-fatal
@@ -73,5 +80,20 @@ export async function applyFirstRunDefaultsIfNeeded(): Promise<void> {
     } catch {
       // non-fatal
     }
+  }
+
+  return { needsLogin };
+}
+
+// 첫 실행 자동 로그인 — 기본값이 박혀있고 인증 안 된 상태면 즉시 OAuth 팝업.
+// 사용자는 [⚙️ 설정] 메뉴 들어갈 필요 없이 첫 화면에서 바로 Google 계정 선택만 하면 끝.
+export async function autoTriggerLoginIfNeeded(needsLogin: boolean): Promise<boolean> {
+  if (!needsLogin) return false;
+  if (!api?.google) return false;
+  try {
+    const r = await api.google.startAuth();
+    return !!r.ok;
+  } catch {
+    return false;
   }
 }
