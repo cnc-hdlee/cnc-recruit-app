@@ -18,10 +18,10 @@ desktop.ini
 .vscode/
 .idea/
 
-# Environment
+# Environment (시크릿 포함 — 절대 커밋 금지)
 .env
-.env.local
-.env.*.local
+.env.*
+!.env.example
 
 # Logs
 *.log
