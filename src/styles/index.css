@@ -2,6 +2,26 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ───────── C&C International brand tokens (cnccosmetic.com) ───────── */
+:root {
+  --cc-black:   #000000;
+  --cc-p1:      #0b001f;
+  --cc-p1_5:    #130f29;
+  --cc-p2:      #2a2640;
+  --cc-p3:      #49445f;
+  --cc-p5:      #827a99;
+  --cc-p6:      #a49dbe;
+  --cc-p7:      #cac3e4;
+  --cc-p8:      #dfd7f9;
+  --cc-p9:      #eee6ff;
+  --cc-p10:     #f8f0ff;
+  --cc-pg1:     #a4a1af;
+  --cc-red:     #f14654;
+  --cc-text-primary:   var(--cc-p1);
+  --cc-text-paragraph: #4d4d59;
+  --cc-divider:        var(--cc-p8);
+}
+
 @layer base {
   html,
   body,
@@ -9,15 +29,17 @@
     height: 100%;
   }
   body {
+    /* C&C 사이트 톤: 깊은 인디고 글로우 + 라벤더-화이트 베이스 */
     background:
-      radial-gradient(900px 500px at 8% -8%, rgba(99,102,241,0.07), transparent 60%),
-      radial-gradient(700px 400px at 96% 108%, rgba(217,119,6,0.05), transparent 60%),
-      #f3f4f6;
-    color: #0f172a;
+      radial-gradient(900px 520px at 8% -8%, rgba(42,38,64,0.10), transparent 62%),
+      radial-gradient(700px 400px at 96% 110%, rgba(202,195,228,0.30), transparent 60%),
+      radial-gradient(600px 300px at 50% 0%, rgba(223,215,249,0.35), transparent 55%),
+      var(--cc-p10);
+    color: var(--cc-text-primary);
     font-feature-settings: 'tnum', 'ss01', 'cv11';
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
-    letter-spacing: -0.005em;
+    letter-spacing: -0.01em;
   }
   ::-webkit-scrollbar {
     width: 10px;
@@ -27,56 +49,107 @@
     background: transparent;
   }
   ::-webkit-scrollbar-thumb {
-    background: #d1d5db;
+    background: var(--cc-p7);
     border-radius: 999px;
     border: 2px solid transparent;
     background-clip: padding-box;
   }
   ::-webkit-scrollbar-thumb:hover {
-    background: #9ca3af;
+    background: var(--cc-p5);
     background-clip: padding-box;
   }
   ::selection {
-    background: rgba(99, 102, 241, 0.25);
-    color: #1e1b4b;
+    background: rgba(42, 38, 64, 0.18);
+    color: var(--cc-p1);
   }
 }
 
 @layer components {
+  /* ───── Card: 라벤더 살짝 묻은 화이트 + 깊은 그림자 ───── */
   .card {
-    @apply bg-white border border-slate-200/80 rounded-2xl shadow-card;
+    @apply bg-white rounded-2xl shadow-card;
+    border: 1px solid var(--cc-p8);
   }
   .card:hover {
-    border-color: rgb(203 213 225);
+    border-color: var(--cc-p7);
   }
+
+  /* ───── Buttons ───── */
   .btn {
-    @apply inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 bg-white text-sm text-slate-700 hover:bg-slate-50 hover:border-slate-300 transition-all;
+    @apply inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white text-sm transition-all;
+    border: 1px solid var(--cc-p8);
+    color: var(--cc-p2);
+  }
+  .btn:hover {
+    background: var(--cc-p10);
+    border-color: var(--cc-p7);
   }
   .btn-primary {
-    @apply text-white border-transparent shadow-glow;
-    background-image: linear-gradient(135deg, #6366f1, #4f46e5);
+    @apply text-white border-transparent shadow-brand;
+    background-image: linear-gradient(135deg, #2a2640 0%, #49445f 60%, #5a5572 100%);
   }
   .btn-primary:hover {
-    background-image: linear-gradient(135deg, #4f46e5, #4338ca);
+    background-image: linear-gradient(135deg, #130f29 0%, #2a2640 60%, #49445f 100%);
   }
+
+  /* ───── Chip / pill ───── */
   .chip {
     @apply inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium;
   }
+
+  /* ───── Stats / labels ───── */
   .stat-num {
-    @apply text-3xl font-bold tracking-tight text-slate-900;
+    @apply text-3xl font-bold tracking-tight;
+    color: var(--cc-p1);
   }
   .stat-lbl {
-    @apply text-[11px] text-slate-500 uppercase tracking-[0.12em];
+    @apply text-[11px] uppercase tracking-[0.16em];
+    color: var(--cc-p5);
   }
+
+  /* ───── Tables ───── */
   .table-cell {
-    @apply px-3 py-2 text-sm border-b border-slate-100;
+    @apply px-3 py-2 text-sm;
+    border-bottom: 1px solid var(--cc-p9);
+    color: var(--cc-p2);
   }
   .table-head {
-    @apply px-3 py-2 text-[11px] font-medium uppercase tracking-[0.1em] text-slate-500 border-b border-slate-200 bg-slate-50;
+    @apply px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.14em];
+    color: var(--cc-p4);
+    background: var(--cc-p10);
+    border-bottom: 1px solid var(--cc-p8);
   }
+
+  /* ───── Inputs ───── */
   .input {
-    @apply px-3 py-2 bg-white border border-slate-200 rounded-xl text-sm text-slate-800 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 placeholder:text-slate-400 transition-colors;
+    @apply px-3 py-2 bg-white rounded-xl text-sm outline-none transition-colors;
+    border: 1px solid var(--cc-p8);
+    color: var(--cc-p1);
   }
+  .input::placeholder {
+    color: var(--cc-p6);
+  }
+  .input:focus {
+    border-color: var(--cc-p3);
+    box-shadow: 0 0 0 3px rgba(42, 38, 64, 0.10);
+  }
+
+  /* ───── Brand surfaces ───── */
+  .surface-deep {
+    background: linear-gradient(180deg, #1e1b4b 0%, #2a2640 50%, #130f29 100%);
+    color: var(--cc-p10);
+  }
+  .surface-glass {
+    background: rgba(248, 240, 255, 0.72);
+    backdrop-filter: saturate(180%) blur(10px);
+    -webkit-backdrop-filter: saturate(180%) blur(10px);
+    border-bottom: 1px solid var(--cc-p8);
+  }
+
+  /* ───── Brand-tinted text helpers ───── */
+  .text-brand     { color: var(--cc-p2); }
+  .text-brand-mid { color: var(--cc-p4); }
+  .text-brand-soft{ color: var(--cc-p6); }
 }
 
 /* ───── Tweaks ───── */

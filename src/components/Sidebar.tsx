@@ -43,7 +43,7 @@ export function Sidebar({ active, onChange }: { active: PageId; onChange: (p: Pa
   const counts = { todayIntv, incoming, alerts };
 
   return (
-    <aside className="w-60 shrink-0 flex flex-col text-slate-100" style={{ background: 'linear-gradient(180deg, #1e1b4b 0%, #312e81 100%)' }}>
+    <aside className="w-60 shrink-0 flex flex-col text-slate-100" style={{ background: 'linear-gradient(180deg, #0b001f 0%, #130f29 50%, #2a2640 100%)' }}>
       <div className="px-5 py-5 border-b border-white/10">
         <div className="flex items-center gap-2.5">
           <div className="w-9 h-9 rounded-lg bg-white/95 grid place-items-center shadow-lg overflow-hidden">
@@ -69,9 +69,10 @@ export function Sidebar({ active, onChange }: { active: PageId; onChange: (p: Pa
               onClick={() => onChange(item.id)}
               className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-all ${
                 isActive
-                  ? 'bg-white/15 text-white border-l-[3px] border-indigo-300 font-semibold'
-                  : 'text-indigo-100/85 hover:bg-white/8 border-l-[3px] border-transparent'
+                  ? 'bg-white/12 text-white border-l-[3px] font-semibold'
+                  : 'text-[#dfd7f9]/85 hover:bg-white/6 border-l-[3px] border-transparent'
               }`}
+              style={isActive ? { borderLeftColor: '#cac3e4' } : undefined}
             >
               <span className="text-base">{item.icon}</span>
               <span className="flex-1 text-left">{item.label}</span>

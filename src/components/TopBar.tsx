@@ -31,18 +31,18 @@ export function TopBar({ title }: { title: string }) {
   const ss = String(now.getSeconds()).padStart(2, '0');
 
   return (
-    <header className="h-14 shrink-0 px-6 flex items-center justify-between border-b border-slate-200 bg-white/80 backdrop-blur">
+    <header className="h-14 shrink-0 px-6 flex items-center justify-between surface-glass">
       <div className="flex items-center gap-4">
-        <h1 className="text-lg font-bold tracking-tight text-slate-800">{title}</h1>
+        <h1 className="text-lg font-semibold tracking-tight text-brand">{title}</h1>
         {(todayCount > 0 || urgent > 0 || live.lastError) && (
           <div className="flex items-center gap-2">
             {todayCount > 0 && (
-              <span className="chip bg-blue-50 text-blue-700 border border-blue-200">
+              <span className="chip bg-cc-p9 text-cc-p2 border border-cc-p7">
                 오늘 {todayCount}건
               </span>
             )}
             {urgent > 0 && (
-              <span className="chip bg-red-100 text-red-700 border border-red-200 font-semibold animate-breathe">
+              <span className="chip bg-rose-50 text-cc-red border border-rose-200 font-semibold animate-breathe">
                 🚨 긴급 {urgent}
               </span>
             )}
@@ -55,16 +55,17 @@ export function TopBar({ title }: { title: string }) {
         )}
       </div>
       <div className="flex items-center gap-4 text-sm">
-        <div className="text-slate-700">
+        <div className="text-brand-mid">
           <span className="font-semibold">
             {y}.{mo}.{dd}
           </span>{' '}
-          <span className="text-slate-500">({DAYS[now.getDay()]})</span>
+          <span className="text-brand-soft">({DAYS[now.getDay()]})</span>
         </div>
-        <div className="font-mono tabular-nums text-indigo-600 font-semibold">
+        <div className="font-mono tabular-nums font-semibold tracking-wider" style={{ color: 'var(--cc-p2)' }}>
           {hh}:{mm}:{ss}
         </div>
-        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-indigo-500 to-violet-500 grid place-items-center text-xs font-bold text-white">
+        <div className="w-8 h-8 rounded-full grid place-items-center text-xs font-bold text-white shadow-brand"
+             style={{ backgroundImage: 'linear-gradient(135deg, #2a2640 0%, #49445f 60%, #827a99 100%)' }}>
           HD
         </div>
       </div>
