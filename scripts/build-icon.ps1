@@ -1,81 +1,51 @@
 Add-Type -AssemblyName System.Drawing
 
-$AppRoot = "C:\Users\user\Desktop\CNC-Recruit-App"
-$IcoOut  = Join-Path $AppRoot "release\.icon-ico\icon.ico"
-$PngOut  = Join-Path $AppRoot "icon.png"
-$PngPub  = Join-Path $AppRoot "public\icon.png"
+# 공식 C&C 로고 (cnccosmetic.com/logo.png — 300x104)에서 좌측 C&C 원만 잘라 정사각 아이콘 생성
+$AppRoot   = "C:\Users\user\Desktop\CNC-Recruit-App"
+$LogoSrc   = Join-Path $AppRoot "cnc-logo-original.png"
+$IcoOut    = Join-Path $AppRoot "release\.icon-ico\icon.ico"
+$PngOut    = Join-Path $AppRoot "icon.png"
+$PngPub    = Join-Path $AppRoot "public\icon.png"
+
+if (-not (Test-Path $LogoSrc)) {
+    Write-Error "원본 로고 없음: $LogoSrc — cnccosmetic.com/logo.png 에서 다운로드 필요"
+    exit 1
+}
+
+# 원본 로드
+$srcBmp = [System.Drawing.Bitmap]::FromFile($LogoSrc)
+$srcW = $srcBmp.Width
+$srcH = $srcBmp.Height
+"원본 크기: ${srcW}x${srcH}"
+
+# C&C 원 부분만 — 좌측에서 높이만큼의 정사각형 (300x104 → 104x104)
+$cropW = $srcH
+$cropH = $srcH
+$cropX = 0
+$cropY = 0
+"크롭: ${cropW}x${cropH} from (${cropX},${cropY})"
 
 function New-CncBitmap {
-    param([int]$Size)
+    param([int]$Size, [System.Drawing.Bitmap]$Source, [int]$CX, [int]$CY, [int]$CW, [int]$CH)
 
     $bmp = New-Object System.Drawing.Bitmap $Size, $Size, ([System.Drawing.Imaging.PixelFormat]::Format32bppArgb)
     $g   = [System.Drawing.Graphics]::FromImage($bmp)
-    $g.SmoothingMode     = [System.Drawing.Drawing2D.SmoothingMode]::AntiAlias
-    $g.TextRenderingHint = [System.Drawing.Text.TextRenderingHint]::AntiAliasGridFit
-    $g.InterpolationMode = [System.Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic
+    $g.SmoothingMode      = [System.Drawing.Drawing2D.SmoothingMode]::AntiAlias
+    $g.InterpolationMode  = [System.Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic
+    $g.PixelOffsetMode    = [System.Drawing.Drawing2D.PixelOffsetMode]::HighQuality
+    $g.CompositingQuality = [System.Drawing.Drawing2D.CompositingQuality]::HighQuality
 
-    $rect = New-Object System.Drawing.Rectangle 0, 0, $Size, $Size
+    # 투명 배경 유지 (PNG 그대로)
+    $g.Clear([System.Drawing.Color]::Transparent)
 
-    $radius = [int]($Size * 0.22)
-    $path = New-Object System.Drawing.Drawing2D.GraphicsPath
-    $path.AddArc($rect.X, $rect.Y, $radius, $radius, 180, 90)
-    $path.AddArc($rect.Right - $radius, $rect.Y, $radius, $radius, 270, 90)
-    $path.AddArc($rect.Right - $radius, $rect.Bottom - $radius, $radius, $radius, 0, 90)
-    $path.AddArc($rect.X, $rect.Bottom - $radius, $radius, $radius, 90, 90)
-    $path.CloseFigure()
+    # 약간 패딩 (5%) — 원이 가장자리에 딱 붙지 않게
+    $pad = [int]($Size * 0.05)
+    $destRect = New-Object System.Drawing.Rectangle $pad, $pad, ($Size - 2 * $pad), ($Size - 2 * $pad)
+    $srcRect  = New-Object System.Drawing.Rectangle $CX, $CY, $CW, $CH
 
-    $brush = New-Object System.Drawing.Drawing2D.LinearGradientBrush(
-        (New-Object System.Drawing.Point 0, 0),
-        (New-Object System.Drawing.Point $Size, $Size),
-        ([System.Drawing.Color]::FromArgb(255, 30, 64, 175)),
-        ([System.Drawing.Color]::FromArgb(255, 88, 28, 135))
-    )
-    $g.FillPath($brush, $path)
-    $brush.Dispose()
-
-    $accentH = [int]($Size * 0.10)
-    $accentY = [int]($Size * 0.78)
-    $accentRect = New-Object System.Drawing.RectangleF 0, $accentY, $Size, $accentH
-    $accentBrush = New-Object System.Drawing.SolidBrush ([System.Drawing.Color]::FromArgb(255, 20, 184, 166))
-    $accentRegion = New-Object System.Drawing.Region $path
-    $g.SetClip($accentRegion, [System.Drawing.Drawing2D.CombineMode]::Replace)
-    $g.FillRectangle($accentBrush, $accentRect)
-    $g.ResetClip()
-    $accentBrush.Dispose()
-
-    $fontSize = [single]($Size * 0.34)
-    $font = $null
-    foreach ($name in @("Segoe UI Black", "Arial Black", "Segoe UI", "Arial")) {
-        try {
-            $candidate = New-Object System.Drawing.Font($name, $fontSize, [System.Drawing.FontStyle]::Bold, [System.Drawing.GraphicsUnit]::Pixel)
-            if ($candidate.Name -eq $name -or $candidate.FontFamily.Name -eq $name) {
-                $font = $candidate; break
-            }
-            $candidate.Dispose()
-        } catch {}
-    }
-    if (-not $font) {
-        $font = New-Object System.Drawing.Font("Arial", $fontSize, [System.Drawing.FontStyle]::Bold, [System.Drawing.GraphicsUnit]::Pixel)
-    }
-
-    $sf = New-Object System.Drawing.StringFormat ([System.Drawing.StringFormatFlags]::NoWrap)
-    $sf.Alignment     = [System.Drawing.StringAlignment]::Center
-    $sf.LineAlignment = [System.Drawing.StringAlignment]::Center
-    $sf.Trimming      = [System.Drawing.StringTrimming]::None
-
-    $tight = [System.Drawing.StringFormat]::GenericTypographic.Clone()
-    $tight.FormatFlags = [System.Drawing.StringFormatFlags]::NoWrap
-    $measured = $g.MeasureString("CNC", $font, [int]::MaxValue, $tight)
-    $tx = [single](($Size - $measured.Width) / 2)
-    $ty = [single](($Size - $measured.Height) / 2 - ($Size * 0.05))
-
-    $textBrush = New-Object System.Drawing.SolidBrush ([System.Drawing.Color]::White)
-    $g.DrawString("CNC", $font, $textBrush, $tx, $ty, $tight)
-    $textBrush.Dispose()
-    $font.Dispose()
+    $g.DrawImage($Source, $destRect, $srcRect, [System.Drawing.GraphicsUnit]::Pixel)
 
     $g.Dispose()
-    $path.Dispose()
     return $bmp
 }
 
@@ -89,17 +59,19 @@ function Save-PngBytes {
 $sizes = @(16, 24, 32, 48, 64, 128, 256)
 $entries = @()
 foreach ($s in $sizes) {
-    $bmp = New-CncBitmap -Size $s
+    $bmp = New-CncBitmap -Size $s -Source $srcBmp -CX $cropX -CY $cropY -CW $cropW -CH $cropH
     $bytes = Save-PngBytes -Bmp $bmp
     $entries += [PSCustomObject]@{ Size = $s; Png = $bytes; Bmp = $bmp }
 }
 
+# icon.png — 256 사이즈 사용
 $big = $entries | Where-Object { $_.Size -eq 256 } | Select-Object -First 1
 [System.IO.File]::WriteAllBytes($PngOut, $big.Png)
 if (Test-Path (Split-Path $PngPub)) {
     [System.IO.File]::WriteAllBytes($PngPub, $big.Png)
 }
 
+# icon.ico — multi-resolution
 $icoDir = Split-Path $IcoOut
 if (-not (Test-Path $icoDir)) { New-Item -ItemType Directory -Path $icoDir -Force | Out-Null }
 
@@ -132,6 +104,7 @@ foreach ($e in $entries) { $header.AddRange([byte[]]$e.Png) }
 [System.IO.File]::WriteAllBytes($IcoOut, $header.ToArray())
 
 foreach ($e in $entries) { $e.Bmp.Dispose() }
+$srcBmp.Dispose()
 
 "icon.png  -> $PngOut"
 "icon.png  -> $PngPub"
