@@ -46,8 +46,8 @@ export function Sidebar({ active, onChange }: { active: PageId; onChange: (p: Pa
     <aside className="w-60 shrink-0 flex flex-col text-slate-100" style={{ background: 'linear-gradient(180deg, #1e1b4b 0%, #312e81 100%)' }}>
       <div className="px-5 py-5 border-b border-white/10">
         <div className="flex items-center gap-2.5">
-          <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-indigo-400 to-violet-500 grid place-items-center font-bold text-white shadow-lg">
-            C
+          <div className="w-9 h-9 rounded-lg bg-white/95 grid place-items-center shadow-lg overflow-hidden">
+            <img src="/icon.png" alt="C&C" className="w-8 h-8 object-contain" />
           </div>
           <div>
             <div className="text-base font-semibold leading-tight bg-gradient-to-r from-indigo-200 to-violet-200 bg-clip-text text-transparent">

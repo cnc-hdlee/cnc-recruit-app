@@ -4,23 +4,35 @@ import { useLiveData, liveCalendarEventsNormalized, refreshCalendarFromGoogle } 
 import { api } from '../lib/api';
 import { SHARED_CAL } from '../lib/sharedCalendars';
 
-const LOCATION_PRESETS = [
-  '퍼플카운티 VIP룸',
-  '퍼플카운티 미팅룸1',
-  '그린카운티 회의실',
-  '위워크 4E 회의실',
-  '수원본사 회의실 A',
-  '온라인 (Google Meet)',
+// 근무지 프리셋 (퍼플/그린/수원/위워크/온라인 등) — 첫 번째 깊이
+const SITE_PRESETS = [
+  '퍼플',
+  '그린',
+  '수원',
+  '위워크',
+  '온라인',
 ];
+
+// 회의실 프리셋 (사이트별 흔한 룸) — 두 번째 깊이
+const ROOM_PRESETS_BY_SITE: Record<string, string[]> = {
+  퍼플: ['VIP룸', '미팅룸 1번', '미팅룸 2번', '미팅룸 3번'],
+  그린: ['회의실 A', '회의실 B', '회의실 C'],
+  수원: ['회의실 A', '회의실 B', '대회의실'],
+  위워크: ['4E 회의실', '5F 회의실'],
+  온라인: ['Google Meet', 'Zoom'],
+};
 
 interface InterviewForm {
   candidate: string;
-  job: string;
+  team: string;        // 팀명 (예: 인사팀)
+  job: string;         // 직무 (옵션, 비어있으면 team만)
+  site: string;        // 근무지 (퍼플/그린/수원/위워크/온라인)
+  customSite: string;
+  room: string;        // 회의실 (미팅룸 1번 등)
+  customRoom: string;
   date: string;
   startTime: string;
   endTime: string;
-  location: string;
-  customLocation: string;
   interviewers: string;
   notes: string;
   addMeet: boolean;
@@ -67,15 +79,33 @@ function diffDays(a: string, b: string): number {
   return Math.round((da - db) / 86400000);
 }
 
-// "면접 - 김철수 (마케터 1차)" → { candidate: '김철수', job: '마케터 1차' }
-// "[1차] 마케터 - 김철수" → { candidate: '김철수', job: '[1차] 마케터' }
-// "김철수 면접" → { candidate: '김철수', job: '면접' }
-// 실패 시 candidate=원래 title, job=''
+// 새 포맷: "이형도 / 퍼플 / 인사팀 / 10:00 / 미팅룸 1번"
+//   parts: [candidate, site, team, time, room]
+// 옛 포맷: "10:00 / 퍼플 / 이형도 / 인사팀"
+//   parts: [time, site, candidate, job]
+// 둘 다 자동 인식.
 function extractCandidate(title: string): { candidate: string; job: string } {
   const t = (title || '').trim();
   if (!t) return { candidate: '', job: '' };
 
-  // "... - {name} ({rest})" or "... - {name}"
+  // 슬래시 구분이면 토큰화 후 패턴 매칭
+  if (t.includes('/')) {
+    const parts = t.split('/').map((p) => p.trim()).filter(Boolean);
+    if (parts.length >= 3) {
+      // 시간 토큰 위치 찾기 (HH:MM)
+      const timeIdx = parts.findIndex((p) => /^\d{1,2}:\d{2}$/.test(p));
+      // 한글 이름 토큰 (2-4자) — 시간이 아닌 것 중 첫 번째
+      const nameIdx = parts.findIndex((p, i) => i !== timeIdx && /^[가-힣]{2,4}$/.test(p));
+      if (nameIdx >= 0) {
+        const candidate = parts[nameIdx];
+        // 나머지 토큰 중 의미있는 것 (사이트/팀/회의실) → job 필드에 합쳐 표시
+        const rest = parts.filter((_, i) => i !== nameIdx && i !== timeIdx);
+        return { candidate, job: rest.join(' / ') };
+      }
+    }
+  }
+
+  // 기존 패턴들 (백업)
   let m = t.match(/^(.+?)\s*-\s*([가-힣]{2,4}|[A-Za-z]+\s?[A-Za-z]+)\s*(?:\((.+)\))?\s*$/);
   if (m) {
     const before = m[1].trim();
@@ -83,13 +113,10 @@ function extractCandidate(title: string): { candidate: string; job: string } {
     const inside = (m[3] || '').trim();
     return { candidate: name, job: inside || before };
   }
-  // "{name}({something}) 면접" — 면접 단어 떼기
   m = t.match(/^([가-힣]{2,4})\s*\((.+?)\)\s*면접/);
   if (m) return { candidate: m[1], job: m[2] };
-  // "{name} 면접 ..."
   m = t.match(/^([가-힣]{2,4})\s+(.*면접.*)$/);
   if (m) return { candidate: m[1], job: m[2].replace(/면접/g, '').trim() };
-  // 마지막 토큰이 한글 2-4자면 후보자 이름이라 가정
   const tokens = t.split(/[\s/·,()\[\]]+/).filter(Boolean);
   for (let i = tokens.length - 1; i >= 0; i--) {
     if (/^[가-힣]{2,4}$/.test(tokens[i])) {
@@ -308,36 +335,57 @@ function InterviewCreateModal({ onClose, onCreated }: { onClose: () => void; onC
   const init = nextHalfHour();
   const [form, setForm] = useState<InterviewForm>({
     candidate: '',
+    team: '',
     job: '',
+    site: SITE_PRESETS[0],
+    customSite: '',
+    room: ROOM_PRESETS_BY_SITE[SITE_PRESETS[0]][0],
+    customRoom: '',
     date: init.date,
     startTime: init.start,
     endTime: init.end,
-    location: LOCATION_PRESETS[0],
-    customLocation: '',
     interviewers: '',
     notes: '',
-    addMeet: true,
+    addMeet: false,
   });
   const [submitting, setSubmitting] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
-  const update = <K extends keyof InterviewForm>(k: K, v: InterviewForm[K]) =>
-    setForm((f) => ({ ...f, [k]: v }));
+  const update = <K extends keyof InterviewForm>(k: K, v: InterviewForm[K]) => {
+    setForm((f) => {
+      const next = { ...f, [k]: v };
+      // 사이트가 바뀌면 회의실 첫 번째로 자동
+      if (k === 'site') {
+        const rooms = ROOM_PRESETS_BY_SITE[v as string] || [];
+        if (rooms.length > 0) next.room = rooms[0];
+        else next.room = '직접 입력';
+      }
+      return next;
+    });
+  };
 
   const handleSubmit = async () => {
     setErr(null);
     if (!form.candidate.trim()) return setErr('후보자명을 입력하세요.');
     if (!form.date) return setErr('일자를 선택하세요.');
     if (!form.startTime || !form.endTime) return setErr('시작/종료 시간을 입력하세요.');
-    const finalLocation = form.location === '직접 입력' ? form.customLocation.trim() : form.location;
-    const isOnline = /온라인|meet/i.test(finalLocation);
-    const locShort = finalLocation
-      .replace(/카운티|회의실|미팅룸|VIP룸|온라인|Google Meet/gi, '')
-      .replace(/\s+/g, '')
-      .slice(0, 6) || finalLocation.slice(0, 6);
-    const summary = `${form.startTime} / ${locShort} / ${form.candidate.trim()}${
-      form.job.trim() ? ` / ${form.job.trim()}` : ''
-    }`;
+
+    const finalSite = form.site === '직접 입력' ? form.customSite.trim() : form.site;
+    const finalRoom = form.room === '직접 입력' ? form.customRoom.trim() : form.room;
+    const isOnline = /온라인|meet|zoom/i.test(finalSite) || /meet|zoom/i.test(finalRoom);
+
+    // 새 포맷: "이형도 / 퍼플 / 인사팀 / 10:00 / 미팅룸 1번"
+    const teamOrJob = form.job.trim() || form.team.trim();
+    const parts = [
+      form.candidate.trim(),
+      finalSite,
+      teamOrJob,
+      form.startTime,
+      finalRoom,
+    ].filter(Boolean);
+    const summary = parts.join(' / ');
+
+    const fullLocation = [finalSite, finalRoom].filter(Boolean).join(' ');
     const startISO = `${form.date}T${form.startTime}:00`;
     const endISO = `${form.date}T${form.endTime}:00`;
     const attendees = form.interviewers
@@ -350,10 +398,11 @@ function InterviewCreateModal({ onClose, onCreated }: { onClose: () => void; onC
       summary,
       description:
         `후보자: ${form.candidate.trim()}` +
+        (form.team ? `\n팀: ${form.team.trim()}` : '') +
         (form.job ? `\n직무: ${form.job.trim()}` : '') +
-        (finalLocation ? `\n장소: ${finalLocation}` : '') +
+        (fullLocation ? `\n장소: ${fullLocation}` : '') +
         (form.notes ? `\n\n${form.notes.trim()}` : ''),
-      location: finalLocation,
+      location: fullLocation,
       start: { dateTime: startISO, timeZone: 'Asia/Seoul' },
       end: { dateTime: endISO, timeZone: 'Asia/Seoul' },
       attendees,
@@ -401,22 +450,58 @@ function InterviewCreateModal({ onClose, onCreated }: { onClose: () => void; onC
           </button>
         </div>
         <div className="p-5 space-y-3">
-          <Field label="후보자명 *">
+          <div className="rounded-lg bg-indigo-50/60 border border-indigo-100 px-3 py-2 text-[11px] text-indigo-800 leading-relaxed">
+            📋 등록 형식: <b>이름 / 근무지 / 팀 / 시간 / 회의실</b><br />
+            예: <span className="font-mono">이형도 / 퍼플 / 인사팀 / 10:00 / 미팅룸 1번</span>
+          </div>
+          <Field label="① 후보자명 *">
             <input
               type="text"
               value={form.candidate}
               onChange={(e) => update('candidate', e.target.value)}
-              placeholder="예: 김철수"
+              placeholder="예: 이형도"
               className="input w-full"
               autoFocus
             />
           </Field>
-          <Field label="직무 / 메모">
+          <div className="grid grid-cols-2 gap-2">
+            <Field label="② 근무지 *">
+              <select
+                value={form.site}
+                onChange={(e) => update('site', e.target.value)}
+                className="input w-full"
+              >
+                {SITE_PRESETS.map((s) => (
+                  <option key={s} value={s}>{s}</option>
+                ))}
+                <option value="직접 입력">직접 입력</option>
+              </select>
+              {form.site === '직접 입력' && (
+                <input
+                  type="text"
+                  value={form.customSite}
+                  onChange={(e) => update('customSite', e.target.value)}
+                  placeholder="근무지 직접 입력"
+                  className="input w-full mt-1.5"
+                />
+              )}
+            </Field>
+            <Field label="③ 팀 / 직무 *">
+              <input
+                type="text"
+                value={form.team}
+                onChange={(e) => update('team', e.target.value)}
+                placeholder="예: 인사팀"
+                className="input w-full"
+              />
+            </Field>
+          </div>
+          <Field label="직무 상세 (옵션 — 비우면 팀명만 표시)">
             <input
               type="text"
               value={form.job}
               onChange={(e) => update('job', e.target.value)}
-              placeholder="예: TA팀, 마케팅 1차"
+              placeholder="예: 채용 매니저 / 1차"
               className="input w-full"
             />
           </Field>
@@ -429,7 +514,7 @@ function InterviewCreateModal({ onClose, onCreated }: { onClose: () => void; onC
                 className="input w-full"
               />
             </Field>
-            <Field label="시작 *">
+            <Field label="④ 시작 *">
               <input
                 type="time"
                 value={form.startTime}
@@ -446,25 +531,23 @@ function InterviewCreateModal({ onClose, onCreated }: { onClose: () => void; onC
               />
             </Field>
           </div>
-          <Field label="장소">
+          <Field label="⑤ 회의실">
             <select
-              value={form.location}
-              onChange={(e) => update('location', e.target.value)}
+              value={form.room}
+              onChange={(e) => update('room', e.target.value)}
               className="input w-full"
             >
-              {LOCATION_PRESETS.map((p) => (
-                <option key={p} value={p}>
-                  {p}
-                </option>
+              {(ROOM_PRESETS_BY_SITE[form.site] || []).map((r) => (
+                <option key={r} value={r}>{r}</option>
               ))}
               <option value="직접 입력">직접 입력</option>
             </select>
-            {form.location === '직접 입력' && (
+            {form.room === '직접 입력' && (
               <input
                 type="text"
-                value={form.customLocation}
-                onChange={(e) => update('customLocation', e.target.value)}
-                placeholder="장소 직접 입력"
+                value={form.customRoom}
+                onChange={(e) => update('customRoom', e.target.value)}
+                placeholder="회의실 직접 입력"
                 className="input w-full mt-1.5"
               />
             )}
