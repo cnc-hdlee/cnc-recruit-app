@@ -1,8 +1,8 @@
-// Auto-linker: cross-references a candidate name across Gmail / Calendar / Slack / Sheets.
+// Auto-linker: cross-references a candidate name across Gmail / Calendar / Sheets.
 // Heuristic name matching — Korean names are 2~4 chars, so we look for whole-word matches with
 // surrounding non-name punctuation/whitespace to avoid false hits inside other words.
 
-import type { GmailMsg, GCalEvent, SlackMessage } from './api';
+import type { GmailMsg, GCalEvent } from './api';
 
 export interface CandidateRecord {
   name: string;
@@ -14,7 +14,7 @@ export interface CandidateRecord {
 }
 
 export interface MentionRef {
-  source: 'gmail' | 'calendar' | 'slack';
+  source: 'gmail' | 'calendar';
   id: string;
   date: string; // ISO or YYYY-MM-DD
   title: string;
@@ -75,35 +75,19 @@ export function calendarMentions(events: GCalEvent[], name: string): MentionRef[
     }));
 }
 
-export function slackMentions(msgs: (SlackMessage & { channelId?: string; userName?: string })[], name: string): MentionRef[] {
-  return msgs
-    .filter((m) => matchesName(m.text || '', name))
-    .map((m) => ({
-      source: 'slack' as const,
-      id: `${m.channel || m.channelId}:${m.ts}`,
-      date: new Date(parseFloat(m.ts) * 1000).toISOString(),
-      title: m.text.length > 80 ? m.text.slice(0, 80) + '...' : m.text,
-      snippet: m.text,
-      link: m.permalink,
-      meta: { user: m.userName || m.user, channel: m.channel || m.channelId || '' },
-    }));
-}
-
 export function buildDossiers(input: {
   candidates: CandidateRecord[];
   gmail: GmailMsg[];
   calendar: GCalEvent[];
-  slack: (SlackMessage & { channelId?: string; userName?: string })[];
   recentDays?: number;
 }): CandidateDossier[] {
-  const { candidates, gmail, calendar, slack, recentDays = 14 } = input;
+  const { candidates, gmail, calendar, recentDays = 14 } = input;
   const cutoff = Date.now() - recentDays * 86400_000;
 
   return candidates.map((c) => {
     const mentions = [
       ...gmailMentions(gmail, c.name),
       ...calendarMentions(calendar, c.name),
-      ...slackMentions(slack, c.name),
     ].sort((a, b) => (b.date || '').localeCompare(a.date || ''));
 
     const lastActivity = mentions.length > 0 ? mentions[0].date : null;

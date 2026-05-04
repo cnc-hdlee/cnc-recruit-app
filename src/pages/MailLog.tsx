@@ -66,7 +66,7 @@ export function MailLog() {
                     style={{ width: `${(count / byFrom[0][1]) * 100}%` }}
                   />
                 </div>
-                <div className="w-8 text-right text-xs font-mono text-slate-300">{count}</div>
+                <div className="w-8 text-right text-xs font-mono text-slate-600">{count}</div>
               </div>
             ))}
           </div>

@@ -6,13 +6,17 @@ const { google } = require('googleapis');
 const { OAuth2Client } = require('google-auth-library');
 const store = require('./store.cjs');
 
-// Sheets/Drive/Gmail are STRICTLY read-only (per user instruction).
-// Calendar is the ONLY service with write access — user wants the app to create/update/delete events
+// Sheets/Drive are STRICTLY read-only (per user instruction).
+// Calendar is the ONLY service with full write access — user wants the app to create/update/delete events
 // to prevent the "Gmail에 일정 있는데 Calendar에 등록 안 한" 누락 케이스.
+// Gmail is read-only EXCEPT for `gmail.send`, which is used solely to deliver
+// anomaly alerts to the user's own inbox (hdlee@cnccosmetic.com → hdlee@cnccosmetic.com).
+// No outbound mail to candidates / external parties.
 const SCOPES = [
   'https://www.googleapis.com/auth/spreadsheets.readonly',
   'https://www.googleapis.com/auth/drive.metadata.readonly',
   'https://www.googleapis.com/auth/gmail.readonly',
+  'https://www.googleapis.com/auth/gmail.send', // self-mail anomaly alerts only
   'https://www.googleapis.com/auth/calendar.events', // read+write events only (not calendar settings/ACL)
   'https://www.googleapis.com/auth/calendar.readonly', // for listing other calendars
   'https://www.googleapis.com/auth/userinfo.email',

@@ -15,11 +15,11 @@ export function Usage() {
         <div className="p-5 space-y-6 text-sm leading-relaxed">
           <Block num="1" title="이 앱이 뭔가요?" tone="purple">
             <p>
-              <b className="text-slate-100">CNC 채용 커맨드센터</b>는 TA팀이 매일 보는{' '}
-              <b className="text-accent-blue">Google Sheets · Gmail · Calendar · Slack</b>을 한 화면에 모아주는
+              <b className="text-slate-800">CNC 채용 커맨드센터</b>는 TA팀이 매일 보는{' '}
+              <b className="text-accent-blue">Google Sheets · Gmail · Calendar</b>를 한 화면에 모아주는
               데스크탑 앱이에요. 시트를 직접 열지 않아도 인원현황·미충원·면접일정·파이프라인을 실시간으로 확인할 수 있어요.
             </p>
-            <ul className="mt-2 space-y-1 text-slate-300 text-[13px]">
+            <ul className="mt-2 space-y-1 text-slate-600 text-[13px]">
               <li>• 시트의 숫자는 <b>1초도 차이 없이</b> 똑같이 표시됩니다 (자동 동기화 ~10초)</li>
               <li>• 데이터는 모두 본인 PC에만 저장돼요 — 외부 서버로 절대 보내지 않습니다</li>
               <li>• 2~3명이 각자 자기 PC에서 따로 설치해서 쓰면 됩니다 (계정만 본인 것으로 로그인)</li>
@@ -52,7 +52,7 @@ export function Usage() {
               앱은 Google Drive API로 시트의 <b>마지막 수정시각(modifiedTime)</b>을 8초마다 한 번씩 체크해요.
               시각이 바뀌었을 때만 시트 본문을 다시 읽어옵니다 (변경 없으면 트래픽 0).
             </p>
-            <ol className="mt-2 space-y-1 list-decimal list-inside text-slate-300 text-[13px]">
+            <ol className="mt-2 space-y-1 list-decimal list-inside text-slate-600 text-[13px]">
               <li>창이 켜진 상태 → 8초 간격</li>
               <li>창이 백그라운드 → 60초 간격 (배터리 절약)</li>
               <li>변경 감지 → 즉시 모든 화면이 자동 갱신 (새로고침 누를 필요 없음)</li>
@@ -61,7 +61,7 @@ export function Usage() {
 
           <Block num="4" title="처음 시작하기 — 4단계만" tone="yellow">
             <Step n={1} title="Google Cloud Console에서 OAuth Client 발급">
-              <span className="text-slate-300">
+              <span className="text-slate-600">
                 <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener noreferrer" className="text-accent-blue hover:underline">console.cloud.google.com/apis/credentials</a>{' '}
                 → <b>+ 사용자 인증 정보 만들기 → OAuth 클라이언트 ID → 데스크톱 앱</b> 선택. Client ID + Client Secret을 [⚙️ 설정 / 연동] 페이지의 [Google 연동] 섹션에 붙여넣기.
               </span>
@@ -81,7 +81,7 @@ export function Usage() {
           </Block>
 
           <Block num="5" title="시트가 망가지진 않나요? — 데이터 안전성" tone="red">
-            <p className="text-slate-300">
+            <p className="text-slate-600">
               <b className="text-accent-green">절대로</b> 앱이 시트의 셀을 수정하지 않습니다. 권한 자체가 <b>읽기 전용</b>이에요.
             </p>
             <table className="w-full mt-2 text-xs">
@@ -96,7 +96,6 @@ export function Usage() {
                 <tr><td className="py-1.5">Gmail</td><td className="text-accent-green">📖 읽기 전용</td></tr>
                 <tr><td className="py-1.5">Google Drive (메타데이터만)</td><td className="text-accent-green">📖 수정시각만 조회</td></tr>
                 <tr><td className="py-1.5">Google Calendar</td><td className="text-accent-yellow">📝 읽기 + 쓰기</td></tr>
-                <tr><td className="py-1.5">Slack</td><td className="text-accent-green">📖 읽기 권장</td></tr>
               </tbody>
             </table>
             <Note tone="purple">
@@ -104,37 +103,19 @@ export function Usage() {
             </Note>
           </Block>
 
-          <Block num="6" title="Slack 연동" tone="pink">
-            <p className="text-slate-300">
-              <b>User Token (xoxp-)</b>이 권장됩니다. Bot Token(xoxb-)은 DM 읽기가 안 되거든요.
-            </p>
-            <ol className="mt-2 space-y-1 list-decimal list-inside text-slate-300 text-[13px]">
-              <li><a href="https://api.slack.com/apps" target="_blank" rel="noopener noreferrer" className="text-accent-blue hover:underline">api.slack.com/apps</a> → Create New App → From scratch</li>
-              <li>OAuth & Permissions → User Token Scopes에 추가:
-                <code className="block mt-1 ml-4 px-2 py-1 bg-bg-deep rounded text-[11px]">
-                  channels:history, groups:history, im:history, mpim:history, channels:read, groups:read, im:read, mpim:read, users:read, search:read
-                </code>
-              </li>
-              <li>Install to Workspace → User OAuth Token (xoxp-…) 복사 → [⚙️ 설정] 페이지의 Slack 입력칸에 붙여넣기</li>
-            </ol>
-            <Note tone="blue">
-              모니터링 채널: <code>Team_People-culture</code>, <code>team_talent-acquisition</code>, 외부 공유 채널, 허필중 CFO·임세현 팀장 DM 등.
-              앱이 자동으로 자주 보는 채널을 우선 노출해요.
-            </Note>
-          </Block>
-
-          <Block num="7" title="페이지별 기능 요약" tone="cyan">
+          <Block num="6" title="페이지별 기능 요약" tone="cyan">
             <div className="grid sm:grid-cols-2 gap-2 text-[13px]">
-              <PageCard icon="🏠" name="대시보드" desc="다가오는 면접 · 최근 메일 · 긴급 알림" />
+              <PageCard icon="🏠" name="대시보드" desc="다가오는 면접 · 최근 메일 · 알림" />
               <PageCard icon="👥" name="인원현황" desc="★전사인원현황 시트 그대로 + 본부 필터 + 미충원만 토글" />
-              <PageCard icon="🎯" name="채용 파이프라인" desc="사무직 신입/경력/임원 + 현장직 칸반보드" />
-              <PageCard icon="📅" name="면접 캘린더" desc="중복 제거된 일정 리스트 + 면접/입사/퇴사 필터" />
+              <PageCard icon="🎉" name="입사예정자" desc="결재 완료된 입사예정만 노란색 카드로 자동 정렬" />
+              <PageCard icon="📅" name="면접 캘린더" desc="TA팀 공유 면접 캘린더 — 팀원 모두 동일하게 봄" />
+              <PageCard icon="🏢" name="일자리센터" desc="수원/안성/오산/화성/용인/박람회 일정 자동 분류" />
+              <PageCard icon="🔍" name="후보자 검색" desc="시트·캘린더·Gmail 통합 검색" />
               <PageCard icon="✉️" name="메일" desc="TA팀 메일 로그, 클릭 시 Gmail에서 검색해서 열기" />
-              <PageCard icon="💬" name="Slack 피드" desc="채널·DM 통합 피드, 20초마다 자동 새로고침" />
             </div>
           </Block>
 
-          <Block num="8" title="팀 배포 — 24/7 자동 동기화 (GitHub Pages + Actions)" tone="green">
+          <Block num="7" title="팀 배포 — 24/7 자동 동기화 (GitHub Pages + Actions)" tone="green">
             <p>
               본인 PC를 끄고도 팀원들이 항상 최신 데이터를 볼 수 있게 하려면 GitHub의 무료 서비스를 활용합니다.
               GitHub Actions가 5분마다 본인 OAuth로 Google Sheets를 읽어 정적 사이트(GitHub Pages)에 자동 배포해요.
@@ -166,7 +147,7 @@ export function Usage() {
             </Note>
           </Block>
 
-          <Block num="9" title="자주 묻는 질문 / 문제 해결" tone="orange">
+          <Block num="8" title="자주 묻는 질문 / 문제 해결" tone="orange">
             <Faq q="시트 숫자가 화면에 안 보여요 / 1385=1385 같은 이상한 값이 나와요">
               ⚙️ 설정에서 시트 추가 후 [매핑 저장]을 눌렀는지 확인하세요.
               그래도 이상하면 <b>본부/팀/구분</b> 같은 컬럼이 시트의 <u>3행 이상</u>에 있어도 자동 감지됩니다 — 그래도 안 되면 시트 URL을 다시 추가해보세요.
@@ -175,15 +156,12 @@ export function Usage() {
               좌측 사이드바 하단의 시트 상태와 [⚙️ 설정 → 즉시 새로고침] 한 번 눌러주세요.
               여전히 막히면 Google 로그아웃 → 로그인 재시도.
             </Faq>
-            <Faq q="DM이 안 보여요 / 채널이 일부만 보여요">
-              Slack 토큰이 <code>xoxb-</code>(Bot)이라면 <code>xoxp-</code>(User)로 재발급하세요. Bot은 DM 권한 자체가 없어요.
-            </Faq>
             <Faq q="다른 팀원도 같이 쓰려면?">
               각자 본인 PC에 앱을 설치하고 본인 Google 계정으로 로그인하면 됩니다.
               시트 권한이 있는 사람이면 동일하게 보입니다. 데이터는 PC 간 동기화되지 않아요.
             </Faq>
             <Faq q="앱 데이터/토큰을 초기화하고 싶어요">
-              Google 로그아웃 → Client 재설정, Slack 로그아웃, 시트 모두 삭제. 또는 OS의 사용자 디렉토리에서{' '}
+              Google 로그아웃 → Client 재설정, 시트 모두 삭제. 또는 OS의 사용자 디렉토리에서{' '}
               <code>cnc-recruit-config.json</code>을 삭제하세요.
             </Faq>
           </Block>
@@ -214,20 +192,20 @@ function Block({ num, title, tone, children }: { num: string; title: string; ton
         <span className={`w-7 h-7 rounded-lg grid place-items-center text-xs font-bold border ${toneMap[tone] || toneMap.purple}`}>
           {num}
         </span>
-        <h3 className="font-semibold text-slate-100">{title}</h3>
+        <h3 className="font-semibold text-slate-800">{title}</h3>
       </div>
-      <div className="pl-9 text-slate-300 space-y-2">{children}</div>
+      <div className="pl-9 text-slate-600 space-y-2">{children}</div>
     </div>
   );
 }
 
 function Note({ tone, children }: { tone: 'green' | 'yellow' | 'red' | 'blue' | 'purple'; children: React.ReactNode }) {
   const map = {
-    green: 'border-accent-green/30 bg-accent-green/5 text-slate-300',
-    yellow: 'border-accent-yellow/30 bg-accent-yellow/5 text-slate-300',
-    red: 'border-accent-red/30 bg-accent-red/5 text-slate-300',
-    blue: 'border-accent-blue/30 bg-accent-blue/5 text-slate-300',
-    purple: 'border-accent-purple/30 bg-accent-purple/5 text-slate-300',
+    green: 'border-accent-green/30 bg-accent-green/5 text-slate-600',
+    yellow: 'border-accent-yellow/30 bg-accent-yellow/5 text-slate-600',
+    red: 'border-accent-red/30 bg-accent-red/5 text-slate-600',
+    blue: 'border-accent-blue/30 bg-accent-blue/5 text-slate-600',
+    purple: 'border-accent-purple/30 bg-accent-purple/5 text-slate-600',
   } as const;
   const ico = tone === 'red' ? '⚠' : tone === 'yellow' ? '💡' : tone === 'green' ? '✓' : 'ℹ';
   return (
@@ -245,7 +223,7 @@ function Step({ n, title, children }: { n: number; title: string; children: Reac
         {n}
       </span>
       <div className="flex-1 text-[13px]">
-        <div className="font-medium text-slate-100">{title}</div>
+        <div className="font-medium text-slate-800">{title}</div>
         <div className="text-slate-400 mt-0.5">{children}</div>
       </div>
     </div>
@@ -256,7 +234,7 @@ function KindCard({ label, kind, hint }: { label: string; kind: string; hint: st
   return (
     <div className="rounded-lg border border-bg-line bg-bg-deep/40 px-3 py-2">
       <div className="flex items-center gap-2">
-        <span className="text-sm font-medium text-slate-100">{label}</span>
+        <span className="text-sm font-medium text-slate-800">{label}</span>
       </div>
       <div className="text-[11px] text-slate-500 mt-0.5">키: <code>{kind}</code></div>
       <div className="text-[11px] text-slate-400 mt-0.5">{hint}</div>
@@ -269,7 +247,7 @@ function PageCard({ icon, name, desc }: { icon: string; name: string; desc: stri
     <div className="rounded-lg border border-bg-line bg-bg-deep/40 px-3 py-2 flex items-center gap-3">
       <span className="text-xl">{icon}</span>
       <div className="min-w-0">
-        <div className="font-medium text-slate-100">{name}</div>
+        <div className="font-medium text-slate-800">{name}</div>
         <div className="text-[11px] text-slate-400 truncate">{desc}</div>
       </div>
     </div>
@@ -279,7 +257,7 @@ function PageCard({ icon, name, desc }: { icon: string; name: string; desc: stri
 function Faq({ q, children }: { q: string; children: React.ReactNode }) {
   return (
     <details className="mt-2 group">
-      <summary className="cursor-pointer list-none flex items-start gap-2 text-slate-100 hover:text-accent-purple transition-colors">
+      <summary className="cursor-pointer list-none flex items-start gap-2 text-slate-800 hover:text-accent-purple transition-colors">
         <span className="mt-0.5 text-xs text-accent-yellow group-open:rotate-90 transition-transform">▶</span>
         <span className="font-medium text-[13px]">{q}</span>
       </summary>

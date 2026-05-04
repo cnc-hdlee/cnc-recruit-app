@@ -29,7 +29,7 @@ export function moveScreening(task: ScreeningTask, toStage: string) {
 }
 
 export function getTodayStr(): string {
-  const today = new Date('2026-04-29');
+  const today = new Date();
   const y = today.getFullYear();
   const m = String(today.getMonth() + 1).padStart(2, '0');
   const d = String(today.getDate()).padStart(2, '0');

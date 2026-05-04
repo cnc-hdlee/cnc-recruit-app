@@ -37,15 +37,46 @@ jobs:
       - name: Install deps
         run: npm ci --no-audit --no-fund
 
-      - name: Fetch snapshot from Sheets
+      - name: Fetch snapshot from Sheets + Calendar + Gmail + Slack
         env:
           GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
           GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
           GOOGLE_REFRESH_TOKEN: ${{ secrets.GOOGLE_REFRESH_TOKEN }}
           SHEETS_CONFIG: ${{ secrets.SHEETS_CONFIG }}
+          SLACK_TOKEN: ${{ secrets.SLACK_TOKEN }}
           EXPORTED_BY: github-actions-cron
           OUT_PATH: snapshot.json
         run: node scripts/sync-snapshot.cjs
+
+      # Restore previous alert state from gh-pages so we don't re-notify the same anomaly every 5 min
+      - name: Restore alert-state.json from gh-pages
+        continue-on-error: true
+        run: |
+          set -e
+          git fetch origin gh-pages || true
+          if git show-ref --verify --quiet refs/remotes/origin/gh-pages; then
+            git show origin/gh-pages:alert-state.json > alert-state.json 2>/dev/null || echo '{"sentKeys":{},"lastRunAt":null}' > alert-state.json
+          else
+            echo '{"sentKeys":{},"lastRunAt":null}' > alert-state.json
+          fi
+
+      - name: Detect anomalies (cross-monitor sheets/calendar/gmail/slack)
+        env:
+          IN_PATH: snapshot.json
+          STATE_PATH: alert-state.json
+          OUT_PATH: alerts.json
+        run: node scripts/detect-anomalies.cjs
+
+      - name: Send alert (Gmail self-mail + optional Slack DM)
+        env:
+          IN_PATH: alerts.json
+          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+          GOOGLE_REFRESH_TOKEN: ${{ secrets.GOOGLE_REFRESH_TOKEN }}
+          SLACK_TOKEN: ${{ secrets.SLACK_TOKEN }}
+          SLACK_DM_USER_ID: ${{ secrets.SLACK_DM_USER_ID }}
+          ALERT_RECIPIENT: ${{ secrets.ALERT_RECIPIENT }}
+        run: node scripts/send-alert.cjs
 
       - name: Build viewer (PWA)
         env:
@@ -87,8 +118,9 @@ jobs:
 
           git worktree add ghp gh-pages
           cp snapshot.json ghp/snapshot.json
+          cp alert-state.json ghp/alert-state.json 2>/dev/null || true
           cd ghp
-          git add snapshot.json
+          git add snapshot.json alert-state.json
           if git diff --cached --quiet; then
             echo "[backup] no changes"
           else

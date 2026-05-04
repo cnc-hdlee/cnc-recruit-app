@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
-import { api, type GoogleStatus, type SlackStatus } from '../lib/api';
+import { api, type GoogleStatus } from '../lib/api';
 import {
   TAB_KIND_LABELS,
   type TabKind,
@@ -32,14 +32,12 @@ const KIND_OPTIONS: TabKind[] = [
 export function Settings() {
   const live = useLiveData();
   const [gStatus, setGStatus] = useState<GoogleStatus | null>(null);
-  const [sStatus, setSStatus] = useState<SlackStatus | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
 
   const [gClientId, setGClientId] = useState('');
   const [gClientSecret, setGClientSecret] = useState('');
-  const [slackToken, setSlackToken] = useState('');
 
   const [sheets, setSheets] = useState<SheetEntry[]>([]);
   const [newSheetUrl, setNewSheetUrl] = useState('');
@@ -50,8 +48,6 @@ export function Settings() {
     setError(null);
     const g = await api.google.status();
     if (g.ok) setGStatus(g.data!);
-    const s = await api.slack.status();
-    if (s.ok) setSStatus(s.data!);
 
     const ids = await api.cfg.get<{ list?: SheetEntry[]; recruit?: string; headcount?: string; mail?: string }>('sheetIds');
     if (ids.ok && ids.data) {
@@ -96,16 +92,6 @@ export function Settings() {
     flash('Google 인증 완료');
     refresh();
   };
-  const handleSlackSave = async () => {
-    setBusy(true);
-    const r = await api.slack.saveToken(slackToken.trim());
-    setBusy(false);
-    if (!r.ok) return setError(`Slack 인증 실패: ${r.error}`);
-    flash(`Slack 연결: ${r.data!.team}`);
-    setSlackToken('');
-    refresh();
-  };
-
   const addSheet = async () => {
     const id = extractSheetId(newSheetUrl);
     if (!id) return setError('올바른 시트 URL이 아닙니다');
@@ -223,7 +209,7 @@ export function Settings() {
         {gStatus?.authed && (
           <div className="flex items-center gap-3 text-sm">
             <div className="flex-1">
-              <div className="text-slate-200">{gStatus.profile?.email}</div>
+              <div className="text-slate-700">{gStatus.profile?.email}</div>
               <div className="text-xs text-slate-500">읽기 전용 — Sheets · Drive(메타) · Gmail · Calendar</div>
             </div>
             <button className="btn" onClick={async () => { await api.google.signOut(); refresh(); }}>로그아웃</button>
@@ -337,35 +323,6 @@ export function Settings() {
         />
       )}
 
-      <section className="card p-5">
-        <div className="flex items-center justify-between mb-3">
-          <div>
-            <h2 className="text-lg font-semibold flex items-center gap-2">
-              <span className="text-2xl">💬</span> Slack 연동 (읽기 전용 권장)
-            </h2>
-            <p className="text-xs text-slate-400 mt-1">
-              모니터링 대상: <code>#Team_People-culture</code>, <code>#team_talent-acquisition</code>, 외부 공유 채널, 허필중 CFO·임세현 팀장 DM
-            </p>
-          </div>
-          <StatusPill ok={sStatus?.hasToken} label={sStatus?.hasToken ? sStatus.team?.team || '연결됨' : '연결 안 됨'} />
-        </div>
-
-        {!sStatus?.hasToken && (
-          <div className="space-y-2">
-            <input value={slackToken} onChange={(e) => setSlackToken(e.target.value)} placeholder="xoxb-... 또는 xoxp-..." type="password" className="input w-full" />
-            <button className="btn btn-primary" disabled={busy || !slackToken} onClick={handleSlackSave}>{busy ? '확인 중...' : 'Slack 토큰 저장 + 검증'}</button>
-          </div>
-        )}
-        {sStatus?.hasToken && (
-          <div className="flex items-center gap-3 text-sm">
-            <div className="flex-1">
-              <div className="text-slate-200">Workspace: <span className="font-medium">{sStatus.team?.team}</span></div>
-              <div className="text-xs text-slate-500">User: {sStatus.team?.user}</div>
-            </div>
-            <button className="btn" onClick={async () => { await api.slack.signOut(); refresh(); }}>로그아웃</button>
-          </div>
-        )}
-      </section>
     </div>
   );
 }
@@ -479,16 +436,16 @@ function GithubDeploySection({
         <summary className="cursor-pointer text-xs text-accent-blue hover:underline font-medium">
           📘 풀 셋업 가이드 (5분, 펼쳐 보기)
         </summary>
-        <div className="mt-3 ml-2 space-y-3 text-[12.5px] text-slate-300 leading-relaxed">
+        <div className="mt-3 ml-2 space-y-3 text-[12.5px] text-slate-600 leading-relaxed">
           <div>
-            <div className="font-medium text-slate-100 mb-1">1) GitHub repo 만들기</div>
+            <div className="font-medium text-slate-800 mb-1">1) GitHub repo 만들기</div>
             <ol className="ml-4 space-y-0.5 list-decimal text-slate-400">
               <li><a href="https://github.com/new" target="_blank" rel="noopener noreferrer" className="text-accent-blue hover:underline">github.com/new</a> → repo 이름 자유롭게 (예: <code>cnc-recruit</code>) → Private 권장 → Create</li>
               <li>이 프로젝트 폴더에서 <code>git init && git remote add origin [repo-url]</code> 후 <code>git push -u origin main</code></li>
             </ol>
           </div>
           <div>
-            <div className="font-medium text-slate-100 mb-1">2) Secrets 4개 등록</div>
+            <div className="font-medium text-slate-800 mb-1">2) Secrets 4개 등록</div>
             <ol className="ml-4 space-y-0.5 list-decimal text-slate-400">
               <li>위 [🔑 한 번에 추출] 클릭 → 각각의 [복사] 버튼으로 복사</li>
               <li>repo → Settings → Secrets and variables → Actions → New repository secret</li>
@@ -496,7 +453,7 @@ function GithubDeploySection({
             </ol>
           </div>
           <div>
-            <div className="font-medium text-slate-100 mb-1">3) Workflows 자동 실행</div>
+            <div className="font-medium text-slate-800 mb-1">3) Workflows 자동 실행</div>
             <ol className="ml-4 space-y-0.5 list-decimal text-slate-400">
               <li>Push만 해도 <code>.github/workflows/deploy.yml</code>이 실행됨 → viewer 빌드 + gh-pages 배포</li>
               <li><code>sync.yml</code>은 5분마다 자동 실행 → snapshot.json 갱신</li>
@@ -504,7 +461,7 @@ function GithubDeploySection({
             </ol>
           </div>
           <div>
-            <div className="font-medium text-slate-100 mb-1">4) GitHub Pages 활성화</div>
+            <div className="font-medium text-slate-800 mb-1">4) GitHub Pages 활성화</div>
             <ol className="ml-4 space-y-0.5 list-decimal text-slate-400">
               <li>repo → Settings → Pages → Source: <b>Deploy from a branch</b></li>
               <li>Branch: <code>gh-pages</code> · Folder: <code>/ (root)</code> → Save</li>
@@ -527,7 +484,7 @@ function Step({ n, label, desc }: { n: number; label: string; desc: string }) {
         {n}
       </span>
       <div className="min-w-0">
-        <div className="text-[12.5px] font-medium text-slate-100">{label}</div>
+        <div className="text-[12.5px] font-medium text-slate-800">{label}</div>
         <div className="text-[11px] text-slate-400 leading-snug mt-0.5">{desc}</div>
       </div>
     </div>
@@ -572,7 +529,7 @@ function SecretRow({
         </div>
       </div>
       <div
-        className={`font-mono text-[11px] text-slate-300 break-all ${
+        className={`font-mono text-[11px] text-slate-600 break-all ${
           multiline ? 'whitespace-pre-wrap max-h-24 overflow-y-auto' : 'truncate'
         }`}
       >

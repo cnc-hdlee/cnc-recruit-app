@@ -4,9 +4,10 @@
 import { useSyncExternalStore } from 'react';
 import { D as staticD } from '../data/initialData';
 import { api } from '../lib/api';
-import { rowsToObjects, type SheetMappings, type TabKind, type TabMappingEntry } from '../lib/sheetMapping';
+import { rowsToObjects, suggestKind, type SheetMappings, type TabKind, type TabMappingEntry } from '../lib/sheetMapping';
 import { IS_VIEWER, SNAPSHOT_URL } from '../lib/mode';
 import { isSnapshot, type Snapshot, type SnapshotCalendarEvent } from '../lib/snapshot';
+import { READ_CALENDAR_IDS } from '../lib/sharedCalendars';
 
 interface SheetSnapshot {
   title: string;
@@ -66,9 +67,45 @@ function setState(patch: Partial<LiveState>) {
 }
 
 let initialized = false;
+let calendarPollHandle: ReturnType<typeof setInterval> | null = null;
+let calendarFocusHandlersAttached = false;
+const CALENDAR_POLL_MS = 60_000;
+
+function setupCalendarAutoSync() {
+  if (IS_VIEWER) return;
+  if (typeof window === 'undefined') return;
+  // 항상 재설정 — HMR 후에도 살아나게
+  if (calendarPollHandle) clearInterval(calendarPollHandle);
+  calendarPollHandle = setInterval(() => {
+    void refreshCalendarFromGoogle().then(() => {
+      // eslint-disable-next-line no-console
+      console.debug('[calendar-poll] refreshed at', new Date().toLocaleTimeString());
+    });
+  }, CALENDAR_POLL_MS);
+  // eslint-disable-next-line no-console
+  console.info('[calendar-poll] interval armed (60s)');
+
+  if (!calendarFocusHandlersAttached) {
+    window.addEventListener('focus', () => {
+      void refreshCalendarFromGoogle();
+    });
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') {
+        void refreshCalendarFromGoogle();
+      }
+    });
+    calendarFocusHandlersAttached = true;
+  }
+}
 
 export async function initLiveSync() {
-  if (initialized) return;
+  // Always (re-)setup calendar auto-sync, even on HMR repeat-calls
+  setupCalendarAutoSync();
+  if (initialized) {
+    // 재진입(HMR) 시 즉시 한 번 더 fetch — 사용자가 새 이벤트 추가했을 가능성
+    void refreshCalendarFromGoogle();
+    return;
+  }
   initialized = true;
 
   // Viewer mode: load snapshot.json from same-origin (or VITE_SNAPSHOT_URL).
@@ -110,6 +147,8 @@ export async function initLiveSync() {
   api.sync.onUpdate((payload: { spreadsheetId: string; title: string; modifiedTime: string; tabs: Record<string, string[][]> }) => {
     const snapshots = { ...state.snapshots, [payload.spreadsheetId]: { title: payload.title, modifiedTime: payload.modifiedTime, tabs: payload.tabs } };
     setState({ snapshots, lastTickAt: Date.now(), hasLive: true, lastError: null });
+    // Auto-map any unmapped tabs (non-destructive: only fills in absent kinds)
+    void autoFillMappings(payload.spreadsheetId, Object.keys(payload.tabs));
   });
 
   api.sync.onTick(() => setState({ lastTickAt: Date.now() }));
@@ -122,8 +161,33 @@ export async function initLiveSync() {
   await api.sync.startAll();
   await refreshPollStatus();
 
-  // ★ 캘린더 직접 fetch (maintainer mode) — 5분 cron 안 기다리고 즉시 최신 일정 표시
+  // ★ 캘린더 직접 fetch — 즉시 최신 일정 표시 (이후는 setupCalendarAutoSync가 60초마다)
   await refreshCalendarFromGoogle();
+}
+
+// 시트의 새 탭이 들어오면 매핑이 비어있는 kind에 한해 자동 추천을 적용한다.
+// - 이미 사용자가 매핑한 탭은 건드리지 않음
+// - 사용자가 의도적으로 "사용 안 함"으로 둔 탭도 건드리지 않음 (그 kind에 다른 탭이 매핑돼 있으면 skip)
+async function autoFillMappings(spreadsheetId: string, tabNames: string[]) {
+  if (IS_VIEWER || !api?.cfg) return;
+  let nextMap: SheetMappings | null = null;
+  for (const tabName of tabNames) {
+    const kind = suggestKind(tabName);
+    if (!kind) continue;
+    const cur = (nextMap || state.mappings)[kind] || [];
+    // 같은 (sheet,tab) 이미 매핑됐으면 skip
+    if (cur.some((e) => e.spreadsheetId === spreadsheetId && e.tabName === tabName)) continue;
+    // 동일 kind에 다른 sheet/tab이 이미 사용자 매핑돼 있으면 skip (겹치는 자동 매핑 방지)
+    if (cur.length > 0) continue;
+    nextMap = { ...(nextMap || state.mappings), [kind]: [...cur, { spreadsheetId, tabName, headerRow: 0 }] };
+  }
+  if (!nextMap) return;
+  setState({ mappings: nextMap });
+  try {
+    await api.cfg.set('sheetMappings', nextMap);
+  } catch {
+    // non-fatal
+  }
 }
 
 const CONFIDENTIAL_PATTERNS_CLIENT = [
@@ -147,10 +211,30 @@ export async function refreshCalendarFromGoogle() {
     const now = Date.now();
     const timeMin = new Date(now - 30 * 86400e3).toISOString();
     const timeMax = new Date(now + 90 * 86400e3).toISOString();
-    const r = await api.google.listCalendar(timeMin, timeMax);
-    if (!r.ok || !r.data) return;
+    // primary + 팀 공유 캘린더(면접/입사×2/퇴사) 병렬 fetch
+    const results = await Promise.all(
+      READ_CALENDAR_IDS.map(async (calId) => {
+        try {
+          const r = await api.google.listCalendar(timeMin, timeMax, calId);
+          if (!r.ok || !r.data) return [];
+          return r.data;
+        } catch {
+          return [];
+        }
+      })
+    );
+    // ID 기준 dedup — 같은 이벤트가 두 캘린더에 동시에 잡힐 일은 거의 없지만 안전망
+    const seen = new Set<string>();
+    const merged: typeof results[number] = [];
+    for (const list of results) {
+      for (const e of list) {
+        if (!e.id || seen.has(e.id)) continue;
+        seen.add(e.id);
+        merged.push(e);
+      }
+    }
     // 비공개 채용은 클라이언트 단에서도 한 번 더 필터 (이중 안전망)
-    const filtered = r.data.filter(
+    const filtered = merged.filter(
       (e) => !isConfidentialClient(e.summary || '', e.description || '', e.location || '')
     );
     const events: SnapshotCalendarEvent[] = filtered.map((e) => ({
@@ -293,6 +377,21 @@ export function liveByKind(kind: TabKind): Record<string, string>[] {
   return merged;
 }
 
+// 매핑이 없거나 비어있을 때 모든 스냅샷에서 suggestKind 패턴으로 탭을 찾아 데이터 반환.
+// 사용자가 "입사예정자 시트 추가했는데 안 보임" 같은 상황을 자가 치유.
+export function liveByKindOrScan(kind: TabKind): Record<string, string>[] {
+  const mapped = liveByKind(kind);
+  if (mapped.length > 0) return mapped;
+  const merged: Record<string, string>[] = [];
+  for (const snap of Object.values(state.snapshots)) {
+    for (const [tabName, rows] of Object.entries(snap.tabs)) {
+      if (suggestKind(tabName) !== kind) continue;
+      merged.push(...rowsToObjects(rows, 0));
+    }
+  }
+  return merged;
+}
+
 // Returns the live snapshot or null if not yet loaded.
 export function liveSnapshotFor(spreadsheetId: string) {
   return state.snapshots[spreadsheetId] || null;
@@ -370,4 +469,13 @@ export function liveCalendarEventsNormalized(): NormalizedCalEvent[] {
 
 export function liveCalendarRaw(): SnapshotCalendarEvent[] {
   return state.calendarEvents;
+}
+
+// 모듈 로드 시점에 무조건 polling 자동 시작 — HMR이 initLiveSync를 다시 안 부르더라도 작동
+if (typeof window !== 'undefined' && !IS_VIEWER) {
+  // Electron preload가 window.electronAPI 주입할 시간을 잠깐 주고 시작
+  setTimeout(() => {
+    setupCalendarAutoSync();
+    void refreshCalendarFromGoogle();
+  }, 500);
 }
