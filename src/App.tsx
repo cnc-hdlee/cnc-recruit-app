@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { initLiveSync } from './store/liveData';
 import { initIntegrationsSync } from './store/integrations';
 import { loadOverrides } from './store/columnOverrides';
+import { applyFirstRunDefaultsIfNeeded } from './lib/firstRunDefaults';
 import { IS_VIEWER } from './lib/mode';
 import { Sidebar } from './components/Sidebar';
 import { TopBar } from './components/TopBar';
@@ -34,7 +35,10 @@ export default function App() {
   const [page, setPage] = useState<PageId>('dashboard');
 
   useEffect(() => {
-    initLiveSync().catch(() => {});
+    // 첫 실행: 빌드에 박힌 OAuth + 시트 기본값 자동 적용 (이미 있으면 no-op)
+    applyFirstRunDefaultsIfNeeded()
+      .then(() => initLiveSync())
+      .catch(() => {});
     if (!IS_VIEWER) initIntegrationsSync().catch(() => {});
     loadOverrides().catch(() => {});
   }, []);

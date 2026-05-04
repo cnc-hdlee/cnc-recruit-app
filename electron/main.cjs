@@ -1,10 +1,53 @@
-const { app, BrowserWindow, Menu, shell } = require('electron');
+const { app, BrowserWindow, Menu, shell, dialog } = require('electron');
 const path = require('node:path');
 const ipc = require('./ipc-handlers.cjs');
 const sync = require('./integrations/sync.cjs');
+const { autoUpdater } = require('electron-updater');
 
 const isDev = process.env.NODE_ENV === 'development';
 const VITE_DEV_URL = 'http://localhost:5173';
+
+// ----- 자동 업데이트 -----
+// 프로덕션 빌드에서만 동작. GitHub Releases (cnc-hdlee/cnc-recruit-app)에서 새 버전 체크 → 백그라운드 다운로드 → 안내 후 재시작.
+function setupAutoUpdater() {
+  if (isDev) return; // 개발 중엔 동작 안 함
+  autoUpdater.autoDownload = true;
+  autoUpdater.autoInstallOnAppQuit = true;
+
+  autoUpdater.on('update-available', (info) => {
+    // eslint-disable-next-line no-console
+    console.info('[updater] 새 버전 발견:', info.version);
+  });
+
+  autoUpdater.on('update-downloaded', async (info) => {
+    // eslint-disable-next-line no-console
+    console.info('[updater] 다운로드 완료:', info.version);
+    const r = await dialog.showMessageBox(mainWindow, {
+      type: 'info',
+      buttons: ['지금 재시작', '나중에 (다음 종료 시 자동)'],
+      defaultId: 0,
+      cancelId: 1,
+      title: '🎉 새 버전 준비 완료',
+      message: `CNC 채용 커맨드센터 ${info.version} 으로 업데이트할 수 있어요.`,
+      detail: '재시작하면 5초 안에 새 버전으로 갱신됩니다.',
+    });
+    if (r.response === 0) {
+      autoUpdater.quitAndInstall();
+    }
+  });
+
+  autoUpdater.on('error', (err) => {
+    // 업데이트 서버 접근 실패 등은 조용히 무시 (오프라인일 수 있음)
+    // eslint-disable-next-line no-console
+    console.warn('[updater] 오류:', err?.message || err);
+  });
+
+  // 시작 시 + 4시간마다 한 번씩 체크
+  autoUpdater.checkForUpdates().catch(() => {});
+  setInterval(() => {
+    autoUpdater.checkForUpdates().catch(() => {});
+  }, 4 * 60 * 60 * 1000);
+}
 
 ipc.register();
 
@@ -45,6 +88,8 @@ function createWindow() {
     mainWindow.focus();
     sync.setWindow(mainWindow.webContents);
     sync.startFromConfig().catch(() => {});
+    // 창 뜨고 5초 뒤에 업데이트 체크 (앱 초기화에 영향 X)
+    setTimeout(setupAutoUpdater, 5000);
   });
 
   mainWindow.on('focus', () => sync.setForeground(true));

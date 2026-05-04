@@ -8,9 +8,12 @@
     "dev": "concurrently -k -n VITE,ELECTRON -c blue,green \"npm:dev:vite\" \"npm:dev:electron\"",
     "dev:vite": "vite",
     "dev:electron": "wait-on tcp:5173 && cross-env NODE_ENV=development electron .",
-    "build": "vite build && electron-builder --dir --x64",
+    "build": "vite build",
     "build:portable": "vite build && electron-builder --win portable --x64",
-    "preview": "vite preview"
+    "build:installer": "vite build && electron-builder --win nsis --x64",
+    "release": "npm version patch --no-git-tag-version && vite build && electron-builder --win nsis --x64 --publish always",
+    "preview": "vite preview",
+    "extract-config": "electron scripts/dump-config.cjs"
   },
   "devDependencies": {
     "@types/react": "^18.3.12",
@@ -30,6 +33,7 @@
   },
   "dependencies": {
     "@slack/web-api": "^7.15.1",
+    "electron-updater": "^6.8.3",
     "google-auth-library": "^10.6.2",
     "googleapis": "^171.4.0",
     "react": "^18.3.1",
@@ -50,13 +54,31 @@
     "win": {
       "target": [
         {
-          "target": "portable",
+          "target": "nsis",
           "arch": [
             "x64"
           ]
         }
       ],
       "icon": "release/.icon-ico/icon.ico"
-    }
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": false,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "CNC 채용 커맨드센터",
+      "deleteAppDataOnUninstall": false,
+      "artifactName": "CNC-Recruit-Setup-${version}.${ext}"
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "cnc-hdlee",
+        "repo": "cnc-recruit-app",
+        "releaseType": "release"
+      }
+    ]
   }
 }
