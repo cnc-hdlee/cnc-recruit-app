@@ -115,39 +115,7 @@ export function Usage() {
             </div>
           </Block>
 
-          <Block num="7" title="팀 배포 — 24/7 자동 동기화 (GitHub Pages + Actions)" tone="green">
-            <p>
-              본인 PC를 끄고도 팀원들이 항상 최신 데이터를 볼 수 있게 하려면 GitHub의 무료 서비스를 활용합니다.
-              GitHub Actions가 5분마다 본인 OAuth로 Google Sheets를 읽어 정적 사이트(GitHub Pages)에 자동 배포해요.
-            </p>
-            <Step n={1} title="GitHub 계정 + Repo 1개">
-              <a href="https://github.com/new" target="_blank" rel="noopener noreferrer" className="text-accent-blue hover:underline">github.com/new</a>{' '}
-              → 비공개 repo 생성. 이 프로젝트 코드를 push.
-            </Step>
-            <Step n={2} title="이 앱 [⚙️ 설정 / 연동]에서 [🔑 GitHub Secrets 4개 한 번에 추출]">
-              <span>4개 값(<code>GOOGLE_CLIENT_ID</code>, <code>GOOGLE_CLIENT_SECRET</code>, <code>GOOGLE_REFRESH_TOKEN</code>, <code>SHEETS_CONFIG</code>)을 각각 복사.</span>
-            </Step>
-            <Step n={3} title="GitHub repo → Settings → Secrets and variables → Actions">
-              위 4개 이름 그대로 [New repository secret]에 추가.
-            </Step>
-            <Step n={4} title="첫 push가 자동으로 deploy 트리거">
-              Actions 탭에서 <code>Deploy Viewer</code> 워크플로우 진행 확인. 5분 뒤 <code>Snapshot Sync</code>가 자동 실행되어 첫 데이터 적재.
-            </Step>
-            <Step n={5} title="GitHub Pages 활성화">
-              repo → Settings → Pages → Source: <b>Deploy from a branch</b> · Branch: <code>gh-pages</code> / <code>(root)</code> → Save. 1-2분 후 URL 표시됨.
-            </Step>
-            <Step n={6} title="팀원에게 URL 공유">
-              <code>https://[github-id].github.io/[repo]/</code> — 끝. 팀원은 설치/로그인 없이 그냥 북마크만.
-            </Step>
-            <Note tone="green">
-              <b>이후 운영</b>: 본인은 본 Electron 앱을 평소대로 쓰면 됩니다. 시트 매핑이 바뀌면 [🔑 한 번에 추출]로 새 <code>SHEETS_CONFIG</code> 값을 다시 GitHub에 등록만 해주세요. 그 외엔 자동으로 24/7 갱신.
-            </Note>
-            <Note tone="yellow">
-              <b>비용/한도</b>: GitHub Free 계정 기준 <code>private repo Actions = 월 2,000분</code> 무료. 5분마다 1분씩 돌면 월 ~8,640분 — public repo로 만들면 무제한 무료. 시트에 민감정보 없으면 public 권장.
-            </Note>
-          </Block>
-
-          <Block num="8" title="자주 묻는 질문 / 문제 해결" tone="orange">
+          <Block num="7" title="자주 묻는 질문 / 문제 해결" tone="orange">
             <Faq q="시트 숫자가 화면에 안 보여요 / 1385=1385 같은 이상한 값이 나와요">
               ⚙️ 설정에서 시트 추가 후 [매핑 저장]을 눌렀는지 확인하세요.
               그래도 이상하면 <b>본부/팀/구분</b> 같은 컬럼이 시트의 <u>3행 이상</u>에 있어도 자동 감지됩니다 — 그래도 안 되면 시트 URL을 다시 추가해보세요.

@@ -9,9 +9,7 @@
     "dev:vite": "vite",
     "dev:electron": "wait-on tcp:5173 && cross-env NODE_ENV=development electron .",
     "build": "vite build && electron-builder --win portable --x64",
-    "build:viewer": "cross-env VITE_VIEWER_MODE=true vite build --outDir dist-viewer --base ./",
-    "preview": "vite preview",
-    "preview:viewer": "vite preview --outDir dist-viewer"
+    "preview": "vite preview"
   },
   "devDependencies": {
     "@types/react": "^18.3.12",
