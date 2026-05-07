@@ -1428,7 +1428,9 @@ function InterviewEditModal({
     startTime: startTm,
     endTime: endTm,
     interviewers: event.attendees.join(', '),
-    notes: event.description || '',
+    // notes는 사용자가 추가로 적는 메모만 받음.
+    // event.description 전체를 prefill 하면 표준 prefix(📍 장소·후보자·팀)가 두 번 적히는 중복 버그.
+    notes: '',
     addMeet: false,
   });
   const [submitting, setSubmitting] = useState(false);
