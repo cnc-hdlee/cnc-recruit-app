@@ -1,8 +1,12 @@
-const { app, BrowserWindow, Menu, shell, dialog } = require('electron');
+const { app, BrowserWindow, Menu, shell, dialog, ipcMain } = require('electron');
 const path = require('node:path');
 const ipc = require('./ipc-handlers.cjs');
 const sync = require('./integrations/sync.cjs');
 const { autoUpdater } = require('electron-updater');
+
+// dev/prod 모두 같은 userData 폴더(cnc-recruit-app) 사용 — OAuth/매핑/시트 캐시 공유
+app.setName('cnc-recruit-app');
+app.setPath('userData', path.join(app.getPath('appData'), 'cnc-recruit-app'));
 
 const isDev = process.env.NODE_ENV === 'development';
 const VITE_DEV_URL = 'http://localhost:5173';
@@ -17,11 +21,28 @@ function setupAutoUpdater() {
   autoUpdater.on('update-available', (info) => {
     // eslint-disable-next-line no-console
     console.info('[updater] 새 버전 발견:', info.version);
+    if (mainWindow) mainWindow.webContents.send('app:update-available', { version: info.version });
+  });
+
+  autoUpdater.on('update-not-available', (info) => {
+    if (mainWindow) mainWindow.webContents.send('app:update-not-available', { version: info?.version });
+  });
+
+  autoUpdater.on('download-progress', (p) => {
+    if (mainWindow) {
+      mainWindow.webContents.send('app:update-progress', {
+        percent: p.percent,
+        bytesPerSecond: p.bytesPerSecond,
+        transferred: p.transferred,
+        total: p.total,
+      });
+    }
   });
 
   autoUpdater.on('update-downloaded', async (info) => {
     // eslint-disable-next-line no-console
     console.info('[updater] 다운로드 완료:', info.version);
+    if (mainWindow) mainWindow.webContents.send('app:update-downloaded', { version: info.version });
     const r = await dialog.showMessageBox(mainWindow, {
       type: 'info',
       buttons: ['지금 재시작', '나중에 (다음 종료 시 자동)'],
@@ -40,6 +61,9 @@ function setupAutoUpdater() {
     // 업데이트 서버 접근 실패 등은 조용히 무시 (오프라인일 수 있음)
     // eslint-disable-next-line no-console
     console.warn('[updater] 오류:', err?.message || err);
+    if (mainWindow) {
+      mainWindow.webContents.send('app:update-error', { message: err?.message || String(err) });
+    }
   });
 
   // 시작 시 + 4시간마다 한 번씩 체크
@@ -48,6 +72,42 @@ function setupAutoUpdater() {
     autoUpdater.checkForUpdates().catch(() => {});
   }, 4 * 60 * 60 * 1000);
 }
+
+// IPC: 앱 버전 + 수동 업데이트 체크 (TopBar 메뉴에서 호출)
+ipcMain.handle('app:getVersion', () => ({ ok: true, data: app.getVersion() }));
+ipcMain.handle('app:checkForUpdates', async () => {
+  const currentVersion = app.getVersion();
+  if (isDev) {
+    return {
+      ok: true,
+      data: { dev: true, currentVersion, latestVersion: currentVersion, updateAvailable: false },
+    };
+  }
+  try {
+    const result = await autoUpdater.checkForUpdates();
+    const latestVersion = result?.updateInfo?.version || currentVersion;
+    return {
+      ok: true,
+      data: {
+        dev: false,
+        currentVersion,
+        latestVersion,
+        updateAvailable: latestVersion !== currentVersion,
+      },
+    };
+  } catch (e) {
+    return { ok: false, error: e?.message || String(e) };
+  }
+});
+ipcMain.handle('app:quitAndInstall', () => {
+  if (isDev) return { ok: false, error: 'dev 모드에서는 동작 안 함' };
+  try {
+    autoUpdater.quitAndInstall();
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e?.message || String(e) };
+  }
+});
 
 ipc.register();
 

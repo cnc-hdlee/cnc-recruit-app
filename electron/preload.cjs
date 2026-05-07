@@ -12,6 +12,17 @@ contextBridge.exposeInMainWorld('electronAPI', {
   platform: process.platform,
   version: process.versions.electron,
 
+  app: {
+    getVersion: () => invoke('app:getVersion'),
+    checkForUpdates: () => invoke('app:checkForUpdates'),
+    quitAndInstall: () => invoke('app:quitAndInstall'),
+    onUpdateAvailable: (cb) => subscribe('app:update-available', cb),
+    onUpdateNotAvailable: (cb) => subscribe('app:update-not-available', cb),
+    onUpdateProgress: (cb) => subscribe('app:update-progress', cb),
+    onUpdateDownloaded: (cb) => subscribe('app:update-downloaded', cb),
+    onUpdateError: (cb) => subscribe('app:update-error', cb),
+  },
+
   google: {
     setCreds: (c) => invoke('g:setCreds', c),
     clearCreds: () => invoke('g:clearCreds'),
@@ -25,6 +36,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     listGmail: (q, max) => invoke('g:listGmail', q, max),
     listCalendar: (min, max, id) => invoke('g:listCalendar', min, max, id),
     listCalendars: () => invoke('g:listCalendars'),
+    listCalendarsFull: () => invoke('g:listCalendarsFull'),
+    patchCalendarListEntry: (calendarId, body) => invoke('g:patchCalendarListEntry', calendarId, body),
     // Calendar WRITE (user authorized)
     insertCalEvent: (calendarId, body) => invoke('g:insertCalEvent', calendarId, body),
     updateCalEvent: (calendarId, eventId, body, sendUpdates) => invoke('g:updateCalEvent', calendarId, eventId, body, sendUpdates),

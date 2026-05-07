@@ -62,6 +62,22 @@ export interface GCalListItem {
   primary: boolean;
 }
 
+// calendarList 항목의 전체 메타 — 사이드바 표시 여부(selected/hidden), 권한, 색깔 등
+export interface GCalListEntry {
+  id: string;
+  summary: string;
+  summaryOverride: string | null;
+  primary: boolean;
+  selected: boolean;
+  hidden: boolean;
+  accessRole: 'owner' | 'writer' | 'reader' | 'freeBusyReader' | null;
+  backgroundColor: string | null;
+  foregroundColor: string | null;
+  colorId: string | null;
+  timeZone: string | null;
+  deleted: boolean;
+}
+
 export interface SlackTeam {
   team: string;
   teamId: string;
@@ -113,9 +129,26 @@ export interface SyncError {
   error: string;
 }
 
+export interface UpdateCheckResult {
+  dev: boolean;
+  currentVersion: string;
+  latestVersion: string;
+  updateAvailable: boolean;
+}
+
 interface ElectronAPI {
   platform: string;
   version: string;
+  app: {
+    getVersion(): Promise<Result<string>>;
+    checkForUpdates(): Promise<Result<UpdateCheckResult>>;
+    quitAndInstall(): Promise<Result<void>>;
+    onUpdateAvailable(cb: (p: { version: string }) => void): () => void;
+    onUpdateNotAvailable(cb: (p: { version?: string }) => void): () => void;
+    onUpdateProgress(cb: (p: { percent: number; bytesPerSecond: number; transferred: number; total: number }) => void): () => void;
+    onUpdateDownloaded(cb: (p: { version: string }) => void): () => void;
+    onUpdateError(cb: (p: { message: string }) => void): () => void;
+  };
   google: {
     setCreds(c: { clientId: string; clientSecret: string }): Promise<Result<void>>;
     clearCreds(): Promise<Result<void>>;
@@ -134,6 +167,11 @@ interface ElectronAPI {
     listGmail(q: string, max: number): Promise<Result<GmailMsg[]>>;
     listCalendar(min: string, max: string, id?: string): Promise<Result<GCalEvent[]>>;
     listCalendars(): Promise<Result<GCalListItem[]>>;
+    listCalendarsFull(): Promise<Result<GCalListEntry[]>>;
+    patchCalendarListEntry(
+      calendarId: string,
+      body: { selected?: boolean; hidden?: boolean; colorId?: string }
+    ): Promise<Result<{ id: string }>>;
     // Calendar WRITE
     insertCalEvent(
       calendarId: string,

@@ -20,6 +20,7 @@ export interface SnapshotCalendarAttendee {
 
 export interface SnapshotCalendarEvent {
   id: string;
+  calendarId?: string; // 어느 캘린더에서 fetch 됐는지 — 삭제/업데이트 시 필요
   summary: string;
   description: string;
   location: string;

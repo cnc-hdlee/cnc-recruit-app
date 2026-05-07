@@ -10,6 +10,14 @@ release/
 __debug_lastFetch.json
 snapshot.json
 scripts/sheets-config.json
+scripts/.*
+scripts/decrypt-token.ps1
+*.tmp-tokens*
+
+# Local PC-only launchers (do NOT distribute)
+LAUNCH.bat
+LAUNCH.ps1
+LAUNCH.vbs
 
 # Editor / OS
 .DS_Store

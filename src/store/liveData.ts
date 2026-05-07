@@ -86,12 +86,19 @@ function setupCalendarAutoSync() {
   console.info('[calendar-poll] interval armed (60s)');
 
   if (!calendarFocusHandlersAttached) {
-    window.addEventListener('focus', () => {
+    // 앱 활성화 시 캘린더 + 모든 시트 동시 refresh — polling 60초 기다리지 않음
+    const refreshAll = () => {
       void refreshCalendarFromGoogle();
-    });
+      void refreshNow();
+      // foreground polling 간격(8초)로 전환
+      try { void api?.sync?.foreground(true); } catch { /* ignore */ }
+    };
+    window.addEventListener('focus', refreshAll);
     document.addEventListener('visibilitychange', () => {
       if (document.visibilityState === 'visible') {
-        void refreshCalendarFromGoogle();
+        refreshAll();
+      } else {
+        try { void api?.sync?.foreground(false); } catch { /* ignore */ }
       }
     });
     calendarFocusHandlersAttached = true;
@@ -216,29 +223,30 @@ export async function refreshCalendarFromGoogle() {
       READ_CALENDAR_IDS.map(async (calId) => {
         try {
           const r = await api.google.listCalendar(timeMin, timeMax, calId);
-          if (!r.ok || !r.data) return [];
-          return r.data;
+          if (!r.ok || !r.data) return { calId, items: [] };
+          return { calId, items: r.data };
         } catch {
-          return [];
+          return { calId, items: [] };
         }
       })
     );
-    // ID 기준 dedup — 같은 이벤트가 두 캘린더에 동시에 잡힐 일은 거의 없지만 안전망
+    // ID 기준 dedup — 첫 캘린더 우선
     const seen = new Set<string>();
-    const merged: typeof results[number] = [];
-    for (const list of results) {
-      for (const e of list) {
+    const merged: { calId: string; e: typeof results[number]['items'][number] }[] = [];
+    for (const { calId, items } of results) {
+      for (const e of items) {
         if (!e.id || seen.has(e.id)) continue;
         seen.add(e.id);
-        merged.push(e);
+        merged.push({ calId, e });
       }
     }
     // 비공개 채용은 클라이언트 단에서도 한 번 더 필터 (이중 안전망)
     const filtered = merged.filter(
-      (e) => !isConfidentialClient(e.summary || '', e.description || '', e.location || '')
+      ({ e }) => !isConfidentialClient(e.summary || '', e.description || '', e.location || '')
     );
-    const events: SnapshotCalendarEvent[] = filtered.map((e) => ({
+    const events: SnapshotCalendarEvent[] = filtered.map(({ calId, e }) => ({
       id: e.id,
+      calendarId: calId,
       summary: e.summary || '',
       description: e.description || '',
       location: e.location || '',

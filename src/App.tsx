@@ -10,11 +10,11 @@ import { TopBar } from './components/TopBar';
 import { Dashboard } from './pages/Dashboard';
 import { Headcount } from './pages/Headcount';
 import { IncomingHires } from './pages/IncomingHires';
-import { RecruitAlerts } from './pages/RecruitAlerts';
 import { CalendarPage } from './pages/CalendarPage';
 import { JobCenters } from './pages/JobCenters';
 import { CandidateLookup } from './pages/CandidateLookup';
 import { MailLog } from './pages/MailLog';
+import { EducationPage } from './pages/EducationPage';
 import { Settings } from './pages/Settings';
 import { Usage } from './pages/Usage';
 import type { PageId } from './types';
@@ -23,11 +23,11 @@ const PAGE_TITLES: Record<PageId, string> = {
   dashboard: '대시보드',
   headcount: '인원현황',
   incoming: '입사예정자',
-  alerts: '채용 알림',
   calendar: '면접 캘린더',
   jobcenters: '일자리센터',
   lookup: '후보자 검색',
   mail: '메일 / 커뮤니케이션',
+  education: '채용 교육 / 세미나',
   settings: '설정 / 연동',
   usage: '사용법 (필독)',
 };
@@ -66,11 +66,11 @@ export default function App() {
           {page === 'dashboard' && <Dashboard onNavigate={setPage} />}
           {page === 'headcount' && <Headcount />}
           {page === 'incoming' && <IncomingHires />}
-          {page === 'alerts' && <RecruitAlerts />}
           {page === 'calendar' && <CalendarPage />}
           {page === 'jobcenters' && <JobCenters />}
           {page === 'lookup' && <CandidateLookup />}
           {page === 'mail' && <MailLog />}
+          {page === 'education' && <EducationPage />}
           {page === 'settings' && <Settings />}
           {page === 'usage' && <Usage />}
         </main>

@@ -1,14 +1,13 @@
 import type { PageId } from '../types';
 import { useData, getTodayStr } from '../store';
 import { useLiveData, liveByKindOrScan } from '../store/liveData';
-import { recruitAlertsBadgeCount } from '../pages/RecruitAlerts';
 import { IS_VIEWER } from '../lib/mode';
 
 interface NavItem {
   id: PageId;
   icon: string;
   label: string;
-  badgeKey?: 'todayIntv' | 'incoming' | 'alerts';
+  badgeKey?: 'todayIntv' | 'incoming';
   maintainerOnly?: boolean;
 }
 
@@ -16,11 +15,11 @@ const NAV: NavItem[] = [
   { id: 'dashboard', icon: '🏠', label: '대시보드' },
   { id: 'headcount', icon: '👥', label: '인원현황' },
   { id: 'incoming', icon: '🎉', label: '입사예정자', badgeKey: 'incoming' },
-  { id: 'alerts', icon: '🚨', label: '채용 알림', badgeKey: 'alerts' },
   { id: 'calendar', icon: '📅', label: '면접 캘린더', badgeKey: 'todayIntv' },
   { id: 'jobcenters', icon: '🏢', label: '일자리센터' },
   { id: 'lookup', icon: '🔍', label: '후보자 검색' },
   { id: 'mail', icon: '✉️', label: '메일 / 커뮤니케이션' },
+  { id: 'education', icon: '📚', label: '채용 교육 / 세미나' },
   { id: 'settings', icon: '⚙️', label: '설정 / 연동' },
   { id: 'usage', icon: '📖', label: '사용법 (필독)' },
 ];
@@ -39,8 +38,7 @@ export function Sidebar({ active, onChange }: { active: PageId; onChange: (p: Pa
         return hasDate;
       }).length
     : 0;
-  const alerts = live.hasLive ? recruitAlertsBadgeCount() : 0;
-  const counts = { todayIntv, incoming, alerts };
+  const counts = { todayIntv, incoming };
 
   return (
     <aside className="w-60 shrink-0 flex flex-col text-slate-100" style={{ background: 'linear-gradient(180deg, #0b001f 0%, #130f29 50%, #2a2640 100%)' }}>
@@ -81,8 +79,6 @@ export function Sidebar({ active, onChange }: { active: PageId; onChange: (p: Pa
                   className={`chip ${
                     item.badgeKey === 'todayIntv'
                       ? 'bg-blue-400/90 text-white'
-                      : item.badgeKey === 'alerts'
-                      ? 'bg-rose-500/90 text-white animate-pulse'
                       : 'bg-amber-400/90 text-white'
                   }`}
                 >

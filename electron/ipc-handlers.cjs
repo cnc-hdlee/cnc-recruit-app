@@ -44,6 +44,8 @@ function register() {
   safeHandle('g:listGmail', async (q, max) => google.listGmail(q, max));
   safeHandle('g:listCalendar', async (min, max, id) => google.listCalendar(min, max, id));
   safeHandle('g:listCalendars', async () => google.listCalendars());
+  safeHandle('g:listCalendarsFull', async () => google.listCalendarsFull());
+  safeHandle('g:patchCalendarListEntry', async (calendarId, body) => google.patchCalendarListEntry(calendarId, body));
   // Calendar write (only Calendar — Sheets/Gmail/Drive remain read-only)
   safeHandle('g:insertCalEvent', async (calendarId, body) => google.insertCalendarEvent(calendarId, body));
   safeHandle('g:updateCalEvent', async (calendarId, eventId, body, sendUpdates) => google.updateCalendarEvent(calendarId, eventId, body, sendUpdates));

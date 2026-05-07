@@ -241,6 +241,37 @@ async function listCalendars() {
   return (r.data.items || []).map((c) => ({ id: c.id, summary: c.summary, primary: !!c.primary }));
 }
 
+// calendarList의 모든 메타 (selected, hidden, accessRole, color 등) — Google Calendar
+// 좌측 사이드바 표시 여부를 코드로 분석/수정하기 위한 read.
+async function listCalendarsFull() {
+  const auth = buildClient();
+  const cal = google.calendar({ version: 'v3', auth });
+  const r = await cal.calendarList.list();
+  return (r.data.items || []).map((c) => ({
+    id: c.id,
+    summary: c.summary || '',
+    summaryOverride: c.summaryOverride || null,
+    primary: !!c.primary,
+    selected: !!c.selected,
+    hidden: !!c.hidden,
+    accessRole: c.accessRole || null,
+    backgroundColor: c.backgroundColor || null,
+    foregroundColor: c.foregroundColor || null,
+    colorId: c.colorId || null,
+    timeZone: c.timeZone || null,
+    deleted: !!c.deleted,
+  }));
+}
+
+// 사용자 본인 view의 calendarList 항목 patch — selected/hidden 토글로 사이드바 표시 제어.
+// 캘린더 자체는 안 건드림 (다른 사용자에게 영향 없음). 본인 UI에서만 안 보임.
+async function patchCalendarListEntry(calendarId, body) {
+  const auth = buildClient();
+  const cal = google.calendar({ version: 'v3', auth });
+  const r = await cal.calendarList.patch({ calendarId, requestBody: body });
+  return r.data;
+}
+
 // Calendar event WRITE — user explicitly authorized read+write on Calendar only.
 // `body` shape mirrors Google Calendar event resource:
 //   { summary, description, location, start: {dateTime|date}, end: {dateTime|date}, attendees: [{email}], reminders, ... }
@@ -292,6 +323,8 @@ module.exports = {
   // Calendar: read + WRITE (user explicitly authorized)
   listCalendar,
   listCalendars,
+  listCalendarsFull,
+  patchCalendarListEntry,
   insertCalendarEvent,
   updateCalendarEvent,
   deleteCalendarEvent,

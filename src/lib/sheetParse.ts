@@ -1,5 +1,4 @@
 // 시트 파싱 공통 유틸 — 여러 시트가 같은 날짜 포맷 / 헤더 변형을 쓰므로 한 곳에 모음.
-// IncomingHires, RecruitAlerts 등에서 공유.
 
 // Parse a wide variety of date formats commonly found in Google Sheets cells.
 // Returns ISO YYYY-MM-DD, or '' if it can't be parsed as a real date.

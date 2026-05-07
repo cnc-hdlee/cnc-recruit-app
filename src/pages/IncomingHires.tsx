@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { useLiveData, liveByKindOrScan } from '../store/liveData';
 import { getTodayStr } from '../store';
 import { parseSheetDate, field, fmtDateLabel } from '../lib/sheetParse';
+import { rowsToObjects } from '../lib/sheetMapping';
 
 type SiteTone = 'purple' | 'green' | 'suwon' | 'gray';
 type ApprovalStatus = 'approved' | 'pending' | 'unknown';
@@ -94,9 +95,53 @@ export function IncomingHires() {
     return parseHireRows(liveByKindOrScan('incoming'));
   }, [live]);
 
+  // 지난 입사자 보강: '입사예정' 시트엔 미래만 남고, 입사 후엔 보통 '정규직DB'/'도급직DB'/'재직자'
+  // 같은 별도 탭으로 옮겨감. suggestKind는 이런 시트를 의도적으로 제외하므로 (sheetMapping.ts:52)
+  // liveByKindOrScan('incoming')이 못 잡음. → snapshots 직접 스캔해서 입사일 있는 행만 추출.
+  const pastRows = useMemo<HireRow[]>(() => {
+    if (!live.hasLive) return [];
+    const all: Record<string, string>[] = [];
+    const hitTabs: string[] = [];
+    for (const snap of Object.values(live.snapshots)) {
+      for (const [tabName, rows] of Object.entries(snap.tabs)) {
+        const norm = tabName.replace(/\s+/g, '');
+        const isPastSheet =
+          /^정규직DB$/.test(norm) ||
+          /^도급직DB$/.test(norm) ||
+          norm.includes('재직') ||
+          norm.includes('월별입퇴사') ||
+          (norm.includes('입사자') && !norm.includes('예정'));
+        if (!isPastSheet) continue;
+        hitTabs.push(`${snap.title}/${tabName}`);
+        all.push(...rowsToObjects(rows, 0));
+      }
+    }
+    // 너무 오래된 입사자는 제외 — 2026-04-01 이후만
+    const PAST_CUTOFF = '2026-04-01';
+    const parsed = parseHireRows(all).filter((r) => r.date >= PAST_CUTOFF);
+    if (typeof window !== 'undefined') {
+      (window as Window & { __incomingDebug?: unknown }).__incomingDebug = {
+        pastSheetTabs: hitTabs,
+        pastRowsRaw: all.length,
+        pastRowsAfterCutoff: parsed.length,
+        cutoff: PAST_CUTOFF,
+      };
+    }
+    return parsed;
+  }, [live.snapshots, live.hasLive]);
+
+  // allRows + pastRows 병합 (이름+입사일 중복 제거 — 사용자가 같은 데이터를 양쪽 시트에 둔 경우 방어)
+  const combinedAll = useMemo<HireRow[]>(() => {
+    const seen = new Set(allRows.map((r) => `${r.name}|${r.date}`));
+    const extra = pastRows.filter((r) => !seen.has(`${r.name}|${r.date}`));
+    return [...allRows, ...extra];
+  }, [allRows, pastRows]);
+
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return allRows.filter((r) => {
+    // showPast=true 시에만 pastRows 포함. 평소엔 가벼운 incoming만 사용.
+    const source = showPast ? combinedAll : allRows;
+    return source.filter((r) => {
       if (!showPast && r.date < today) return false;
       if (siteFilter !== '전체' && classifySite(r.site) !== siteFilter) return false;
       if (approvalFilter !== '전체' && r.approval !== approvalFilter) return false;
@@ -106,7 +151,7 @@ export function IncomingHires() {
       }
       return true;
     });
-  }, [allRows, showPast, siteFilter, approvalFilter, query, today]);
+  }, [allRows, combinedAll, showPast, siteFilter, approvalFilter, query, today]);
 
   const grouped = useMemo(() => {
     const map = new Map<string, HireRow[]>();
@@ -185,6 +230,29 @@ export function IncomingHires() {
             className="ml-auto px-3 py-1 rounded-full text-xs bg-white border border-slate-200 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 focus:outline-none w-44 text-slate-800"
           />
           <span className="text-xs text-slate-700 font-semibold">{filtered.length}명</span>
+        </div>
+        {/* 진단 — 어느 시트에서 몇 건 가져왔는지 */}
+        <div className="mt-1 flex flex-wrap gap-1 text-[10px]">
+          <span className="px-1.5 py-0.5 rounded bg-slate-50 text-slate-600">
+            📊 입사예정 시트: {allRows.length}건
+          </span>
+          <span
+            className={`px-1.5 py-0.5 rounded ${
+              pastRows.length > 0 ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-800'
+            }`}
+            title={
+              pastRows.length > 0
+                ? '정규직DB/도급직DB/재직자 탭에서 추가 fetch (2026-04-01 이후만)'
+                : '정규직DB/재직자 탭이 매핑돼있지 않거나 비어있음. 설정 → 연동에서 추가'
+            }
+          >
+            📚 지난 입사 (2026-04-01~): {pastRows.length}건
+          </span>
+          {showPast && filtered.length === 0 && (
+            <span className="px-1.5 py-0.5 rounded bg-rose-50 text-rose-700">
+              ⚠ 조건에 맞는 데이터 없음 — 다른 필터 해제 또는 시트 매핑 확인 필요
+            </span>
+          )}
         </div>
       </div>
 
