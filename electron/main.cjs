@@ -6,6 +6,7 @@ const mobileServer = require('./mobile-server.cjs');
 const cfTunnel = require('./cloudflare-tunnel.cjs');
 const store = require('./integrations/store.cjs');
 const { autoUpdater } = require('electron-updater');
+const distSync = require('./distribution-sync.cjs');
 
 // dev/prod 모두 같은 userData 폴더(cnc-recruit-app) 사용 — OAuth/매핑/시트 캐시 공유
 app.setName('cnc-recruit-app');
@@ -210,6 +211,12 @@ function createWindow() {
     }
     // 창 뜨고 5초 뒤에 업데이트 체크 (앱 초기화에 영향 X)
     setTimeout(setupAutoUpdater, 5000);
+    // 배포 폴더 자동 sync — Desktop\CNC-Recruit-배포\ 있는 PC(hdlee 본인)에서만 동작.
+    // 새 release publish 시 .exe + zip 자동 갱신 → 신규 팀원에게 줄 zip이 항상 최신본.
+    try { distSync.start(app.getPath('desktop')); } catch (e) {
+      // eslint-disable-next-line no-console
+      console.warn('[dist-sync] start 실패:', e && e.message);
+    }
   });
 
   mainWindow.on('focus', () => sync.setForeground(true));
