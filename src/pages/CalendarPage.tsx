@@ -2336,10 +2336,18 @@ function InterviewEditModal({
       colorId: '3', // 보라색 면접 라벨 유지
     };
 
-    // 회의실 충돌 사전 체크 (수정 시) — 같은 회의실에 같은 시간대 다른 사람 booking 있으면 차단.
-    // 자기 자신(수정 대상 이벤트)의 회의실 sync본은 후보자 이름으로 식별해 제외.
-    // 본인 러프 booking이 새 시간대를 strictly contain하면 정상 워크플로 → skip.
-    if (roomMapping) {
+    // ✂ 시간·회의실 변경 없으면 충돌 체크 자체를 skip — 이름/팀/메모만 수정 케이스 보호.
+    //   사용자 인용: "이름만 바꾸는건데 왜 안된다고 하는거냐"
+    //   원본 event의 시작/종료/회의실 리소스를 비교해 모두 그대로면 무조건 통과시킴.
+    const originalStartISO = (event.startISO || '').replace(/[+\-]\d{2}:\d{2}$/, '').replace(/Z$/, '');
+    const originalEndISO = (event.endISO || '').replace(/[+\-]\d{2}:\d{2}$/, '').replace(/Z$/, '');
+    const originalRoomResource = (event.attendees || []).find((a) => a.includes('resource.calendar.google.com')) || null;
+    const newRoomResource = roomMapping?.resourceEmail || null;
+    const timeUnchanged = originalStartISO.startsWith(startISO) && originalEndISO.startsWith(endISO);
+    const roomUnchanged = (originalRoomResource || '') === (newRoomResource || '');
+    const skipConflictCheck = timeUnchanged && roomUnchanged;
+
+    if (roomMapping && !skipConflictCheck) {
       try {
         const dayStart = `${form.date}T00:00:00+09:00`;
         const dayEnd = `${form.date}T23:59:59+09:00`;
