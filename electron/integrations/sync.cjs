@@ -4,17 +4,21 @@ const { google } = require('googleapis');
 const { OAuth2Client } = require('google-auth-library');
 const store = require('./store.cjs');
 
-// Debug dump path — written next to the project so the developer can inspect headers/structure.
-const DEBUG_DUMP_PATH = path.join(__dirname, '..', '..', '__debug_lastFetch.json');
+// Debug dump path — dev 모드에서만 프로젝트 루트에 시트 fetch 결과를 dump.
+// 빌드된 .exe(asar)에선 __dirname이 read-only라 매 polling 시 EPERM throw → polling 망가짐.
+// IS_DEV 가드: pkg path가 .asar를 포함하면 prod로 간주.
+const IS_DEV = !__dirname.includes('.asar');
+const DEBUG_DUMP_PATH = IS_DEV ? path.join(__dirname, '..', '..', '__debug_lastFetch.json') : null;
 
 function writeDebugDump(spreadsheetId, title, modifiedTime, tabsData) {
+  if (!IS_DEV || !DEBUG_DUMP_PATH) return; // prod 빌드에선 no-op
   try {
     const headers = {};
     const samples = {};
     for (const [tab, rows] of Object.entries(tabsData)) {
       const r = rows || [];
       headers[tab] = r[0] || [];
-      samples[tab] = r.slice(0, 6); // first 6 rows for context
+      samples[tab] = r.slice(0, 6);
     }
     let existing = {};
     if (fs.existsSync(DEBUG_DUMP_PATH)) {
@@ -30,7 +34,7 @@ function writeDebugDump(spreadsheetId, title, modifiedTime, tabsData) {
     };
     fs.writeFileSync(DEBUG_DUMP_PATH, JSON.stringify(existing, null, 2), 'utf8');
   } catch (e) {
-    // ignore
+    // ignore — dev 디버그용
   }
 }
 

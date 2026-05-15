@@ -1,8 +1,45 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useLiveData, liveByKindOrScan } from '../store/liveData';
 import { getTodayStr } from '../store';
 import { parseSheetDate, field, fmtDateLabel } from '../lib/sheetParse';
 import { rowsToObjects } from '../lib/sheetMapping';
+import { api } from '../lib/api';
+
+// 입사안내 메일 발송 정보 — Gmail 발송함 검색 결과 1건
+interface OnboardingMail {
+  threadId: string;
+  date: string;          // YYYY-MM-DD (발송일)
+  subject: string;
+  to: string;
+  fromEmail: string;     // 발송자 이메일 (hdlee@... 또는 shim@...)
+  senderLabel: string;   // UI 표시용: "이형도" / "임세현" / "기타"
+  hireDate: string | null; // 메일 본문에서 추출한 입사예정일 (YYYY-MM-DD)
+  team: string | null;   // 메일 본문에서 추출한 부서
+}
+
+// 입사안내를 발송하는 TA팀원 — 본인+팀장
+const SENDER_EMAILS: Record<string, string> = {
+  'hdlee@cnccosmetic.com': '이형도',
+  'shim@cnccosmetic.com': '임세현',
+};
+
+// 메일 본문(snippet)에서 "□ 입사일 : 2026년 5월 18일(월)" 같은 패턴을 YYYY-MM-DD로 변환
+function extractHireDateFromSnippet(snippet: string): string | null {
+  if (!snippet) return null;
+  const m = snippet.match(/입사일\s*[:：]?\s*(\d{4})년\s*(\d{1,2})월\s*(\d{1,2})일/);
+  if (!m) return null;
+  const y = m[1];
+  const mo = m[2].padStart(2, '0');
+  const d = m[3].padStart(2, '0');
+  return `${y}-${mo}-${d}`;
+}
+
+// 메일 본문에서 "□ 부서 : KPD1팀" 같은 부서 추출
+function extractTeamFromSnippet(snippet: string): string | null {
+  if (!snippet) return null;
+  const m = snippet.match(/부서\s*[:：]?\s*([^□\n]+?)(?:\s*□|\s*입사일|\n|$)/);
+  return m ? m[1].trim() : null;
+}
 
 type SiteTone = 'purple' | 'green' | 'suwon' | 'gray';
 type ApprovalStatus = 'approved' | 'pending' | 'unknown';
@@ -43,13 +80,59 @@ function classifySite(siteName: string): SiteTone {
 function classifyApproval(note: string): { status: ApprovalStatus; link: string | null } {
   const n = (note || '').trim();
   if (!n) return { status: 'unknown', link: null };
-  if (n.includes('결재중')) return { status: 'pending', link: null };
-  // 전자결재 - C&C GW (with or without inline URL)
-  if (/전자결재/.test(n) || /C\s*&\s*C\s*GW/i.test(n)) {
+  // 공백/줄바꿈 정규화 후 매칭 — "결재중"/"결재 중"/"결재 진행 중" 등 표기 변형 모두 흡수
+  const normalized = n.replace(/\s+/g, '');
+  if (/결재중|결재진행/.test(normalized)) return { status: 'pending', link: null };
+  // 전자결재 - C&C GW (with or without inline URL, 공백 변형 흡수)
+  if (/전자결재|C&CGW/i.test(normalized)) {
     const m = n.match(/(https?:\/\/\S+)/);
     return { status: 'approved', link: m ? m[1] : null };
   }
   return { status: 'unknown', link: null };
+}
+
+// 시트의 "입사안내" 컬럼 O 표시 — TA팀 운영시트(1lTtxMy6...)의 날짜별 입사자 탭처럼
+// 별도 매핑 없이도 스냅샷 전체를 훑어서 (입사예정일+성명+입사안내) 컬럼이 있는 탭이면
+// 모두 매칭. 사용자가 "O" 마크한 사람은 입사안내 발송 완료로 간주.
+interface SheetOnboardingMark {
+  marked: boolean;
+  sheetTitle: string;
+  tabName: string;
+}
+
+function scanSheetOnboardingMarks(
+  snapshots: Record<string, { title: string; tabs: Record<string, string[][]> }>
+): Map<string, SheetOnboardingMark> {
+  const out = new Map<string, SheetOnboardingMark>();
+  for (const snap of Object.values(snapshots)) {
+    for (const [tabName, rows] of Object.entries(snap.tabs)) {
+      const objs = rowsToObjects(rows, 0);
+      if (objs.length === 0) continue;
+      const keys = Object.keys(objs[0]);
+      const norm = (k: string) => k.replace(/\s+/g, '');
+      const hasOnboardCol = keys.some((k) => norm(k).includes('입사안내'));
+      const hasNameCol = keys.some((k) => /성명|이름/.test(k));
+      const hasDateCol = keys.some((k) => {
+        const n = norm(k);
+        return n.includes('입사예정일') || n.includes('입사일');
+      });
+      if (!hasOnboardCol || !hasNameCol || !hasDateCol) continue;
+      for (const r of objs) {
+        const name = field(r, ['성명', '이름']).trim();
+        const dateRaw = field(r, ['입사예정일', '입사일']).trim();
+        const date = parseSheetDate(dateRaw);
+        if (!name || !date) continue;
+        const onboardVal = field(r, ['입사안내']).trim();
+        const marked = /^[Oo○0]+$/.test(onboardVal);
+        const key = `${name}|${date}`;
+        const existing = out.get(key);
+        if (!existing || (marked && !existing.marked)) {
+          out.set(key, { marked, sheetTitle: snap.title, tabName });
+        }
+      }
+    }
+  }
+  return out;
 }
 
 function parseHireRows(rows: Record<string, string>[]): HireRow[] {
@@ -82,6 +165,105 @@ function parseHireRows(rows: Record<string, string>[]): HireRow[] {
   return out;
 }
 
+// Gmail 발송함에서 입사안내 메일 찾아 이름→메일 매핑 생성.
+// 제목 패턴: "[(주)씨앤씨인터내셔널] {이름}님 입사 안내..." / "...입사 안내드립니다."
+//            "(재안내) [(주)씨앤씨인터내셔널] {이름}님 입사 안내 드립니다." 변형 다 흡수.
+// snippet 본문에 "{이름}님이 가지고 계신 역량이..." 가 거의 항상 있어 fallback으로 사용.
+function extractCandidateName(subject: string, snippet: string): string | null {
+  // 1) "] {이름}님 입사 안내(드립니다)?" — 가장 흔한 표준 패턴
+  let m = subject.match(/[\]》>]\s*([가-힣]{2,5})\s*님\s*입사\s*안내/);
+  if (m) return m[1];
+  // 2) 대괄호 없이 "(재안내) {이름}님 입사 안내" 형태
+  m = subject.match(/([가-힣]{2,5})\s*님\s*입사\s*안내(?:드립니다)?/);
+  if (m) return m[1];
+  // 3) 발송 메일 본문(snippet) 시작이 "안녕하세요. {이름}님" — 제목이 깨져 있어도 추출 가능
+  m = (snippet || '').match(/안녕하세요[.,]?\s*([가-힣]{2,5})\s*님/);
+  if (m) return m[1];
+  // 4) "{이름}님이 가지고 계신 역량이" 본문 첫 줄 — 입사안내 메일 고유 멘트
+  m = (snippet || '').match(/([가-힣]{2,5})\s*님이 가지고 계신 역량/);
+  if (m) return m[1];
+  return null;
+}
+
+// from 헤더에서 이메일만 추출 — "이형도 <hdlee@cnccosmetic.com>" → "hdlee@cnccosmetic.com"
+function parseFromEmail(from: string): string {
+  const m = from.match(/<([^>]+)>/);
+  return (m ? m[1] : from || '').trim().toLowerCase();
+}
+
+// 동명이인이 여러 건일 때, 행 입사일(hireDate)에 가장 가까운 메일 선택.
+// - hireDate가 일치하는 메일이 있으면 그것 우선 (가장 정확)
+// - 없으면 발송일이 입사일보다 빠르고 가장 가까운 메일
+// - 없으면 가장 최근 발송
+function pickBestMail(list: OnboardingMail[], rowHireDate: string): OnboardingMail | undefined {
+  if (!list.length) return undefined;
+  // 1) hireDate 정확 일치
+  const exact = list.find((m) => m.hireDate === rowHireDate);
+  if (exact) return exact;
+  // 2) 발송일이 입사일 이전 + 가장 가까운 것 (입사 전에 보내는 메일이라 정상)
+  const before = list
+    .filter((m) => m.date <= rowHireDate)
+    .sort((a, b) => b.date.localeCompare(a.date)); // 최신순
+  if (before.length > 0) return before[0];
+  // 3) 그 외 (입사 후 발송 등) — 가장 최근
+  return list[0];
+}
+
+async function fetchOnboardingMails(): Promise<Map<string, OnboardingMail[]>> {
+  const map = new Map<string, OnboardingMail[]>();
+  try {
+    // 본인(hdlee@) 발송함 + 임세현(shim@) 팀장이 보낸 메일(받은편지함에 cc/to/bcc된 경우)도 함께 검색.
+    // - from:hdlee → 내 sent
+    // - from:shim → 임세현이 보낸 것 중 hdlee Gmail에서 보이는 메일 (보통 cc/bcc로 hdlee@ 포함된 케이스)
+    const query = '(from:hdlee@cnccosmetic.com OR from:shim@cnccosmetic.com) ("입사 안내" OR 입사안내 OR "입사 안내드립니다") newer_than:180d';
+    const r = await api.google.listGmail(query, 400);
+    if (!r.ok || !r.data) {
+      console.warn('[IncomingHires] listGmail 실패', r);
+      (window as Window & { __onboardingMailDebug?: unknown }).__onboardingMailDebug = { error: r.error, count: 0 };
+      return map;
+    }
+    const debugRows: { subject: string; name: string | null; date: string; from: string }[] = [];
+    for (const m of r.data) {
+      const subject = m.subject || '';
+      // 회신/전달 keyword: 영문(Re/Fwd/FW) + 한글(회신/전달/답신) 모두 skip
+      if (/^\s*(Re|RE|Fwd|FW|FWD|회신|답신|전달|RE\:|FW\:)\s*[:：]/i.test(subject)) continue;
+      const fromEmail = parseFromEmail(m.from || '');
+      const senderLabel = SENDER_EMAILS[fromEmail] || (fromEmail ? fromEmail.split('@')[0] : '기타');
+      const name = extractCandidateName(subject, m.snippet || '');
+      const sentDate = (m.date || '').slice(0, 10);
+      debugRows.push({ subject, name, date: sentDate, from: fromEmail });
+      if (!name) continue;
+      const info: OnboardingMail = {
+        threadId: m.threadId,
+        date: sentDate,
+        subject,
+        to: m.to,
+        fromEmail,
+        senderLabel,
+        hireDate: extractHireDateFromSnippet(m.snippet || ''),
+        team: extractTeamFromSnippet(m.snippet || ''),
+      };
+      if (!map.has(name)) map.set(name, []);
+      // 같은 이름·같은 thread는 중복 제거 (hdlee가 cc 받으면 두 번 잡힐 수도)
+      if (!map.get(name)!.some((x) => x.threadId === info.threadId)) {
+        map.get(name)!.push(info);
+      }
+    }
+    // 같은 이름이 여러 건이면 가장 최근 발송 우선 (정확 매칭은 호출 측에서 hireDate 비교로 처리)
+    for (const [, list] of map) list.sort((a, b) => b.date.localeCompare(a.date));
+    (window as Window & { __onboardingMailDebug?: unknown }).__onboardingMailDebug = {
+      fetched: r.data.length,
+      matched: debugRows.filter((d) => d.name).length,
+      unmatched: debugRows.filter((d) => !d.name).slice(0, 10),
+      fromBreakdown: debugRows.reduce((acc, d) => { acc[d.from] = (acc[d.from] || 0) + 1; return acc; }, {} as Record<string, number>),
+      sampleNames: Array.from(map.entries()).slice(0, 30).map(([n, l]) => ({ name: n, count: l.length, sender: l[0].senderLabel })),
+    };
+  } catch (e) {
+    console.error('[IncomingHires] fetchOnboardingMails 예외', e);
+  }
+  return map;
+}
+
 export function IncomingHires() {
   const live = useLiveData();
   const today = getTodayStr();
@@ -89,11 +271,36 @@ export function IncomingHires() {
   const [siteFilter, setSiteFilter] = useState<'전체' | SiteTone>('전체');
   const [approvalFilter, setApprovalFilter] = useState<'전체' | ApprovalStatus>('전체');
   const [query, setQuery] = useState('');
+  const [mailMap, setMailMap] = useState<Map<string, OnboardingMail[]>>(new Map());
+
+  // 입사안내 메일 매핑 fetch — 마운트 + 90초마다 자동 refresh (Gmail API는 read-only)
+  useEffect(() => {
+    let alive = true;
+    const load = async () => {
+      const m = await fetchOnboardingMails();
+      if (alive) setMailMap(m);
+    };
+    void load();
+    const t = window.setInterval(load, 90_000);
+    return () => { alive = false; window.clearInterval(t); };
+  }, []);
 
   const allRows = useMemo<HireRow[]>(() => {
     if (!live.hasLive) return [];
-    return parseHireRows(liveByKindOrScan('incoming'));
+    // office (정규직) + field (생산입사예정자) 병합 — 같은 사람이면 office 우선
+    const office = parseHireRows(liveByKindOrScan('incoming'));
+    const field = parseHireRows(liveByKindOrScan('field_incoming'));
+    const seen = new Set(office.map((r) => `${r.name}|${r.date}`));
+    const fieldExtra = field.filter((r) => !seen.has(`${r.name}|${r.date}`));
+    return [...office, ...fieldExtra];
   }, [live]);
+
+  // 시트 "입사안내" O 표시 인덱스 — Gmail 발송 기록과 별개의 보강 신호.
+  // TA팀 운영시트(예: 1lTtxMy6...) 날짜별 입사자 탭에서 자동 스캔.
+  const sheetMarks = useMemo(
+    () => scanSheetOnboardingMarks(live.snapshots),
+    [live.snapshots]
+  );
 
   // 지난 입사자 보강: '입사예정' 시트엔 미래만 남고, 입사 후엔 보통 '정규직DB'/'도급직DB'/'재직자'
   // 같은 별도 탭으로 옮겨감. suggestKind는 이런 시트를 의도적으로 제외하므로 (sheetMapping.ts:52)
@@ -164,11 +371,18 @@ export function IncomingHires() {
 
   const summary = useMemo(() => {
     const upcoming = allRows.filter((r) => r.date >= today);
+    // 입사안내 발송 = Gmail 발송 기록 OR 시트 "입사안내" 컬럼 O 표시
+    const isAnnounced = (r: HireRow) =>
+      (mailMap.get(r.name)?.length || 0) > 0 ||
+      !!sheetMarks.get(`${r.name}|${r.date}`)?.marked;
+    const mailSent = upcoming.filter(isAnnounced).length;
     return {
       total: upcoming.length,
       approved: upcoming.filter((r) => r.approval === 'approved').length,
       pending: upcoming.filter((r) => r.approval === 'pending').length,
       unknown: upcoming.filter((r) => r.approval === 'unknown').length,
+      mailSent,
+      mailMissing: upcoming.length - mailSent,
       bySite: {
         purple: upcoming.filter((r) => classifySite(r.site) === 'purple').length,
         green: upcoming.filter((r) => classifySite(r.site) === 'green').length,
@@ -176,7 +390,7 @@ export function IncomingHires() {
         gray: upcoming.filter((r) => classifySite(r.site) === 'gray').length,
       },
     };
-  }, [allRows, today]);
+  }, [allRows, today, mailMap, sheetMarks]);
 
   if (!live.hasLive) {
     return (
@@ -199,12 +413,13 @@ export function IncomingHires() {
   return (
     <div className="space-y-3">
       {/* 요약 카드 */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
+      <div className="grid grid-cols-2 md:grid-cols-6 gap-2">
         <SummaryCard label="다가오는 입사" count={summary.total} tone="indigo" />
         <SummaryCard label="결재 완료" count={summary.approved} tone="emerald" />
         <SummaryCard label="결재 진행중" count={summary.pending} tone="amber" />
-        <SummaryCard label="퍼플" count={summary.bySite.purple} tone="purple" />
-        <SummaryCard label="그린" count={summary.bySite.green} tone="green" />
+        <SummaryCard label="입사안내 발송" count={summary.mailSent} tone="emerald" />
+        <SummaryCard label="입사안내 미발송" count={summary.mailMissing} tone={summary.mailMissing > 0 ? 'amber' : 'emerald'} />
+        <SummaryCard label="퍼플 / 그린" count={summary.bySite.purple + summary.bySite.green} tone="purple" />
       </div>
 
       {/* 필터 */}
@@ -262,7 +477,14 @@ export function IncomingHires() {
       ) : (
         <div className="space-y-3 max-h-[calc(100vh-300px)] overflow-y-auto pr-1">
           {grouped.map(([date, rows]) => (
-            <DateGroup key={date} date={date} rows={rows} today={today} />
+            <DateGroup
+              key={date}
+              date={date}
+              rows={rows}
+              today={today}
+              mailMap={mailMap}
+              sheetMarks={sheetMarks}
+            />
           ))}
         </div>
       )}
@@ -270,10 +492,32 @@ export function IncomingHires() {
   );
 }
 
-function DateGroup({ date, rows, today }: { date: string; rows: HireRow[]; today: string }) {
+function DateGroup({
+  date,
+  rows,
+  today,
+  mailMap,
+  sheetMarks,
+}: {
+  date: string;
+  rows: HireRow[];
+  today: string;
+  mailMap: Map<string, OnboardingMail[]>;
+  sheetMarks: Map<string, SheetOnboardingMark>;
+}) {
   const isToday = date === today;
   const isPast = date < today;
   const hasPending = rows.some((r) => r.approval === 'pending');
+  const isFuture = date > today;
+  // 메일 미발송: 미래 입사이면서 결재 완료(approved)인데도 메일/시트 O 둘 다 없는 사람
+  const missingMail = isFuture
+    ? rows.filter(
+        (r) =>
+          r.approval === 'approved' &&
+          (mailMap.get(r.name)?.length || 0) === 0 &&
+          !sheetMarks.get(`${r.name}|${r.date}`)?.marked
+      ).length
+    : 0;
   const dateLabel = fmtDateLabel(date, today);
   return (
     <div
@@ -296,21 +540,41 @@ function DateGroup({ date, rows, today }: { date: string; rows: HireRow[]; today
         {hasPending && (
           <span className="chip bg-amber-200 text-amber-900 text-[10px]">⚠ 결재중 포함</span>
         )}
+        {missingMail > 0 && (
+          <span className="chip bg-rose-100 text-rose-800 border border-rose-300 text-[10px] font-bold">
+            ✉️ 입사안내 미발송 {missingMail}명
+          </span>
+        )}
       </div>
       <div className="divide-y divide-slate-100">
         {rows.map((r, i) => (
-          <HireRowCard key={`${r.name}-${i}`} row={r} />
+          <HireRowCard
+            key={`${r.name}-${i}`}
+            row={r}
+            mail={pickBestMail(mailMap.get(r.name) || [], r.date)}
+            sheetMark={sheetMarks.get(`${r.name}|${r.date}`)}
+          />
         ))}
       </div>
     </div>
   );
 }
 
-function HireRowCard({ row }: { row: HireRow }) {
+function HireRowCard({
+  row,
+  mail,
+  sheetMark,
+}: {
+  row: HireRow;
+  mail?: OnboardingMail;
+  sheetMark?: SheetOnboardingMark;
+}) {
   const tone = classifySite(row.site);
   const siteStyle = SITE_STYLE[tone];
   const isPending = row.approval === 'pending';
   const isUnknown = row.approval === 'unknown';
+  // 메일/시트 둘 다 없으면 진짜 미발송
+  const mailMissing = !mail && !sheetMark?.marked;
   return (
     <div
       className={`px-4 py-2.5 flex items-center gap-3 hover:bg-slate-50/60 transition-colors ${
@@ -354,6 +618,49 @@ function HireRowCard({ row }: { row: HireRow }) {
           </a>
         ) : (
           <span className="chip bg-emerald-100 text-emerald-800 text-[10px] font-bold">✓ 결재완료</span>
+        )}
+        {/* 입사안내 메일 발송 여부 — 본인(hdlee) + 임세현 팀장 둘 다 검색 */}
+        {mail ? (
+          <a
+            href={`https://mail.google.com/mail/u/0/#all/${mail.threadId}`}
+            target="_blank"
+            rel="noreferrer"
+            className={`chip text-[10px] font-bold ${
+              mail.fromEmail === 'shim@cnccosmetic.com'
+                ? 'bg-sky-50 text-sky-700 border border-sky-200 hover:bg-sky-100'
+                : 'bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100'
+            }`}
+            title={`발송자: ${mail.senderLabel} (${mail.fromEmail})\n발송일: ${mail.date}\n받는사람: ${mail.to}\n제목: ${mail.subject}`}
+          >
+            ✉️ {mail.senderLabel} 발송 ({mail.date.slice(5)}) ↗
+          </a>
+        ) : sheetMark?.marked ? (
+          // 메일 기록은 못 찾았지만 시트에서 입사안내 O 마크 → 발송 완료로 간주
+          <span
+            className="chip bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-bold"
+            title={`시트 "입사안내" 컬럼에 O 표시됨\n${sheetMark.sheetTitle} / ${sheetMark.tabName}\n(메일 검색에선 못 찾았지만 시트 기준 발송 완료)`}
+          >
+            ✓ 시트 O 표시
+          </span>
+        ) : (
+          <span
+            className="chip bg-rose-100 text-rose-800 border border-rose-300 text-[10px] font-bold"
+            title="최근 180일치 메일에서 본인(hdlee@) 또는 임세현(shim@) 발송 입사안내 메일을 찾지 못했고, 시트에도 O 표시 없음."
+          >
+            ✉️ 입사안내 미발송
+          </span>
+        )}
+        {/* 메일·시트 둘 다 있으면 보강 표시 (메일 chip 옆에 작게) */}
+        {mail && sheetMark?.marked && (
+          <span
+            className="chip bg-teal-50 text-teal-700 border border-teal-200 text-[10px]"
+            title={`시트 "입사안내" 컬럼 O 표시 (${sheetMark.sheetTitle} / ${sheetMark.tabName})`}
+          >
+            📋 시트 ✓
+          </span>
+        )}
+        {mailMissing && row.approval === 'approved' && (
+          <span className="text-[9px] text-rose-600 font-bold">⚠ 메일 보내야 함</span>
         )}
       </div>
     </div>

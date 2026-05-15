@@ -16,6 +16,7 @@ const NAV: NavItem[] = [
   { id: 'headcount', icon: '👥', label: '인원현황' },
   { id: 'incoming', icon: '🎉', label: '입사예정자', badgeKey: 'incoming' },
   { id: 'calendar', icon: '📅', label: '면접 캘린더', badgeKey: 'todayIntv' },
+  { id: 'rooms', icon: '🚪', label: '회의실 예약' },
   { id: 'jobcenters', icon: '🏢', label: '일자리센터' },
   { id: 'lookup', icon: '🔍', label: '후보자 검색' },
   { id: 'mail', icon: '✉️', label: '메일 / 커뮤니케이션' },
@@ -24,7 +25,14 @@ const NAV: NavItem[] = [
   { id: 'usage', icon: '📖', label: '사용법 (필독)' },
 ];
 
-export function Sidebar({ active, onChange }: { active: PageId; onChange: (p: PageId) => void }) {
+interface SidebarProps {
+  active: PageId;
+  onChange: (p: PageId) => void;
+  isOpen?: boolean;
+  onClose?: () => void;
+}
+
+export function Sidebar({ active, onChange, isOpen = false, onClose }: SidebarProps) {
   const D = useData();
   const live = useLiveData();
   const today = getTodayStr();
@@ -41,8 +49,13 @@ export function Sidebar({ active, onChange }: { active: PageId; onChange: (p: Pa
   const counts = { todayIntv, incoming };
 
   return (
-    <aside className="w-60 shrink-0 flex flex-col text-slate-100" style={{ background: 'linear-gradient(180deg, #0b001f 0%, #130f29 50%, #2a2640 100%)' }}>
-      <div className="px-5 py-5 border-b border-white/10">
+    <aside
+      className={`w-60 shrink-0 flex flex-col text-slate-100 fixed md:static inset-y-0 left-0 z-40 transform transition-transform md:translate-x-0 ${
+        isOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
+      }`}
+      style={{ background: 'linear-gradient(180deg, #0b001f 0%, #130f29 50%, #2a2640 100%)' }}
+    >
+      <div className="px-5 py-5 border-b border-white/10 flex items-center justify-between">
         <div className="flex items-center gap-2.5">
           <div className="w-9 h-9 rounded-lg bg-white/95 grid place-items-center shadow-lg overflow-hidden">
             <img src="/icon.png" alt="C&C" className="w-8 h-8 object-contain" />
@@ -56,6 +69,15 @@ export function Sidebar({ active, onChange }: { active: PageId; onChange: (p: Pa
             </div>
           </div>
         </div>
+        {onClose && (
+          <button
+            onClick={onClose}
+            className="md:hidden w-8 h-8 rounded grid place-items-center text-slate-300 hover:bg-white/10"
+            aria-label="닫기"
+          >
+            ✕
+          </button>
+        )}
       </div>
       <nav className="flex-1 p-3 space-y-0.5 overflow-y-auto">
         {NAV.filter((item) => !item.maintainerOnly || !IS_VIEWER).map((item) => {

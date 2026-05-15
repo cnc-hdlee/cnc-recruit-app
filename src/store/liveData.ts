@@ -71,6 +71,54 @@ let calendarPollHandle: ReturnType<typeof setInterval> | null = null;
 let calendarFocusHandlersAttached = false;
 const CALENDAR_POLL_MS = 60_000;
 
+// Viewer mode: polling cadence for re-fetching the live snapshot from the maintainer.
+let viewerPollHandle: ReturnType<typeof setInterval> | null = null;
+let viewerFocusAttached = false;
+const VIEWER_POLL_MS = 30_000;
+
+async function fetchViewerSnapshot() {
+  try {
+    const r = await fetch(SNAPSHOT_URL, { cache: 'no-store' });
+    if (!r.ok) {
+      setState({ lastError: `스냅샷을 불러올 수 없어요 (${r.status})` });
+      return;
+    }
+    const data = (await r.json()) as Snapshot;
+    if (!isSnapshot(data)) {
+      setState({ lastError: '스냅샷 형식이 올바르지 않습니다.' });
+      return;
+    }
+    setState({
+      snapshots: data.sheets,
+      mappings: data.mappings,
+      calendarEvents: data.calendar?.events || [],
+      calendarFetchedAt: data.calendar?.fetchedAt || null,
+      lastTickAt: new Date(data.exportedAt).getTime(),
+      hasLive: Object.keys(data.sheets).length > 0,
+      lastError: null,
+    });
+  } catch (e: any) {
+    setState({ lastError: `스냅샷 로드 실패: ${e?.message || e}` });
+  }
+}
+
+function setupViewerAutoSync() {
+  if (!IS_VIEWER) return;
+  if (typeof window === 'undefined') return;
+  if (viewerPollHandle) clearInterval(viewerPollHandle);
+  viewerPollHandle = setInterval(() => {
+    void fetchViewerSnapshot();
+  }, VIEWER_POLL_MS);
+  if (!viewerFocusAttached) {
+    const refresh = () => {
+      if (document.visibilityState === 'visible') void fetchViewerSnapshot();
+    };
+    window.addEventListener('focus', refresh);
+    document.addEventListener('visibilitychange', refresh);
+    viewerFocusAttached = true;
+  }
+}
+
 function setupCalendarAutoSync() {
   if (IS_VIEWER) return;
   if (typeof window === 'undefined') return;
@@ -116,31 +164,10 @@ export async function initLiveSync() {
   initialized = true;
 
   // Viewer mode: load snapshot.json from same-origin (or VITE_SNAPSHOT_URL).
-  // No Electron, no OAuth, no Slack — just static read.
+  // No Electron, no OAuth, no Slack — just polled read against the maintainer's bridge.
   if (IS_VIEWER) {
-    try {
-      const r = await fetch(SNAPSHOT_URL, { cache: 'no-store' });
-      if (!r.ok) {
-        setState({ lastError: `스냅샷을 불러올 수 없어요 (${r.status}). 관리자에게 문의하세요.` });
-        return;
-      }
-      const data = (await r.json()) as Snapshot;
-      if (!isSnapshot(data)) {
-        setState({ lastError: '스냅샷 형식이 올바르지 않습니다.' });
-        return;
-      }
-      setState({
-        snapshots: data.sheets,
-        mappings: data.mappings,
-        calendarEvents: data.calendar?.events || [],
-        calendarFetchedAt: data.calendar?.fetchedAt || null,
-        lastTickAt: new Date(data.exportedAt).getTime(),
-        hasLive: Object.keys(data.sheets).length > 0,
-        lastError: null,
-      });
-    } catch (e: any) {
-      setState({ lastError: `스냅샷 로드 실패: ${e?.message || e}` });
-    }
+    await fetchViewerSnapshot();
+    setupViewerAutoSync();
     return;
   }
 
@@ -265,6 +292,8 @@ export async function refreshCalendarFromGoogle() {
       conferenceUrl: e.conferenceUrl,
       status: e.status || 'confirmed',
       updated: null,
+      creator: e.creator || null,
+      organizer: e.organizer || null,
     }));
     setState({ calendarEvents: events, calendarFetchedAt: new Date().toISOString() });
   } catch {
@@ -485,5 +514,12 @@ if (typeof window !== 'undefined' && !IS_VIEWER) {
   setTimeout(() => {
     setupCalendarAutoSync();
     void refreshCalendarFromGoogle();
+  }, 500);
+}
+
+// Viewer mode (모바일/PWA) 자동 폴링 — 본체에서 받아오는 snapshot을 30초마다 갱신
+if (typeof window !== 'undefined' && IS_VIEWER) {
+  setTimeout(() => {
+    setupViewerAutoSync();
   }, 500);
 }

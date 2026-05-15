@@ -34,6 +34,8 @@ export interface SnapshotCalendarEvent {
   conferenceUrl: string | null;
   status: string;
   updated: string | null;
+  creator?: { email: string | null; self: boolean } | null;
+  organizer?: { email: string | null; self: boolean } | null;
 }
 
 export interface SnapshotCalendar {

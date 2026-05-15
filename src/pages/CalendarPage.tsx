@@ -2,7 +2,69 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useData, getTodayStr } from '../store';
 import { useLiveData, liveCalendarEventsNormalized, liveByKindOrScan, refreshCalendarFromGoogle, refreshNow } from '../store/liveData';
 import { api } from '../lib/api';
+import type { GCalListEntry } from '../lib/api';
 import { SHARED_CAL } from '../lib/sharedCalendars';
+import { gmailMessageUrl } from '../lib/gmail';
+import { classifyResourceCalendar, findResourceEmailByLocation, type RoomMeta } from '../lib/meetingRooms';
+
+// 후보자 이름이 첨부파일명에 포함되는지로 "현업에 이력서 공유함" 여부를 매칭하기 위한 보낸함 인덱스.
+interface ResumeShareMail {
+  id: string;
+  threadId: string;
+  subject: string;
+  snippet: string;
+  date: string;
+  to: string;
+  attachments: string[];
+  // attachmentInfos: 클릭만으로 PDF/문서를 시스템 기본 앱으로 열 때 사용 (attachmentId 필요)
+  attachmentInfos: { filename: string; attachmentId: string; mimeType: string; size: number }[];
+}
+
+// 이력서/면접 안내 메일 매칭 — 본인(hdlee) 또는 임세현(shim) 발송 메일 중에서
+// 후보자 이름이 (a) 첨부 파일명 OR (b) 메일 제목/본문(snippet)에 포함되고
+// (c) "면접" 키워드 + (d) 면접일 ±30/1일 윈도우 안에 있고 (e) 첨부 1개 이상 있으면 인정.
+//
+// 핵심: 첨부 파일명에 "이력서" 단어가 없어도 OK. 메일 본문에 후보자 이름 적혀있고 첨부만 있으면 인정.
+//       (사용자 케이스: 임세현 팀장이 보낸 "[TA팀] 품질보증팀 면접 안내" — 첨부는 면접평가표.xlsx +
+//       이력서.pdf인데 파일명에 후보자 이름 없고 본문에 "이정아 2026-05-14 15:00" 형태로 들어있음)
+function findResumeShare(
+  candidate: string,
+  interviewDt: string,
+  mails: ResumeShareMail[]
+): { mail: ResumeShareMail; filename: string; matchKind: 'filename' | 'body' } | null {
+  const name = (candidate || '').trim();
+  if (name.length < 2) return null;
+  const nameNorm = name.replace(/[\s_\-.()\[\]·]+/g, '');
+  const intvMs = Date.parse(`${interviewDt}T00:00:00+09:00`);
+  if (!Number.isFinite(intvMs)) return null;
+  const WINDOW_MS = 30 * 24 * 60 * 60 * 1000;
+  const TAIL_MS = 24 * 60 * 60 * 1000;
+  for (const m of mails) {
+    // (e) 첨부 1개 이상 있어야 (이력서/평가표 등 — 형식은 PDF/docx/zip 무관)
+    if (!m.attachments || m.attachments.length === 0) continue;
+    // (c) "면접" 키워드 — 검토용 외 메일 제외
+    const hay = `${m.subject || ''} ${m.snippet || ''}`;
+    if (!hay.includes('면접')) continue;
+    // (d) 발송일 윈도우 — 면접일 30일 이전 ~ 1일 후
+    const sentMs = Date.parse(m.date);
+    if (!Number.isFinite(sentMs)) continue;
+    if (sentMs > intvMs + TAIL_MS) continue;
+    if (sentMs < intvMs - WINDOW_MS) continue;
+    // (a) 파일명에 후보자 이름 — 가장 강한 신호
+    let matchedFn: string | null = null;
+    for (const fn of m.attachments) {
+      const fnNorm = fn.replace(/[\s_\-.()\[\]·]+/g, '');
+      if (fnNorm.includes(nameNorm)) { matchedFn = fn; break; }
+    }
+    if (matchedFn) return { mail: m, filename: matchedFn, matchKind: 'filename' };
+    // (b) 본문/제목에 후보자 이름 — 파일명에 이름 없어도 본문에 후보자 명단이 있으면 OK
+    const hayNorm = hay.replace(/[\s_\-.()\[\]·]+/g, '');
+    if (hayNorm.includes(nameNorm)) {
+      return { mail: m, filename: m.attachments[0], matchKind: 'body' };
+    }
+  }
+  return null;
+}
 
 // 근무지 프리셋 (퍼플/그린/수원/위워크/온라인 등) — 첫 번째 깊이
 const SITE_PRESETS = [
@@ -14,10 +76,12 @@ const SITE_PRESETS = [
 ];
 
 // 회의실 프리셋 (사이트별 흔한 룸) — 두 번째 깊이
+// ※ 구글 캘린더 리소스 라벨과 정확히 일치 (괄호 안은 수용 인원).
+//   findResourceEmailByLocation()이 텍스트→리소스 이메일 매핑하므로 이 라벨이 정확해야 자동 선점이 정확하게 잡힘.
 const ROOM_PRESETS_BY_SITE: Record<string, string[]> = {
-  퍼플: ['VIP룸', '미팅룸 1번', '미팅룸 2번', '미팅룸 3번'],
-  그린: ['회의실 A', '회의실 B', '회의실 C'],
-  수원: ['회의실 A', '회의실 B', '대회의실'],
+  퍼플: ['대회의실 (30)', '미팅룸-1 (9)', '미팅룸-2 (7)', '구내식당 (46)'],
+  그린: ['대회의실 (30)', '소회의실 (20)'],
+  수원: ['2층 회의실 (20)', '3층 회의실 (20)', '3층 카페테리아 (40)', '4층 회의실 (20)'],
   위워크: ['4E 회의실', '5F 회의실'],
   온라인: ['Google Meet', 'Zoom'],
 };
@@ -126,6 +190,71 @@ function dismissKey(dt: string, tm: string, candidate: string): string {
   return `${dt}|${tm}|${candidate.trim().slice(0, 12)}`;
 }
 
+// 면접 이벤트와 회의실 booking을 cross-match.
+// 회의실 예약은 보통 cncadmin@/임세현이 별도 이벤트로 잡으므로 면접 이벤트 attendees에는 안 들어옴.
+// 매칭 우선순위 (데이터로 검증된 케이스 기반):
+//   (1) booking summary/description에 후보자 이름 포함 — 가장 신뢰 ↑
+//   (2) 시간 겹침 + booking이 "면접" 키워드 + 면접 location 토큰 또는 site 토큰이
+//       booking이 잡힌 회의실명에 포함 — 오타 매칭("엄희선"↔"임희선") + 익명 booking
+//       (시간 슬롯에 "면접"만 적힌 케이스 — 임세현이 연속 면접 슬롯을 한 번에 잡음)
+function matchRoomBooking(
+  candidate: string,
+  dt: string,
+  startISO: string | null | undefined,
+  endISO: string | null | undefined,
+  location: string,
+  site: string,
+  bookings: { resourceId: string; shortName: string; startMs: number; endMs: number; summary: string; description: string }[]
+): { shortName: string; via: 'name' | 'timeloc' } | null {
+  const name = (candidate || '').trim();
+  const dayStart = Date.parse(`${dt}T00:00:00+09:00`);
+  const dayEnd = Date.parse(`${dt}T23:59:59+09:00`);
+  if (!Number.isFinite(dayStart) || !Number.isFinite(dayEnd)) return null;
+
+  // (1) 이름 매칭
+  if (name.length >= 2) {
+    for (const b of bookings) {
+      if (b.endMs < dayStart || b.startMs > dayEnd) continue;
+      if (b.summary.includes(name) || b.description.includes(name)) {
+        return { shortName: b.shortName, via: 'name' };
+      }
+    }
+  }
+
+  // (2) 시간 겹침 + booking이 "면접" 키워드 + 위치/site 토큰 매칭
+  // 단, booking summary에 다른 후보자 이름이 명시되어 있으면 매칭 거부 (false-positive 차단).
+  //   예: 엄희선 면접 location이 "미팅룸 2번"이고, 미팅룸-2 booking이 "전략구매팀 면접 - 이건주(부자재)"인 경우.
+  //   booking에 "이건주" 이름이 명시되어 있으므로 엄희선과 매칭되면 안 됨. → 회의실 미예약으로 정확히 표시.
+  const ivStartMs = startISO ? Date.parse(startISO) : NaN;
+  const ivEndMs = endISO ? Date.parse(endISO) : NaN;
+  if (Number.isFinite(ivStartMs) && Number.isFinite(ivEndMs)) {
+    const loc = (location || '').toLowerCase();
+    const siteTok = (site || '').toLowerCase().trim();
+    for (const b of bookings) {
+      if (b.endMs <= ivStartMs || b.startMs >= ivEndMs) continue;
+      if (!/면접|interview/i.test(b.summary)) continue;
+      // booking summary에서 명시된 한글 후보자 이름 추출 — 패턴 "면접 - {이름}" 또는 "면접 {이름}"
+      // 추출된 이름이 현재 후보자와 다르면 매칭 거부 (다른 후보의 booking).
+      const bookingNameMatch = b.summary.match(/면접\s*[-—–]?\s*([가-힣]{2,4})(?:\s*\([^)]*\))?/);
+      if (bookingNameMatch) {
+        const bookingName = bookingNameMatch[1];
+        if (bookingName !== name) continue;
+        // 같은 이름이면 (1)에서 이미 매칭됐을 것이므로 여기 안 옴 — 안전망.
+      }
+      const roomLow = b.shortName.toLowerCase();
+      // location의 토큰 중 하나라도 회의실명에 포함 (예: "퍼플 미팅룸 1번" ↔ "퍼플 미팅룸-1")
+      const locTokens = loc.split(/[\s()\-_/]+/).filter((t) => t.length >= 2);
+      const locMatch = locTokens.some((t) => roomLow.includes(t));
+      const siteMatch = !!siteTok && roomLow.includes(siteTok);
+      if (locMatch || siteMatch) {
+        return { shortName: b.shortName, via: 'timeloc' };
+      }
+    }
+  }
+
+  return null;
+}
+
 // 캘린더 ID → 사람 친화적 이름 (중복 정리 dry-run 표시용)
 function shortCalName(calId: string | null | undefined): string {
   if (!calId) return '?';
@@ -191,10 +320,28 @@ function parseInterviewTitle(title: string): {
   const empty = { candidate: '', site: '', team: '', room: '', time: '' };
   if (!t) return empty;
 
-  // 슬래시가 없으면 한글 이름만 추출
+  // 슬래시가 없는 패턴 — 회의실 예약이 primary에 sync되며 만들어진 "○○팀 면접 - 박은성"
+  // 같은 형식이 흔하다. 단순 `[가-힣]{2,4}` greedy 매칭은 "구성원경험팀"에서 "구성원경"을
+  // 후보자로 잘못 잡으므로, (1) dash 뒤 이름 우선 (2) 팀/실/센터 suffix 토큰 제외 후 첫 한글.
   if (!t.includes('/')) {
-    const m = t.match(/[가-힣]{2,4}/);
-    return { ...empty, candidate: m ? m[0] : t };
+    const dashIdx = t.search(/[-—–]/);
+    if (dashIdx >= 0) {
+      const afterDash = t.slice(dashIdx + 1).match(/[가-힣]{2,4}/);
+      if (afterDash && !NOT_NAME_KEYWORDS.test(afterDash[0]) && !/팀$|실$|센터$|본부$/.test(afterDash[0])) {
+        return { ...empty, candidate: afterDash[0] };
+      }
+    }
+    // 한글 연속 토큰들로 분리한 뒤, 팀/실/센터 suffix 또는 회의/면접/일정 같은 키워드 토큰은 제외
+    const tokens = t.match(/[가-힣]+/g) || [];
+    for (const tk of tokens) {
+      if (tk.length < 2) continue;
+      if (NOT_NAME_KEYWORDS.test(tk)) continue;
+      if (/팀$|실$|센터$|본부$/.test(tk)) continue;
+      if (/^(면접|회의|미팅|일정|장소|예약)/.test(tk)) continue;
+      if (tk.length <= 4) return { ...empty, candidate: tk };
+      // 5자 이상 한글 단어는 보통 합성어 → 부분 매칭 위험. 빈 candidate 유지하고 계속 탐색.
+    }
+    return { ...empty, candidate: t };
   }
 
   const parts = t.split('/').map((p) => p.trim()).filter(Boolean);
@@ -219,6 +366,12 @@ function parseInterviewTitle(title: string): {
       const nm = p.match(/^([가-힣]{2,4})(?:$|\(|\s)/);
       if (nm && !NOT_NAME_KEYWORDS.test(nm[1]) && !TEAM_KEYWORDS.test(p)) {
         candidate = nm[1]; continue;
+      }
+      // 영문 이름 단독 토큰 (외국인 후보자) — site/room/팀 키워드 제외
+      const en = p.match(/^([A-Za-z][A-Za-z0-9.\-]{1,})$/);
+      if (en && !TEAM_KEYWORDS.test(p) && !ROOM_KEYWORDS.test(p) &&
+          !SITE_KEYWORDS.some((s) => p.includes(s))) {
+        candidate = en[1]; continue;
       }
     }
     if (!team && TEAM_KEYWORDS.test(p)) { team = p; continue; }
@@ -252,22 +405,36 @@ function isInterviewKind(summary: string, colorId: string | null): boolean {
   if (/입사|퇴사|퇴직|휴가|연차|반차|생일|워크샵|워크샾|행사|회식|점심|런치|MT\b|OT\b|교육|세미나|컨퍼런스|타운홀|townhall|holiday|off\b|박람회|일자리센터/i.test(summary)) {
     return false;
   }
+  // 면접 취소/포기/보류 키워드 — 카드에서 제외 (이력에서 사라짐).
+  //   예: "(면접포기)수원/16:20/정예원/Base Lab"
+  // 불참/노쇼는 제외하지 않고 줄긋기로만 표시 — 이력 보존 (누가 안 왔는지 기록 가치 있음).
+  if (/면접포기|면접\s*취소|\(취소\)|취소됨|\(보류\)|면접\s*보류/i.test(summary)) {
+    return false;
+  }
   // 일반 회의/미팅 제외 (단, "면접" 단어가 함께 있거나 회의실/미팅룸 같은 장소명은 통과)
   if (/(회의(?!실)|미팅(?!룸)|meeting|\bsync\b|싱크미팅|1on1|1:1)/i.test(summary) && !/면접|interview/i.test(summary)) {
     return false;
   }
 
-  // ① 슬래시 포맷 면접 — 한글 이름 + (시간 OR 근무지 OR 회의실) 중 하나 이상
+  // ① 슬래시 포맷 면접 — 한글/영문 이름 + (시간 OR 근무지 OR 회의실) 중 하나 이상
   //    옛 포맷("11:00 위워크 / 김태리 / OBM(상품기획)")도 통과시키려고 토큰 내 부분일치 허용
+  //    영문 이름(외국인 후보자 등)도 통과 — SITE/ROOM/팀 키워드는 제외하고 단독 영문 토큰을 이름으로 인정
   if (summary.includes('/')) {
     const parts = summary.split('/').map((s) => s.trim()).filter(Boolean);
     const hasTime = parts.some((p) => /\d{1,2}:\d{2}/.test(p));
     const hasName = parts.some((p) => {
-      const m = p.match(/(?:^|\s)([가-힣]{2,4})(?:\s|\(|$)/);
-      if (!m) return false;
-      if (NOT_NAME_KEYWORDS.test(m[1])) return false;
-      if (TEAM_KEYWORDS.test(p)) return false;
-      return true;
+      // 한글 이름 (2-4자)
+      const ko = p.match(/(?:^|\s)([가-힣]{2,4})(?:\s|\(|$)/);
+      if (ko && !NOT_NAME_KEYWORDS.test(ko[1]) && !TEAM_KEYWORDS.test(p)) return true;
+      // 영문 이름 (단독 토큰, 2자 이상) — site/room/팀 키워드 제외
+      const en = p.match(/^([A-Za-z][A-Za-z0-9.\-]{1,})$/);
+      if (en) {
+        if (SITE_KEYWORDS.some((s) => p.includes(s))) return false;
+        if (ROOM_KEYWORDS.test(p)) return false;
+        if (TEAM_KEYWORDS.test(p)) return false;
+        return true;
+      }
+      return false;
     });
     const hasSite = parts.some((p) => SITE_KEYWORDS.some((s) => p.includes(s)));
     const hasRoom = parts.some((p) => ROOM_KEYWORDS.test(p));
@@ -300,8 +467,38 @@ export function CalendarPage() {
   const [cleaningUp, setCleaningUp] = useState(false);
   // 카드 필터 — 상단 요약 카드 클릭으로 토글 (all/today/thisWeek)
   const [cardFilter, setCardFilter] = useState<'all' | 'today' | 'thisWeek'>('all');
-  // 자동 silent cleanup 30초 throttle — 너무 자주 안 돌게
-  const lastAutoCleanupRef = useRef(0);
+  // (이전 버전의 lastAutoCleanupRef는 실제로 throttle에 쓰이지 않아 제거됨)
+  // 보낸함 이력서 첨부 인덱스 — 후보자 이름이 첨부파일명에 포함된 메일을 찾아 "현업 공유" 판정에 사용
+  const [resumeMails, setResumeMails] = useState<ResumeShareMail[]>([]);
+  // 회의실 리소스 캘린더의 예약(booking) 인덱스 — 면접 카드의 "회의실 예약" 판정용.
+  // 회의실 예약은 cncadmin@이 별개 이벤트로 잡는 워크플로라 면접 이벤트 attendees에
+  // 리소스가 들어있지 않다. summary/description에 후보자 이름 포함 여부로 cross-match.
+  const [roomBookings, setRoomBookings] = useState<{
+    id: string;
+    resourceId: string;
+    shortName: string;
+    startMs: number;
+    endMs: number;
+    summary: string;
+    description: string;
+    htmlLink?: string;
+    creatorEmail?: string;
+  }[]>([]);
+  // 회의실 메타(리소스 캘린더 목록) — 면접 등록/수정 시 location→리소스 이메일 매핑에 사용.
+  // 매핑 성공하면 회의실 attendee 자동 추가로 즉시 예약 선점.
+  const [roomsMeta, setRoomsMeta] = useState<RoomMeta[]>([]);
+  // 로그인된 매니저 이메일 — 매니저 본인 owner인 잔존(러프) booking 자동 단축에 사용.
+  const [myEmail, setMyEmail] = useState<string | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const r = await api.google.status();
+        if (!cancelled && r.ok && r.data?.profile?.email) setMyEmail(r.data.profile.email);
+      } catch { /* ignore */ }
+    })();
+    return () => { cancelled = true; };
+  }, []);
 
   // dismissed list 로드 (cfg에 persist) — 사용자가 캘린더에 등록 안 하기로 한 시트 행
   useEffect(() => {
@@ -336,10 +533,204 @@ export function CalendarPage() {
     return () => clearInterval(t);
   }, []);
 
+  // 첨부 있는 메일 폴링 — 후보자별 이력서 공유 여부 판정용 (read-only).
+  // - 본인(hdlee@) 발송함 + 임세현(shim@) 발송 메일(hdlee가 cc/to/inbox로 보이는 케이스)을 모두 fetch.
+  //   임세현이 발송하고 hdlee를 cc로 추가하는 케이스가 흔해서 in:sent만으로는 누락(예: 이정아 메일).
+  // 마운트 시 1회 + 5분마다 자동 갱신. 즉시 동기화 버튼에서도 함께 재조회됨.
+  const refreshResumeShareIndex = async () => {
+    try {
+      const query = '(from:hdlee@cnccosmetic.com OR from:shim@cnccosmetic.com) has:attachment newer_than:90d';
+      const r = await api.google.listGmail(query, 200);
+      if (!r.ok || !r.data) return;
+      setResumeMails(
+        r.data.map((m) => ({
+          id: m.id,
+          threadId: m.threadId,
+          subject: m.subject,
+          snippet: m.snippet,
+          date: m.date,
+          to: m.to,
+          attachments: m.attachments || [],
+          attachmentInfos: m.attachmentInfos || [],
+        }))
+      );
+    } catch {
+      /* ignore — 일시적 네트워크 오류 */
+    }
+  };
+  useEffect(() => {
+    void refreshResumeShareIndex();
+    const t = setInterval(() => void refreshResumeShareIndex(), 5 * 60 * 1000);
+    return () => clearInterval(t);
+  }, []);
+
+  // 회의실 메타(목록) 로드 — 마운트 시 1회만. 회의실 캘린더 목록은 거의 안 변하므로 폴링할 필요 없음.
+  // 매번 listCalendarsFull을 호출하던 게 booking refresh 지연의 큰 부분이었다.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const r = await api.google.listCalendarsFull();
+        if (cancelled || !r.ok || !r.data) return;
+        const rooms = r.data
+          .map((e) => classifyResourceCalendar(e as GCalListEntry))
+          .filter((m): m is NonNullable<ReturnType<typeof classifyResourceCalendar>> => m !== null);
+        setRoomsMeta(rooms);
+      } catch {
+        /* ignore */
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  // 회의실 booking 폴링 — 면접 카드의 "회의실 예약" ✅ 판정 + 옆 텍스트(회의실명)에 사용.
+  // 범위: today - 3일 ~ today + 30일 (앱이 보여주는 면접 범위 거의 다 커버, fetch 비용 절반).
+  // 30초 폴링 + focus/visibility 즉시 갱신 + 등록/수정 직후 fire-and-forget으로 호출.
+  const refreshRoomBookings = async () => {
+    if (roomsMeta.length === 0) return;
+    try {
+      const now = new Date();
+      const start = new Date(now.getTime() - 3 * 86_400_000);
+      const end = new Date(now.getTime() + 30 * 86_400_000);
+      const startIso = start.toISOString();
+      const endIso = end.toISOString();
+      const results = await Promise.all(
+        roomsMeta.map(async (r) => {
+          try {
+            const er = await api.google.listCalendar(startIso, endIso, r.id);
+            if (!er.ok || !er.data) return [];
+            return er.data.map((e) => ({
+              id: e.id,
+              resourceId: r.id,
+              shortName: r.shortName,
+              startMs: Date.parse(e.start),
+              endMs: Date.parse(e.end),
+              summary: e.summary || '',
+              description: e.description || '',
+              htmlLink: e.htmlLink,
+              creatorEmail: e.creator?.email || undefined,
+            }));
+          } catch {
+            return [];
+          }
+        })
+      );
+      setRoomBookings(results.flat());
+    } catch {
+      /* ignore */
+    }
+  };
+  useEffect(() => {
+    if (roomsMeta.length === 0) return;
+    void refreshRoomBookings();
+    const t = setInterval(() => void refreshRoomBookings(), 30 * 1000);
+    const onVis = () => { if (document.visibilityState === 'visible') void refreshRoomBookings(); };
+    const onFocus = () => { void refreshRoomBookings(); };
+    document.addEventListener('visibilitychange', onVis);
+    window.addEventListener('focus', onFocus);
+    return () => {
+      clearInterval(t);
+      document.removeEventListener('visibilitychange', onVis);
+      window.removeEventListener('focus', onFocus);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [roomsMeta]);
+
+  // 매니저 owner의 러프(예비) booking 자동 단축 —
+  //   매니저가 회의실을 미리 길게(예: 10-13) 잡아두고 실제 면접 시간(예: 10-11)에 맞춰
+  //   booking 시간을 단축해주기. 룰:
+  //   1) booking.creator == myEmail (본인 권한으로만 수정)
+  //   2) booking summary에 후보자 이름 포함
+  //   3) 같은 회의실에 잡힌 면접 캘린더 면접(같은 후보자)이 booking 안에 들어가있고
+  //   4) booking 시간이 면접 시간보다 길면 → 면접 시간으로 단축 (start/end).
+  //   안전장치: 같은 booking 시간 안에 같은 후보자 면접이 정확히 1건일 때만 처리.
+  //   여러 후보자가 같은 booking 안에 들어가있으면 단축 위험 → skip.
+  useEffect(() => {
+    if (!myEmail || roomBookings.length === 0 || roomsMeta.length === 0) return;
+    const calendarInterviews = liveCalendarEventsNormalized()
+      .filter((e) => isInterviewKind(e.title, e.raw.colorId));
+    if (calendarInterviews.length === 0) return;
+    void (async () => {
+      const adjusted = new Set<string>();
+      for (const b of roomBookings) {
+        if (!b.creatorEmail || b.creatorEmail.toLowerCase() !== myEmail.toLowerCase()) continue;
+        // 후보자 이름 추출 — booking summary에 "면접 - {이름}" 또는 "면접 {이름}"
+        const nameMatch = b.summary.match(/면접\s*[-—–]?\s*([가-힣]{2,4})(?:\s*\([^)]*\))?/);
+        if (!nameMatch) continue;
+        const candidateName = nameMatch[1];
+        // 같은 회의실 + 같은 후보자 + booking 시간 안에 들어가는 면접 이벤트 찾기
+        const matched = calendarInterviews.filter((iv) => {
+          if (!iv.title.includes(candidateName)) return false;
+          const ivStart = iv.raw.start ? Date.parse(iv.raw.start) : NaN;
+          const ivEnd = iv.raw.end ? Date.parse(iv.raw.end) : NaN;
+          if (!Number.isFinite(ivStart) || !Number.isFinite(ivEnd)) return false;
+          // booking에 포함되는 면접만
+          if (ivStart < b.startMs || ivEnd > b.endMs) return false;
+          // 회의실 attendee가 같은 리소스인지 확인
+          const hasSameRoom = (iv.raw.attendees || []).some(
+            (a) => a.email === b.resourceId
+          );
+          return hasSameRoom;
+        });
+        if (matched.length !== 1) continue; // 안전: 정확히 1건일 때만
+        const iv = matched[0];
+        const ivStart = Date.parse(iv.raw.start);
+        const ivEnd = Date.parse(iv.raw.end);
+        // booking이 면접 시간과 이미 일치하면 skip
+        if (b.startMs === ivStart && b.endMs === ivEnd) continue;
+        // 단축 (booking 자체 update) — calendarId는 매니저 primary (이벤트 owner)
+        const key = `${b.resourceId}-${b.startMs}`;
+        if (adjusted.has(key)) continue;
+        adjusted.add(key);
+        try {
+          // booking 이벤트 ID는 회의실 캘린더에서 가져온 ID — 매니저 primary 캘린더에도 같은 이벤트가 있음 (creator 본인).
+          // 그러나 우리 roomBookings에는 회의실 캘린더 관점의 이벤트가 들어있어서, primary 쪽 같은 이벤트를 직접 찾아야.
+          // 회의실 캘린더 이벤트의 eventId는 회의실 관점이라 매니저 primary 캘린더에서는 다를 수 있음.
+          // → primary에서 같은 시간/회의실/후보자로 list_events 매칭이 더 안전하나 비용 큼.
+          // 대신 booking htmlLink로 eventId 추출 시도.
+          // 회의실 캘린더의 booking 자체에 매니저가 attendee면 primary에 사본 sync됨 (id 다름).
+          // primary 사본이 매니저 owner. 직접 update 위해 calendarEvents에서 매칭.
+          const primaryCopy = liveCalendarEventsNormalized().find((e) => {
+            if (e.raw.calendarId !== 'primary') return false;
+            if (e.raw.creator?.email !== myEmail) return false;
+            if (Date.parse(e.raw.start) !== b.startMs || Date.parse(e.raw.end) !== b.endMs) return false;
+            if (!(e.raw.attendees || []).some((a) => a.email === b.resourceId)) return false;
+            return e.title.includes(candidateName);
+          });
+          if (!primaryCopy) continue;
+          await api.google.updateCalEvent(
+            'primary',
+            primaryCopy.id,
+            {
+              start: { dateTime: new Date(ivStart).toISOString(), timeZone: 'Asia/Seoul' },
+              end: { dateTime: new Date(ivEnd).toISOString(), timeZone: 'Asia/Seoul' },
+            },
+            'none',
+          );
+          // eslint-disable-next-line no-console
+          console.info(`[auto-shrink] ${candidateName} 러프 booking 단축: ${new Date(b.startMs).toISOString()}~${new Date(b.endMs).toISOString()} → ${new Date(ivStart).toISOString()}~${new Date(ivEnd).toISOString()}`);
+        } catch (e) {
+          // eslint-disable-next-line no-console
+          console.warn(`[auto-shrink] 단축 실패 (${candidateName}):`, e);
+        }
+      }
+      if (adjusted.size > 0) {
+        void refreshRoomBookings();
+        void refreshCalendarFromGoogle();
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [myEmail, roomBookings, live.calendarEvents]);
+
   const handleManualRefresh = async () => {
     setRefreshing(true);
-    // 캘린더 + 모든 시트(면접 및 처우 현황 포함) 강제 fetch — 60초 polling 기다리지 않음
-    await Promise.all([refreshCalendarFromGoogle(), refreshNow()]);
+    // 캘린더 + 모든 시트 + 보낸함 이력서 인덱스 + 회의실 booking 강제 fetch.
+    await Promise.all([
+      refreshCalendarFromGoogle(),
+      refreshNow(),
+      refreshResumeShareIndex(),
+      refreshRoomBookings(),
+    ]);
     setRefreshing(false);
   };
 
@@ -352,9 +743,43 @@ export function CalendarPage() {
   };
 
   const handleDeleteEvent = async (event: InterviewEvent) => {
-    if (!confirm(`'${event.candidate || event.title}' 면접을 삭제하시겠습니까?\n\n캘린더 이벤트도 함께 삭제됩니다 (시트는 변경되지 않음).`)) return;
+    // 매칭되는 회의실 booking 찾기 — 같은 후보자 + 시간 겹침
+    // 별개 캘린더 이벤트(cncadmin/임세현이 만든 booking)와 attendee로 sync된 사본 둘 다 가능.
+    // 자기 자신(면접 이벤트 자체가 회의실 캘린더에 sync된 것)은 id 같으면 skip.
+    const candidateName = (event.candidate || '').trim();
+    const ivS = event.startISO ? Date.parse(event.startISO) : NaN;
+    const ivE = event.endISO ? Date.parse(event.endISO) : NaN;
+    const matchedBookings = (Number.isFinite(ivS) && Number.isFinite(ivE) && candidateName.length >= 2)
+      ? roomBookings.filter((b) => {
+          if (b.id === event.id) return false;
+          if (b.endMs <= ivS || b.startMs >= ivE) return false;
+          return b.summary.includes(candidateName) || b.description.includes(candidateName);
+        })
+      : [];
+
+    const bookingPart = matchedBookings.length > 0
+      ? `\n\n📅 회의실 예약 ${matchedBookings.length}건도 함께 삭제 시도:\n` +
+        matchedBookings.map((b) => `  · ${b.shortName} — ${b.creatorEmail || '?'} 만듦`).join('\n')
+      : '';
+    if (!confirm(
+      `'${candidateName || event.title}' 면접을 삭제하시겠습니까?\n\n` +
+      `캘린더 이벤트 + 시트 dismiss${bookingPart}\n\n(시트는 변경되지 않음)`
+    )) return;
+
     const key = dismissKey(event.dt, event.tm, event.candidate || event.title);
-    // 시트 출처는 캘린더 이벤트가 없을 수 있으니 dismiss만 추가 (재등록 방지)
+
+    // 1) 회의실 booking 먼저 삭제 시도 — 본인 booking은 OK, 다른 사람 만든 건 권한 부족 가능.
+    const bookingFails: { booking: typeof matchedBookings[number]; error: string }[] = [];
+    for (const b of matchedBookings) {
+      try {
+        const r = await api.google.deleteCalEvent(b.resourceId, b.id, 'all');
+        if (!r.ok) bookingFails.push({ booking: b, error: (r as { error?: string }).error || 'unknown' });
+      } catch (e) {
+        bookingFails.push({ booking: b, error: e instanceof Error ? e.message : String(e) });
+      }
+    }
+
+    // 2) 면접 이벤트 삭제 (시트 출처는 캘린더 이벤트 없을 수 있으니 dismiss만)
     if (event.source === 'calendar' && event.calendarId) {
       try {
         await api.google.deleteCalEvent(event.calendarId, event.id, 'all');
@@ -362,12 +787,59 @@ export function CalendarPage() {
         // ignore — 이미 삭제됐을 수도
       }
     }
-    // dismiss list에 추가 — 시트에 행이 남아있어도 다시 자동 등록 안 됨
+
+    // 3) dismiss list에 추가 — 시트에 행이 남아있어도 다시 자동 등록 안 됨
     const next = new Set(dismissed);
     next.add(key);
     await persistDismissed(next);
-    // 즉시 캘린더 다시 fetch (UI 반영)
+
+    // 4) booking 삭제 실패 있으면 사용자에게 안내 — 다른 사람 만든 booking은 그쪽에 요청 필요
+    if (bookingFails.length > 0) {
+      const lines = bookingFails.map((f) =>
+        `  · ${f.booking.shortName} (${f.booking.creatorEmail || '?'}): ${f.error}`
+      ).join('\n');
+      const owners = Array.from(new Set(bookingFails.map((f) => f.booking.creatorEmail).filter(Boolean))).join(', ');
+      alert(
+        `면접은 삭제됐지만 회의실 예약 ${bookingFails.length}건은 삭제 실패:\n${lines}\n\n` +
+        (owners
+          ? `다른 사람이 만든 booking은 본인 권한으로 삭제 불가합니다.\n${owners}에게 직접 삭제 요청하세요.`
+          : '권한/네트워크 문제일 수 있습니다.')
+      );
+    }
+
+    // 즉시 캘린더 + 회의실 booking 다시 fetch (UI 반영)
     void refreshCalendarFromGoogle();
+    void refreshRoomBookings();
+  };
+
+  // 불참 처리 — 면접 이벤트 제목에 "(불참)" 라벨 추가 + 회의실 attendee 자동 제거.
+  // 이력 보존이 목적이라 이벤트 자체는 삭제 안 함 (줄긋기로만 표시).
+  const handleMarkNoShow = async (event: InterviewEvent) => {
+    if (event.source !== 'calendar' || !event.calendarId) {
+      alert('캘린더 출처 이벤트만 불참 처리 가능합니다.');
+      return;
+    }
+    if (!confirm(`'${event.candidate || event.title}' 면접을 불참 처리하시겠습니까?\n\n• 제목 앞에 "(불참)" 라벨 추가\n• 회의실 예약 자동 해제\n• 카드에 줄긋기로 표시 (이력 보존)`)) return;
+    // 회의실 리소스 attendee만 빼고 사람 attendee는 유지
+    const keepAttendees = (event.attendees || [])
+      .filter((email) => typeof email === 'string' && !email.includes('resource.calendar.google.com'))
+      .map((email) => ({ email }));
+    const newSummary = /^\(불참\)/.test(event.title) ? event.title : `(불참) ${event.title}`;
+    try {
+      const r = await api.google.updateCalEvent(event.calendarId, event.id, {
+        summary: newSummary,
+        attendees: keepAttendees,
+      }, 'all');
+      if (!r.ok) {
+        alert(`불참 처리 실패: ${(r as { error?: string }).error || '알 수 없는 오류'}`);
+        return;
+      }
+    } catch (e) {
+      alert(`불참 처리 오류: ${e instanceof Error ? e.message : String(e)}`);
+      return;
+    }
+    void refreshCalendarFromGoogle();
+    void refreshRoomBookings();
   };
 
   // 같은 (날짜+시간+이름) 면접이 여러 캘린더/색으로 N중 등록된 것을 정리.
@@ -555,6 +1027,15 @@ export function CalendarPage() {
     }
     const fromCalendar: InterviewEvent[] = liveCalendarEventsNormalized()
       .filter((e) => isInterviewKind(e.title, e.raw.colorId))
+      // primary 캘린더에 자동 sync된 회의실 예약 사본만 면접 카드에서 제외.
+      // 면접 캘린더(c_d2a3...)에 사용자가 의도적으로 회의실을 attendee로 추가한 경우는
+      // 그대로 표시 (회의실 예약 매칭 배지로 시각화).
+      .filter((e) => {
+        const hasResource = (e.raw.attendees || []).some(
+          (a) => typeof a.email === 'string' && a.email.includes('resource.calendar.google.com')
+        );
+        return !(hasResource && e.raw.calendarId === 'primary');
+      })
       .map((e) => {
         const p = parseInterviewTitle(e.title);
         // location 필드가 더 정확하면 site/room 보강
@@ -597,6 +1078,72 @@ export function CalendarPage() {
     }
     return dedup;
   }, [D.calIntv, live.calendarEvents, live.snapshots, live.mappings, dismissed]);
+
+  // 미아 이벤트 감지 — 메인 면접 캘린더(c_d2a3...)에 보라색('3')으로 살아있지만
+  // isInterviewKind() 분류기를 통과 못해 카드에 안 보이는 이벤트.
+  // 등록 경로 비대칭(회의실 예약 페이지 등)으로 발생. 사용자 항의 전에 시스템이 먼저 발견.
+  const orphanInterviews = useMemo(() => {
+    const SUSPICIOUS = /^test|test$|asdf|테스트|^임시|^test\b|^tmp|sample/i;
+    const todayMs = Date.parse(`${today}T00:00:00+09:00`);
+    return liveCalendarEventsNormalized().filter((e) => {
+      if (e.raw.calendarId !== SHARED_CAL.interview) return false;
+      if (e.raw.colorId !== '3') return false;
+      // 분류기 통과 = 정상 카드 → 미아 아님
+      if (isInterviewKind(e.title, e.raw.colorId)) return false;
+      // 의심 summary: 4자 미만이거나 테스트/임시 키워드
+      const t = (e.title || '').trim();
+      const isSuspicious = t.length < 4 || SUSPICIOUS.test(t);
+      if (!isSuspicious) return false;
+      // 과거(오늘 이전)는 정리 대상에서 제외 — 이력 보존 + 오탐 위험
+      const startMs = e.raw.start ? Date.parse(e.raw.start) : NaN;
+      if (Number.isFinite(startMs) && startMs < todayMs) return false;
+      return true;
+    });
+  }, [live.calendarEvents, today]);
+
+  // 미아 이벤트 일괄 정리 — dry-run preview confirm 후 각각 삭제
+  const handleCleanupOrphans = async () => {
+    if (orphanInterviews.length === 0) return;
+    const lines = orphanInterviews.slice(0, 10).map((e) =>
+      `  · ${e.dt} ${e.tm} "${e.title.slice(0, 30)}" (${e.location || '장소 없음'})`
+    ).join('\n');
+    const more = orphanInterviews.length > 10 ? `\n  … 외 ${orphanInterviews.length - 10}건 더` : '';
+    const ok = window.confirm(
+      `⚠ 미아 면접 이벤트 정리\n\n` +
+      `메인 면접 캘린더에 보라색으로 살아있지만 카드에 안 보이는 이벤트 ${orphanInterviews.length}건:\n\n` +
+      lines + more +
+      `\n\n특징: summary가 짧거나 "test"/"테스트" 같은 임시 키워드. 회의실 예약 페이지 등에서 잘못 들어왔을 가능성 높음.\n\n` +
+      `모두 삭제하시겠습니까?`
+    );
+    if (!ok) return;
+    let deleted = 0;
+    let failed = 0;
+    const failDetails: string[] = [];
+    for (const e of orphanInterviews) {
+      try {
+        const r = await api.google.deleteCalEvent(SHARED_CAL.interview, e.id, 'all');
+        if (r.ok) {
+          deleted++;
+          // dismiss key에도 추가 (시트 출처면 재등록 방지)
+          const p = parseInterviewTitle(e.title);
+          const key = dismissKey(e.dt, e.tm, p.candidate || e.title);
+          dismissed.add(key);
+        } else {
+          failed++;
+          failDetails.push(`${e.dt} ${e.tm} "${e.title.slice(0, 20)}": ${(r as { error?: string }).error || 'unknown'}`);
+        }
+      } catch (err) {
+        failed++;
+        failDetails.push(`${e.dt} ${e.tm} "${e.title.slice(0, 20)}": ${err instanceof Error ? err.message : String(err)}`);
+      }
+    }
+    if (dismissed.size > 0) await persistDismissed(new Set(dismissed));
+    let msg = `✓ 미아 면접 정리 완료\n\n삭제 성공: ${deleted}건 / 실패: ${failed}건`;
+    if (failed > 0) msg += `\n\n실패 상세:\n${failDetails.slice(0, 6).join('\n')}`;
+    alert(msg);
+    void refreshCalendarFromGoogle();
+    void refreshRoomBookings();
+  };
 
   // 시트→캘린더 자동 등록: 시트에 datetime 있는데 캘린더에 없는 후보자 자동 create_event
   // GPD 부서·dismissed 키는 skip. 진행중인 키는 autoRegistering set으로 race condition 방지.
@@ -649,6 +1196,8 @@ export function CalendarPage() {
           const endHh = String((hh + 1) % 24).padStart(2, '0');
           const endISO = `${t.dt}T${endHh}:${String(mm).padStart(2, '0')}:00+09:00`;
           const summary = [t.tm, site, t.candidate, teamLabel].filter(Boolean).join(' / ');
+          // 시트→캘린더 자동 등록 시점에는 회의실 텍스트가 없으므로 site만으로 매칭 불가 → 회의실 attendee 생략.
+          // 사용자가 캘린더에서 직접 편집할 때(EditModal) 회의실 텍스트 채워지면 그때 attendee 자동 추가됨.
           const body: Parameters<typeof api.google.insertCalEvent>[1] = {
             summary,
             description: `후보자: ${t.candidate}\n부서: ${teamLabel}\n※ 시트 office_interview 행에서 자동 등록 (${getTodayStr()})`,
@@ -657,7 +1206,6 @@ export function CalendarPage() {
             end: { dateTime: endISO, timeZone: 'Asia/Seoul' },
             attendees: [
               { email: 'shim@cnccosmetic.com' },
-              { email: 'hdlee@cnccosmetic.com' },
             ],
           };
           (body as Record<string, unknown>).colorId = '3';
@@ -796,6 +1344,16 @@ export function CalendarPage() {
             <span>🧹</span>
             {cleaningUp ? '정리 중...' : '중복 정리'}
           </button>
+          {orphanInterviews.length > 0 && (
+            <button
+              onClick={handleCleanupOrphans}
+              className="px-3 py-1.5 rounded-full text-xs font-bold border bg-amber-100 text-amber-900 border-amber-300 hover:bg-amber-200 flex items-center gap-1 animate-pulse"
+              title="메인 면접 캘린더에 보라색으로 살아있지만 카드에 안 보이는 미아 이벤트. summary가 짧거나 'test'/'테스트' 같은 임시 키워드. 클릭하면 목록 확인 후 일괄 삭제"
+            >
+              <span>⚠</span>
+              미아 면접 {orphanInterviews.length}건 정리
+            </button>
+          )}
           <span className="text-[11px] text-slate-500" title={fetchedAt?.toLocaleString() || ''}>
             <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-400 mr-1 animate-pulse" />
             마지막 동기화 {fetchedAgoLabel} · 60초마다 자동 · 👥 TA팀 공유
@@ -837,17 +1395,21 @@ export function CalendarPage() {
       ) : (
         <div className="space-y-2 max-h-[calc(100vh-280px)] overflow-y-auto pr-1">
           {grouped.map(([dt, events]) => (
-            <DayBlock key={dt} dt={dt} events={events} today={today} onDelete={handleDeleteEvent} onEdit={handleEditEvent} />
+            <DayBlock key={dt} dt={dt} events={events} today={today} onDelete={handleDeleteEvent} onEdit={handleEditEvent} onMarkNoShow={handleMarkNoShow} resumeMails={resumeMails} roomBookings={roomBookings} />
           ))}
         </div>
       )}
 
       {creating && (
         <InterviewCreateModal
+          rooms={roomsMeta}
+          roomBookings={roomBookings}
           onClose={() => setCreating(false)}
-          onCreated={async () => {
+          onCreated={() => {
+            // 모달 즉시 닫음 + refresh는 백그라운드 (await 안 함) — 사용자 체감 속도 우선.
             setCreating(false);
-            await refreshCalendarFromGoogle();
+            void refreshCalendarFromGoogle();
+            void refreshRoomBookings();
           }}
         />
       )}
@@ -855,10 +1417,13 @@ export function CalendarPage() {
       {editingEvent && (
         <InterviewEditModal
           event={editingEvent}
+          rooms={roomsMeta}
+          roomBookings={roomBookings}
           onClose={() => setEditingEvent(null)}
-          onSaved={async () => {
+          onSaved={() => {
             setEditingEvent(null);
-            await refreshCalendarFromGoogle();
+            void refreshCalendarFromGoogle();
+            void refreshRoomBookings();
           }}
         />
       )}
@@ -866,7 +1431,9 @@ export function CalendarPage() {
   );
 }
 
-function InterviewCreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
+type RoomBookingItem = { id: string; resourceId: string; shortName: string; startMs: number; endMs: number; summary: string; description: string; htmlLink?: string; creatorEmail?: string };
+
+function InterviewCreateModal({ onClose, onCreated, rooms, roomBookings }: { onClose: () => void; onCreated: () => void; rooms: RoomMeta[]; roomBookings: RoomBookingItem[] }) {
   const init = nextHalfHour();
   const [form, setForm] = useState<InterviewForm>({
     candidate: '',
@@ -924,11 +1491,17 @@ function InterviewCreateModal({ onClose, onCreated }: { onClose: () => void; onC
     const fullLocation = [finalSite, finalRoom].filter(Boolean).join(' ');
     const startISO = `${form.date}T${form.startTime}:00`;
     const endISO = `${form.date}T${form.endTime}:00`;
-    const attendees = form.interviewers
+    const attendees: { email: string; resource?: boolean }[] = form.interviewers
       .split(/[,\s\n]+/)
       .map((s) => s.trim())
       .filter((s) => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(s))
       .map((email) => ({ email }));
+    // 회의실 자동 선점 — finalSite + finalRoom으로 리소스 이메일 매핑, 매칭되면 attendee에 추가.
+    // Google이 같은 슬롯에 이미 잡힌 게 없으면 'accepted', 충돌 시 'declined'로 응답 → 사용자가 결과 확인 가능.
+    const roomMapping = findResourceEmailByLocation(finalRoom, finalSite, rooms);
+    if (roomMapping) {
+      attendees.push({ email: roomMapping.resourceEmail, resource: true });
+    }
 
     // 설명(description) 우선순위: 장소를 맨 위로 — 사용자가 빠르게 보고 이동/준비 가능
     // 후보자/팀/직무는 summary에 이미 있으므로 description은 부가 정보 위주
@@ -953,18 +1526,56 @@ function InterviewCreateModal({ onClose, onCreated }: { onClose: () => void; onC
       };
     }
 
+    // 회의실 충돌 사전 체크 — 같은 회의실에 같은 시간대 booking이 이미 있으면 등록 차단.
+    // 다른 사람 booking과 겹치면 무조건 막아서 회의실 중복 예약(declined 사고) 방지.
+    if (roomMapping) {
+      try {
+        const dayStart = `${form.date}T00:00:00+09:00`;
+        const dayEnd = `${form.date}T23:59:59+09:00`;
+        const existing = await api.google.listCalendar(dayStart, dayEnd, roomMapping.resourceEmail);
+        if (existing.ok && existing.data) {
+          const ivStart = Date.parse(`${startISO}+09:00`);
+          const ivEnd = Date.parse(`${endISO}+09:00`);
+          const conflicts = existing.data.filter((e) => {
+            const s = Date.parse(e.start);
+            const en = Date.parse(e.end);
+            return Number.isFinite(s) && Number.isFinite(en) && s < ivEnd && en > ivStart;
+          });
+          if (conflicts.length > 0) {
+            const lines = conflicts.map((c) => {
+              const s = new Date(c.start);
+              const en = new Date(c.end);
+              const time = `${String(s.getHours()).padStart(2, '0')}:${String(s.getMinutes()).padStart(2, '0')}-${String(en.getHours()).padStart(2, '0')}:${String(en.getMinutes()).padStart(2, '0')}`;
+              return `  · ${time} ${c.summary || '(제목 없음)'}`;
+            }).join('\n');
+            window.alert(
+              `⛔ 회의실 중복 예약 — 등록 불가\n\n` +
+              `${roomMapping.shortName}에 ${form.date} ${form.startTime}-${form.endTime} 시간대 ` +
+              `이미 다른 예약이 있어 등록할 수 없습니다:\n\n${lines}\n\n` +
+              `다른 회의실을 선택하거나 시간을 변경해주세요.`
+            );
+            setSubmitting(false);
+            return;
+          }
+        }
+      } catch {
+        /* 충돌 체크 자체가 실패한 경우엔 등록은 진행 (네트워크/권한 이슈로 차단까지 하면 사용성 저하) */
+      }
+    }
+
     setSubmitting(true);
     try {
-      // 팀 공유 면접 캘린더에 등록 — 모든 TA팀원의 앱에서 동일하게 보임
-      const r = await api.google.insertCalEvent(SHARED_CAL.interview, body);
+      // 팀 공유 면접 캘린더에 등록 — 모든 TA팀원의 앱에서 동일하게 보임.
+      // sendUpdates='all'로 attendees(현업)에게도 초대 메일 발송 (메모리 룰: 면접 attendees 필수).
+      const r = await api.google.insertCalEvent(SHARED_CAL.interview, body, 'all');
       if (!r.ok) {
         setErr(r.error || '캘린더 등록 실패');
         setSubmitting(false);
         return;
       }
       onCreated();
-    } catch (e: any) {
-      setErr(e?.message || String(e));
+    } catch (e: unknown) {
+      setErr(e instanceof Error ? e.message : String(e));
       setSubmitting(false);
     }
   };
@@ -1088,6 +1699,14 @@ function InterviewCreateModal({ onClose, onCreated }: { onClose: () => void; onC
               />
             )}
           </Field>
+          <RoomAvailabilityPanel
+            date={form.date}
+            site={form.site}
+            rooms={rooms}
+            bookings={roomBookings}
+            selectedStart={form.startTime}
+            selectedEnd={form.endTime}
+          />
           <Field label="면접관 이메일 (쉼표/줄바꿈 구분)">
             <textarea
               value={form.interviewers}
@@ -1154,7 +1773,7 @@ function isoDate(d: Date): string {
   return `${y}-${m}-${dd}`;
 }
 
-function DayBlock({ dt, events, today, onDelete, onEdit }: { dt: string; events: InterviewEvent[]; today: string; onDelete: (e: InterviewEvent) => void; onEdit: (e: InterviewEvent) => void }) {
+function DayBlock({ dt, events, today, onDelete, onEdit, onMarkNoShow, resumeMails, roomBookings }: { dt: string; events: InterviewEvent[]; today: string; onDelete: (e: InterviewEvent) => void; onEdit: (e: InterviewEvent) => void; onMarkNoShow: (e: InterviewEvent) => void; resumeMails: ResumeShareMail[]; roomBookings: { id: string; resourceId: string; shortName: string; startMs: number; endMs: number; summary: string; description: string; htmlLink?: string; creatorEmail?: string }[] }) {
   const d = new Date(dt + 'T00:00:00');
   const dow = DOW[d.getDay()];
   const dowTone =
@@ -1203,27 +1822,106 @@ function DayBlock({ dt, events, today, onDelete, onEdit }: { dt: string; events:
       </div>
       <div className="divide-y divide-slate-100">
         {events.map((e) => (
-          <InterviewRow key={e.id} event={e} onDelete={onDelete} onEdit={onEdit} />
+          <InterviewRow key={e.id} event={e} onDelete={onDelete} onEdit={onEdit} onMarkNoShow={onMarkNoShow} resumeMails={resumeMails} roomBookings={roomBookings} />
         ))}
       </div>
     </div>
   );
 }
 
-function InterviewRow({ event, onDelete, onEdit }: { event: InterviewEvent; onDelete: (e: InterviewEvent) => void; onEdit: (e: InterviewEvent) => void }) {
-  const noAttendees = event.source === 'calendar' && event.attendees.length === 0;
-  // 근무지가 location에만 있고 파싱은 못 했을 때 fallback
-  const locParts = (event.location || '').split(/\s+/).filter(Boolean);
-  const siteFallback = event.site
-    || locParts.find((t) => SITE_KEYWORDS.some((s) => t.includes(s)))
-    || locParts[0]
-    || '';
-  const roomFallback = event.room
-    || locParts.find((t) => ROOM_KEYWORDS.test(t) && t !== siteFallback)
-    || (locParts.length > 1 && locParts[locParts.length - 1] !== siteFallback ? locParts.slice(1).join(' ') : '')
-    || '';
-  // 장소 합치기 — 강조용 단일 문자열
-  const fullLocation = [siteFallback, roomFallback].filter(Boolean).join(' · ');
+// 면접 카드 우측 체크리스트의 한 줄. 체크 시 진한 텍스트, 미체크는 흐림.
+// href가 있으면 anchor로 — 이력서 메일 등 외부 링크에 사용.
+function CheckLine({ checked, label, detail, href, forceDetail }: { checked: boolean; label: string; detail?: string; href?: string; forceDetail?: boolean }) {
+  const box = (
+    <span
+      className={`inline-flex items-center justify-center w-3.5 h-3.5 rounded-sm border shrink-0 ${
+        checked ? 'bg-emerald-500 border-emerald-500 text-white' : 'bg-white border-slate-300'
+      }`}
+    >
+      {checked && <span className="text-[8px] leading-none font-bold">✓</span>}
+    </span>
+  );
+  const showDetail = !!detail && (checked || forceDetail);
+  const text = (
+    <>
+      <span className={`font-semibold ${checked ? 'text-slate-700' : 'text-slate-400'}`}>{label}</span>
+      {showDetail && (
+        <span className={`ml-1 text-[10px] truncate ${forceDetail ? 'max-w-[180px]' : 'max-w-[100px]'} ${checked ? 'text-slate-600 font-semibold' : 'text-amber-700'}`}>
+          {detail}
+        </span>
+      )}
+    </>
+  );
+  if (href && checked) {
+    return (
+      <a
+        href={href}
+        target="_blank"
+        rel="noopener noreferrer"
+        onClick={(ev) => ev.stopPropagation()}
+        title={`${label}${detail ? ' · ' + detail : ''}`}
+        className="inline-flex items-center gap-1 hover:bg-slate-100 rounded px-1 -mx-1 transition-colors"
+      >
+        {box}
+        {text}
+      </a>
+    );
+  }
+  return (
+    <div
+      className="inline-flex items-center gap-1"
+      title={`${label}${detail ? ' · ' + detail : ''}`}
+    >
+      {box}
+      {text}
+    </div>
+  );
+}
+
+function InterviewRow({ event, onDelete, onEdit, onMarkNoShow, resumeMails, roomBookings }: { event: InterviewEvent; onDelete: (e: InterviewEvent) => void; onEdit: (e: InterviewEvent) => void; onMarkNoShow: (e: InterviewEvent) => void; resumeMails: ResumeShareMail[]; roomBookings: { id: string; resourceId: string; shortName: string; startMs: number; endMs: number; summary: string; description: string; htmlLink?: string; creatorEmail?: string }[] }) {
+  // 불참 처리된 면접 — title에 "(불참)" 또는 "노쇼/no-show" 키워드 있으면 줄긋기로 표시.
+  const isNoShow = /^\s*\(불참\)|^\s*불참\b|\(노\s*쇼\)|^\s*노\s*쇼|no[-\s]?show/i.test(event.title);
+  // 장소 표시: 캘린더 location 필드 전체를 우선 (예: "퍼플 미팅룸 1번")
+  // location이 비어있을 때만 title 파싱 결과(site/room)로 fallback
+  const fullLocation = (event.location || '').trim()
+    || [event.site, event.room].filter(Boolean).join(' · ');
+  // 보낸함에서 후보자 이름이 들어간 이력서 첨부 메일이 있으면 "현업 공유" 인정.
+  // 캘린더 면접일과 대조해서 (a)검토용 메일 (b)다른 차수 면접 메일 오인 방지.
+  const resumeShare = event.source === 'calendar' ? findResumeShare(event.candidate, event.dt, resumeMails) : null;
+  // 회의실 attendee가 있으면 회의실 예약된 면접 — primary sync 사본은 이미 위에서 필터됨.
+  const roomAttendees = (event.attendees || []).filter((email) =>
+    typeof email === 'string' && email.includes('resource.calendar.google.com')
+  );
+  // 회의실 booking과 cross-match — cncadmin@/임세현이 별도로 잡은 회의실 예약 인정.
+  // 이름 매칭이 1차, 실패하면 시간 겹침 + 회의실명 토큰 매칭이 2차 (오타·익명 booking 케이스).
+  const matchedBooking = event.source === 'calendar'
+    ? matchRoomBooking(
+        event.candidate,
+        event.dt,
+        event.startISO,
+        event.endISO,
+        event.location || fullLocation,
+        event.site,
+        roomBookings,
+      )
+    : null;
+
+  // 옛/잔존 회의실 예약 감지 — 후보자 이름이 들어간 booking이 면접 이벤트 시간대와 안 겹치면 잔존.
+  //   예: 박준상 면접을 5/14→5/13으로 옮겼지만 미팅룸-2 5/14 11:00 booking이 cncadmin@ 소유라 안 지워짐.
+  //   매니저가 모르고 지나가지 않게 면접 카드에 경고 배지로 즉시 표시.
+  const orphanBookings = (() => {
+    if (event.source !== 'calendar') return [];
+    const name = (event.candidate || '').trim();
+    if (name.length < 2) return [];
+    const ivStart = event.startISO ? Date.parse(event.startISO) : NaN;
+    const ivEnd = event.endISO ? Date.parse(event.endISO) : NaN;
+    return roomBookings.filter((b) => {
+      if (!b.summary.includes(name) && !b.description.includes(name)) return false;
+      // 면접 시간과 겹치면 정상 매칭 — 잔존 아님
+      if (Number.isFinite(ivStart) && Number.isFinite(ivEnd) && b.startMs < ivEnd && b.endMs > ivStart) return false;
+      return true;
+    });
+  })();
 
   const handleRowClick = (ev: React.MouseEvent) => {
     if (event.htmlLink) {
@@ -1250,9 +1948,9 @@ function InterviewRow({ event, onDelete, onEdit }: { event: InterviewEvent; onDe
         </div>
       </div>
 
-      {/* 가운데: 이름 (큰 글씨) + 팀 + 장소(강조) */}
+      {/* 가운데: 이름 (큰 글씨) + 팀 */}
       <div className="flex-1 min-w-0">
-        <div className={`flex items-baseline gap-2 flex-wrap ${event.done ? 'line-through' : ''}`}>
+        <div className={`flex items-baseline gap-2 flex-wrap ${isNoShow ? 'line-through text-slate-400' : ''}`}>
           <span className="font-extrabold text-slate-900 text-[15px] tracking-tight">
             {event.candidate || event.title}
           </span>
@@ -1266,25 +1964,154 @@ function InterviewRow({ event, onDelete, onEdit }: { event: InterviewEvent; onDe
             <span>{fullLocation}</span>
           </div>
         )}
-        {event.attendees.length > 0 && (
-          <div className="text-[11px] text-slate-500 mt-1">
-            👥 면접관 {event.attendees.length}명
+        {orphanBookings.length > 0 && (
+          <div className="mt-1 flex flex-wrap items-center gap-1">
+            {orphanBookings.map((b, i) => {
+              const d = new Date(b.startMs);
+              const dateLabel = `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+              const ownerLabel = b.creatorEmail
+                ? b.creatorEmail.split('@')[0]
+                : '?';
+              return (
+                <a
+                  key={`${b.resourceId}-${b.startMs}-${i}`}
+                  href={b.htmlLink || '#'}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={(ev) => ev.stopPropagation()}
+                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-rose-50 border border-rose-300 text-rose-800 text-[11px] font-bold hover:bg-rose-100"
+                  title={`옛 회의실 예약 잔존 — 면접은 ${event.dt}로 옮겨졌는데 회의실 booking은 ${dateLabel} ${b.shortName}에 그대로 남아있음.\nowner: ${ownerLabel} (본인 권한이 아니면 owner한테 해제 요청 필요).\nbooking summary: ${b.summary}`}
+                >
+                  <span>⚠️ 옛 회의실 잔존</span>
+                  <span className="font-mono">{dateLabel}</span>
+                  <span>· {b.shortName}</span>
+                  <span className="text-rose-500">(owner: {ownerLabel})</span>
+                </a>
+              );
+            })}
           </div>
         )}
       </div>
 
-      {/* 우측: 출처 / 경고 / 삭제 버튼 */}
-      <div className="flex flex-col items-end gap-0.5 shrink-0 text-[10px]">
+      {/* 우측: 진척 체크리스트 (캘린더 출처만) — 한눈에 체크 */}
+      {event.source === 'calendar' && (() => {
+        const humanAttendeeCount = (event.attendees || []).filter(
+          (e) => typeof e === 'string' && !e.includes('resource.calendar.google.com')
+        ).length;
+        const shareOk = humanAttendeeCount > 0 || !!resumeShare;
+        const resumeOk = !!resumeShare;
+        // 회의실 예약 ✅ 판정: (1) 면접 이벤트 attendees에 회의실 리소스 있음
+        // 또는 (2) primary/회의실 캘린더에 cncadmin@이 잡은 booking과 cross-match.
+        const roomOk = roomAttendees.length > 0 || !!matchedBooking;
+        // 옆 텍스트: 매칭된 회의실 shortName 우선 → location 텍스트 → "미예약"
+        const roomDetail = matchedBooking
+          ? matchedBooking.shortName
+          : roomAttendees.length > 0
+          ? (fullLocation || `${roomAttendees.length}개`)
+          : (fullLocation || undefined);
+        return (
+          <div className="shrink-0 grid grid-cols-2 gap-x-3 gap-y-0.5 text-[10px]">
+            <CheckLine
+              checked={shareOk}
+              label="현업 공유"
+              detail={shareOk ? (humanAttendeeCount > 0 ? `초대 ${humanAttendeeCount}명` : '이력서') : undefined}
+            />
+            <div className="flex items-center gap-1 col-span-1">
+              <CheckLine
+                checked={resumeOk}
+                label="이력서 메일"
+                href={resumeShare ? gmailMessageUrl(resumeShare.mail.id) : undefined}
+                detail={
+                  resumeShare
+                    ? resumeShare.matchKind === 'filename'
+                      ? resumeShare.filename
+                      : `본문매칭 · 첨부 ${resumeShare.mail.attachments.length}개`
+                    : undefined
+                }
+              />
+              {/* PDF 첨부 바로열기 — 후보자 이름이 들어간 "이력서" PDF만 1개 매칭.
+                  사전질문지·평가표·면접평가서 등 다른 면접 자료는 제외. */}
+              {resumeShare && (() => {
+                const infos = resumeShare.mail.attachmentInfos || [];
+                const candidateNorm = (event.candidate || '').replace(/[\s_\-.()\[\]·]+/g, '');
+                if (candidateNorm.length < 2) return null;
+                // 제외 키워드 — 이력서가 아닌 면접 자료들
+                const EXCLUDE = /사전질문|질문지|평가표|평가서|평가지|면접평가|자기평가|인성검사|적성검사|체크리스트|온보딩|입사안내|일정공유|평가/i;
+                // 이력서 신호 — 이게 들어있으면 가장 확실
+                const RESUME = /이력서|이력|resume|cv|portfolio|포트폴리오|자기소개서|자소서/i;
+
+                const pdfsWithName = infos.filter((a) => {
+                  const isPdf = a.mimeType === 'application/pdf' || /\.pdf$/i.test(a.filename || '');
+                  if (!isPdf) return false;
+                  const fnNorm = (a.filename || '').replace(/[\s_\-.()\[\]·]+/g, '');
+                  return fnNorm.includes(candidateNorm);
+                });
+                // (1) 이름 + "이력서" 키워드 + 제외 키워드 없음 — 가장 확실한 매칭
+                const exact = pdfsWithName.find((a) => RESUME.test(a.filename) && !EXCLUDE.test(a.filename));
+                // (2) 이름 + 제외 키워드 없음 — 파일명에 "이력서" 단어 없어도 사전질문지/평가표는 아님
+                const looseButSafe = !exact && pdfsWithName.find((a) => !EXCLUDE.test(a.filename));
+                const myPdf = exact || looseButSafe;
+                if (!myPdf) return null;
+                return (
+                  <button
+                    type="button"
+                    onClick={(ev) => {
+                      ev.stopPropagation();
+                      void (async () => {
+                        try {
+                          const r = await api.google.openAttachment(
+                            resumeShare.mail.id,
+                            myPdf.filename,
+                            myPdf.attachmentId,
+                          );
+                          if (!r.ok) alert(`이력서 PDF 열기 실패: ${r.error || '알 수 없는 오류'}`);
+                        } catch (e) {
+                          alert(`이력서 PDF 열기 오류: ${e instanceof Error ? e.message : String(e)}`);
+                        }
+                      })();
+                    }}
+                    className="ml-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100"
+                    title={`${myPdf.filename} (${Math.round((myPdf.size || 0) / 1024)} KB)\n클릭 → PDF 뷰어로 바로 열림`}
+                  >
+                    📄 이력서
+                  </button>
+                );
+              })()}
+            </div>
+            <div className="col-span-2">
+              <CheckLine
+                checked={roomOk}
+                label="회의실 예약"
+                detail={roomDetail}
+                forceDetail
+              />
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* 출처 / 완료 */}
+      <div className="flex flex-col items-end gap-0.5 shrink-0 text-[10px] ml-2">
         {event.source === 'calendar' ? (
           <span className="text-slate-400">📅 캘린더</span>
         ) : (
           <span className="text-slate-400">📋 시트</span>
         )}
-        {noAttendees && (
-          <span className="chip bg-amber-100 text-amber-800 text-[10px] font-bold">⚠ 면접관 ✗</span>
-        )}
         {event.done && <span className="text-emerald-600 font-bold">✓ 완료</span>}
       </div>
+      {event.source === 'calendar' && !isNoShow && (
+        <button
+          onClick={(ev) => {
+            ev.stopPropagation();
+            ev.preventDefault();
+            onMarkNoShow(event);
+          }}
+          title="불참 처리 — 제목에 (불참) 라벨 + 회의실 자동 해제 + 줄긋기 표시"
+          className="shrink-0 px-2 h-7 rounded-md text-[11px] font-bold text-slate-500 hover:text-rose-700 hover:bg-rose-50 transition-colors flex items-center"
+        >
+          불참
+        </button>
+      )}
       {event.source === 'calendar' && (
         <button
           onClick={(ev) => {
@@ -1395,10 +2222,14 @@ function InterviewEditModal({
   event,
   onClose,
   onSaved,
+  rooms,
+  roomBookings,
 }: {
   event: InterviewEvent;
   onClose: () => void;
   onSaved: () => void;
+  rooms: RoomMeta[];
+  roomBookings: RoomBookingItem[];
 }) {
   // 기존 시간 prefill — startISO/endISO에서 추출. 없으면 event.tm/+1h 사용
   const startTm = isoToHHMM(event.startISO) || (event.tm !== '종일' ? event.tm : '10:00');
@@ -1427,7 +2258,10 @@ function InterviewEditModal({
     date: event.dt,
     startTime: startTm,
     endTime: endTm,
-    interviewers: event.attendees.join(', '),
+    // 회의실 리소스 이메일은 폼에서 제외 — 매니저가 보기 흉하고, submit 때 자동 매핑이 새로 추가하므로 중복 방지.
+    interviewers: event.attendees
+      .filter((email) => !email.includes('resource.calendar.google.com'))
+      .join(', '),
     // notes는 사용자가 추가로 적는 메모만 받음.
     // event.description 전체를 prefill 하면 표준 prefix(📍 장소·후보자·팀)가 두 번 적히는 중복 버그.
     notes: '',
@@ -1465,6 +2299,13 @@ function InterviewEditModal({
       .split(/[,\s\n]+/)
       .map((s) => s.trim())
       .filter((s) => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(s));
+    // 회의실 자동 선점 — 수정 시에도 finalSite+finalRoom 매핑하여 attendees에 회의실 리소스 포함.
+    // 회의실이 바뀌면 Google이 기존 리소스에서 해제하고 새 리소스에 새로 invite 보냄.
+    const builtAttendees: { email: string; resource?: boolean }[] = attendeeEmails.map((email) => ({ email }));
+    const roomMapping = findResourceEmailByLocation(finalRoom, finalSite, rooms);
+    if (roomMapping) {
+      builtAttendees.push({ email: roomMapping.resourceEmail, resource: true });
+    }
 
     const body: Record<string, unknown> = {
       summary,
@@ -1477,9 +2318,51 @@ function InterviewEditModal({
       location: fullLocation,
       start: { dateTime: startISO, timeZone: 'Asia/Seoul' },
       end: { dateTime: endISO, timeZone: 'Asia/Seoul' },
-      attendees: attendeeEmails.map((email) => ({ email })),
+      attendees: builtAttendees,
       colorId: '3', // 보라색 면접 라벨 유지
     };
+
+    // 회의실 충돌 사전 체크 (수정 시) — 같은 회의실에 같은 시간대 다른 사람 booking 있으면 차단.
+    // 자기 자신(수정 대상 이벤트)의 회의실 sync본은 후보자 이름으로 식별해 제외.
+    if (roomMapping) {
+      try {
+        const dayStart = `${form.date}T00:00:00+09:00`;
+        const dayEnd = `${form.date}T23:59:59+09:00`;
+        const existing = await api.google.listCalendar(dayStart, dayEnd, roomMapping.resourceEmail);
+        if (existing.ok && existing.data) {
+          const ivStart = Date.parse(`${startISO}+09:00`);
+          const ivEnd = Date.parse(`${endISO}+09:00`);
+          const candidateName = form.candidate.trim();
+          const conflicts = existing.data.filter((e) => {
+            const s = Date.parse(e.start);
+            const en = Date.parse(e.end);
+            if (!Number.isFinite(s) || !Number.isFinite(en)) return false;
+            if (!(s < ivEnd && en > ivStart)) return false;
+            // 자기 이벤트 제외 — summary/description에 같은 후보자 이름 포함되면 자기 것의 회의실 sync본
+            const text = `${e.summary || ''} ${e.description || ''}`;
+            if (candidateName && text.includes(candidateName)) return false;
+            return true;
+          });
+          if (conflicts.length > 0) {
+            const lines = conflicts.map((c) => {
+              const s = new Date(c.start);
+              const en = new Date(c.end);
+              const time = `${String(s.getHours()).padStart(2, '0')}:${String(s.getMinutes()).padStart(2, '0')}-${String(en.getHours()).padStart(2, '0')}:${String(en.getMinutes()).padStart(2, '0')}`;
+              return `  · ${time} ${c.summary || '(제목 없음)'}`;
+            }).join('\n');
+            window.alert(
+              `⛔ 회의실 중복 예약 — 수정 불가\n\n` +
+              `${roomMapping.shortName}에 ${form.date} ${form.startTime}-${form.endTime} 시간대 ` +
+              `이미 다른 예약이 있어 변경할 수 없습니다:\n\n${lines}\n\n` +
+              `다른 회의실을 선택하거나 시간을 변경해주세요.`
+            );
+            return;
+          }
+        }
+      } catch {
+        /* 체크 실패는 무시하고 진행 */
+      }
+    }
 
     setSubmitting(true);
     try {
@@ -1561,6 +2444,14 @@ function InterviewEditModal({
               <input type="text" value={form.customRoom} onChange={(e) => update('customRoom', e.target.value)} placeholder="회의실 직접 입력" className="input w-full mt-1.5" />
             )}
           </Field>
+          <RoomAvailabilityPanel
+            date={form.date}
+            site={form.site}
+            rooms={rooms}
+            bookings={roomBookings}
+            selectedStart={form.startTime}
+            selectedEnd={form.endTime}
+          />
           <Field label="면접관 이메일 (쉼표 구분)">
             <textarea value={form.interviewers} onChange={(e) => update('interviewers', e.target.value)} rows={2} className="input w-full font-mono text-xs" />
           </Field>
@@ -1582,6 +2473,177 @@ function InterviewEditModal({
           </button>
         </div>
       </div>
+    </div>
+  );
+}
+
+// 면접 등록/수정 모달 안에 보여주는 회의실 현황 패널 (Gantt-style 시간 막대).
+// 가로축: 8시 ~ 19시 (11시간). 회의실마다 1줄. booking은 회색 막대, 선택한 면접 시간은 indigo 윤곽.
+// 선택 시간이 booking과 겹치면 막대 + 회의실명 빨강. 사이트(퍼플/그린/수원) 변경하면 즉시 갱신.
+const PANEL_HOUR_START = 8;
+const PANEL_HOUR_END = 19;
+const PANEL_HOUR_RANGE = PANEL_HOUR_END - PANEL_HOUR_START;
+
+function RoomAvailabilityPanel({
+  date,
+  site,
+  rooms,
+  bookings,
+  selectedStart,
+  selectedEnd,
+}: {
+  date: string;
+  site: string;
+  rooms: RoomMeta[];
+  bookings: RoomBookingItem[];
+  selectedStart: string;
+  selectedEnd: string;
+}) {
+  const SITE_KEY: Record<string, 'purple' | 'green' | 'suwon'> = { 퍼플: 'purple', 그린: 'green', 수원: 'suwon' };
+  const wantSite = SITE_KEY[site];
+  if (!wantSite || !date) {
+    return (
+      <div className="rounded-lg bg-slate-50 border border-slate-200 px-3 py-2 text-[11px] text-slate-500">
+        💡 위워크/온라인 또는 직접 입력 사이트는 회의실 현황 표시가 없습니다.
+      </div>
+    );
+  }
+  const siteRooms = rooms.filter((r) => r.site === wantSite && r.kind === 'room');
+  const axisStart = Date.parse(`${date}T${String(PANEL_HOUR_START).padStart(2, '0')}:00:00+09:00`);
+  const axisEnd = Date.parse(`${date}T${String(PANEL_HOUR_END).padStart(2, '0')}:00:00+09:00`);
+  // axisStart/End가 NaN이면 (date 형식 오류) 안전하게 패널 자체를 표시하지 않음
+  if (!Number.isFinite(axisStart) || !Number.isFinite(axisEnd) || axisEnd <= axisStart) {
+    return (
+      <div className="rounded-lg bg-slate-50 border border-slate-200 px-3 py-2 text-[11px] text-slate-500">
+        💡 날짜 형식이 올바르지 않아 회의실 현황을 표시할 수 없습니다.
+      </div>
+    );
+  }
+  const totalMs = axisEnd - axisStart;
+  const selStartMs = selectedStart ? Date.parse(`${date}T${selectedStart}:00+09:00`) : NaN;
+  const selEndMs = selectedEnd ? Date.parse(`${date}T${selectedEnd}:00+09:00`) : NaN;
+  const hasSelection = Number.isFinite(selStartMs) && Number.isFinite(selEndMs) && selEndMs > selStartMs;
+  const pct = (ms: number): number => {
+    if (!Number.isFinite(ms)) return 0;
+    const clamped = Math.max(axisStart, Math.min(axisEnd, ms));
+    return ((clamped - axisStart) / totalMs) * 100;
+  };
+  const fmt = (ms: number) => {
+    const d = new Date(ms);
+    return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+  };
+  // 선택 시간이 축 범위 밖이면 좌/우 가장자리에 marker 잘려보이지 않도록 표시 여부 결정
+  const selVisible = hasSelection && selEndMs > axisStart && selStartMs < axisEnd;
+  return (
+    <div className="rounded-lg bg-amber-50/70 border border-amber-200 px-3 py-2.5">
+      <div className="flex items-center justify-between mb-2">
+        <span className="text-[11px] font-bold text-amber-900">
+          📅 {date} {site} 회의실 현황 ({PANEL_HOUR_START}~{PANEL_HOUR_END}시)
+        </span>
+        {hasSelection && (
+          <span className="text-[10px] text-amber-800">
+            선택 <b>{selectedStart}-{selectedEnd}</b> · 회색=예약, <span className="text-indigo-700 font-bold">파랑=내 시간</span>, 🔴=충돌
+          </span>
+        )}
+      </div>
+      {siteRooms.length === 0 ? (
+        <div className="text-[11px] text-slate-500">{site} 회의실 리소스가 없습니다.</div>
+      ) : (
+        <div className="space-y-1.5">
+          {/* 시간 축 헤더 — 1시간 단위 라벨 (양 끝은 안쪽으로 정렬해서 잘림 방지) */}
+          <div className="flex items-stretch gap-2">
+            <div className="shrink-0 w-24" />
+            <div className="relative flex-1 h-3.5">
+              {Array.from({ length: PANEL_HOUR_RANGE + 1 }, (_, i) => {
+                const isFirst = i === 0;
+                const isLast = i === PANEL_HOUR_RANGE;
+                const transform = isFirst ? 'translateX(0)' : isLast ? 'translateX(-100%)' : 'translateX(-50%)';
+                return (
+                  <span
+                    key={i}
+                    className="absolute top-0 text-[9px] text-slate-500 font-medium tabular-nums"
+                    style={{ left: `${(i / PANEL_HOUR_RANGE) * 100}%`, transform }}
+                  >
+                    {PANEL_HOUR_START + i}
+                  </span>
+                );
+              })}
+            </div>
+          </div>
+          {/* 회의실별 막대 */}
+          <div className="space-y-1 max-h-56 overflow-y-auto pr-1">
+            {siteRooms.map((r) => {
+              const dayBookings = bookings
+                .filter((b) =>
+                  b.resourceId === r.id
+                  && Number.isFinite(b.startMs)
+                  && Number.isFinite(b.endMs)
+                  && b.endMs > b.startMs
+                  && b.endMs > axisStart
+                  && b.startMs < axisEnd
+                )
+                .sort((a, b) => a.startMs - b.startMs);
+              const conflict = hasSelection && dayBookings.some((b) => b.startMs < selEndMs && b.endMs > selStartMs);
+              return (
+                <div key={r.id} className="flex items-stretch gap-2">
+                  <span
+                    className={`shrink-0 w-24 truncate text-[11px] font-semibold leading-6 ${
+                      conflict ? 'text-rose-700' : 'text-slate-700'
+                    }`}
+                    title={r.shortName}
+                  >
+                    {conflict ? '🔴 ' : ''}{r.shortName}
+                  </span>
+                  {/* 막대 영역 */}
+                  <div className="relative flex-1 h-6 rounded border border-emerald-200 bg-emerald-50 overflow-hidden">
+                    {/* 1시간 grid line */}
+                    {Array.from({ length: PANEL_HOUR_RANGE - 1 }, (_, i) => (
+                      <div
+                        key={i}
+                        className="absolute top-0 bottom-0 w-px bg-emerald-200/70"
+                        style={{ left: `${((i + 1) / PANEL_HOUR_RANGE) * 100}%` }}
+                      />
+                    ))}
+                    {/* booking 막대 */}
+                    {dayBookings.map((b) => {
+                      const left = pct(b.startMs);
+                      const width = Math.max(0.5, pct(b.endMs) - left);
+                      const overlap = hasSelection && b.startMs < selEndMs && b.endMs > selStartMs;
+                      const label = `${fmt(b.startMs)} ${b.summary}`.slice(0, 24);
+                      return (
+                        <div
+                          key={b.id}
+                          className={`absolute top-0.5 bottom-0.5 rounded px-1 text-[9px] font-medium truncate flex items-center ${
+                            overlap
+                              ? 'bg-rose-500 text-white border border-rose-700'
+                              : 'bg-slate-400/80 text-white border border-slate-500'
+                          }`}
+                          style={{ left: `${left}%`, width: `${width}%` }}
+                          title={`${fmt(b.startMs)}-${fmt(b.endMs)} ${b.summary}\n생성자: ${b.creatorEmail || '?'}`}
+                        >
+                          {width > 6 ? label : ''}
+                        </div>
+                      );
+                    })}
+                    {/* 선택한 면접 시간 indigo 윤곽 */}
+                    {selVisible && (() => {
+                      const left = pct(selStartMs);
+                      const width = Math.max(0.8, pct(selEndMs) - left);
+                      return (
+                        <div
+                          className="absolute -top-px -bottom-px border-2 border-indigo-600 rounded pointer-events-none shadow-sm"
+                          style={{ left: `${left}%`, width: `${width}%`, boxShadow: '0 0 0 1px rgba(255,255,255,0.6)' }}
+                          title={`내 면접 시간 ${selectedStart}-${selectedEnd}`}
+                        />
+                      );
+                    })()}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

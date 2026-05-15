@@ -34,12 +34,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
     listSheetTabs: (id) => invoke('g:listSheetTabs', id),
     readSheet: (id, range) => invoke('g:readSheet', id, range),
     listGmail: (q, max) => invoke('g:listGmail', q, max),
+    openAttachment: (messageId, filename, attachmentId) => invoke('g:openAttachment', messageId, filename, attachmentId),
     listCalendar: (min, max, id) => invoke('g:listCalendar', min, max, id),
     listCalendars: () => invoke('g:listCalendars'),
     listCalendarsFull: () => invoke('g:listCalendarsFull'),
     patchCalendarListEntry: (calendarId, body) => invoke('g:patchCalendarListEntry', calendarId, body),
     // Calendar WRITE (user authorized)
-    insertCalEvent: (calendarId, body) => invoke('g:insertCalEvent', calendarId, body),
+    insertCalEvent: (calendarId, body, sendUpdates) => invoke('g:insertCalEvent', calendarId, body, sendUpdates),
     updateCalEvent: (calendarId, eventId, body, sendUpdates) => invoke('g:updateCalEvent', calendarId, eventId, body, sendUpdates),
     deleteCalEvent: (calendarId, eventId, sendUpdates) => invoke('g:deleteCalEvent', calendarId, eventId, sendUpdates),
   },
@@ -59,6 +60,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
     get: (key) => invoke('cfg:get', key),
     set: (key, value) => invoke('cfg:set', key, value),
     del: (key) => invoke('cfg:del', key),
+  },
+
+  mobile: {
+    getInfo: () => invoke('mobile:getInfo'),
+    rotateToken: () => invoke('mobile:rotateToken'),
+    onTunnelUrl: (cb) => subscribe('mobile:tunnelUrl', cb),
   },
 
   sync: {

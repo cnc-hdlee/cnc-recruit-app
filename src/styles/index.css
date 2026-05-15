@@ -28,6 +28,20 @@
   #root {
     height: 100%;
   }
+
+  /* iOS Safari가 input 포커스 시 자동 줌하지 않도록 — 16px 미만이면 줌 발생 */
+  @media (max-width: 768px) {
+    input, select, textarea {
+      font-size: 16px;
+    }
+  }
+
+  /* iOS 노치/홈 인디케이터 영역 — PWA standalone 모드에서 의미. 데스크톱은 0 */
+  body {
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
   body {
     /* C&C 사이트 톤: 깊은 인디고 글로우 + 라벤더-화이트 베이스 */
     background:

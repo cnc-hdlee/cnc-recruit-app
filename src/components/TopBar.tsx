@@ -14,7 +14,7 @@ function emailToInitials(email: string | null): string {
   return (local.slice(0, 2) || '··').toUpperCase();
 }
 
-export function TopBar({ title }: { title: string }) {
+export function TopBar({ title, onMenuClick }: { title: string; onMenuClick?: () => void }) {
   const [now, setNow] = useState(new Date());
   const [menuOpen, setMenuOpen] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
@@ -181,9 +181,18 @@ export function TopBar({ title }: { title: string }) {
   const ss = String(now.getSeconds()).padStart(2, '0');
 
   return (
-    <header className="h-14 shrink-0 px-6 flex items-center justify-between surface-glass">
-      <div className="flex items-center gap-4">
-        <h1 className="text-lg font-semibold tracking-tight text-brand">{title}</h1>
+    <header className="h-14 shrink-0 px-3 sm:px-4 md:px-6 flex items-center justify-between surface-glass gap-2">
+      <div className="flex items-center gap-2 md:gap-4 min-w-0">
+        {onMenuClick && (
+          <button
+            onClick={onMenuClick}
+            className="md:hidden w-9 h-9 rounded grid place-items-center text-slate-700 hover:bg-slate-200/60 shrink-0"
+            aria-label="메뉴 열기"
+          >
+            <span className="text-xl leading-none">☰</span>
+          </button>
+        )}
+        <h1 className="text-base md:text-lg font-semibold tracking-tight text-brand truncate">{title}</h1>
         {(todayCount > 0 || urgent > 0 || live.lastError) && (
           <div className="flex items-center gap-2">
             {todayCount > 0 && (
@@ -232,14 +241,14 @@ export function TopBar({ title }: { title: string }) {
           </span>
         )}
       </div>
-      <div className="flex items-center gap-4 text-sm">
-        <div className="text-brand-mid">
+      <div className="flex items-center gap-2 md:gap-4 text-sm shrink-0">
+        <div className="hidden sm:block text-brand-mid">
           <span className="font-semibold">
             {y}.{mo}.{dd}
           </span>{' '}
           <span className="text-brand-soft">({DAYS[now.getDay()]})</span>
         </div>
-        <div className="font-mono tabular-nums font-semibold tracking-wider" style={{ color: 'var(--cc-p2)' }}>
+        <div className="hidden md:block font-mono tabular-nums font-semibold tracking-wider" style={{ color: 'var(--cc-p2)' }}>
           {hh}:{mm}:{ss}
         </div>
         <div ref={menuRef} className="relative">

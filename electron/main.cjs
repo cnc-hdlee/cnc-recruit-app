@@ -2,6 +2,9 @@ const { app, BrowserWindow, Menu, shell, dialog, ipcMain } = require('electron')
 const path = require('node:path');
 const ipc = require('./ipc-handlers.cjs');
 const sync = require('./integrations/sync.cjs');
+const mobileServer = require('./mobile-server.cjs');
+const cfTunnel = require('./cloudflare-tunnel.cjs');
+const store = require('./integrations/store.cjs');
 const { autoUpdater } = require('electron-updater');
 
 // dev/prod 모두 같은 userData 폴더(cnc-recruit-app) 사용 — OAuth/매핑/시트 캐시 공유
@@ -111,6 +114,43 @@ ipcMain.handle('app:quitAndInstall', () => {
 
 ipc.register();
 
+// IPC: mobile bridge info (used by Settings UI to show the phone URL / QR code)
+ipcMain.handle('mobile:getInfo', () => {
+  try {
+    const local = mobileServer.getInfo();
+    const tun = cfTunnel.getInfo();
+    const token = store.get('mobileAccessToken') || null;
+    const cloudBase = store.get('cloudWorkerUrl') || null; // e.g. https://cnc-recruit.cnc-hdlee.workers.dev
+    const cloudUrl = cloudBase && token ? `${cloudBase}/?t=${encodeURIComponent(token)}` : null;
+    const externalUrl = tun.url && token ? `${tun.url}/?t=${encodeURIComponent(token)}` : null;
+    const lanUrls = local.ips.map((i) => token ? `http://${i.address}:${local.port}/?t=${encodeURIComponent(token)}` : `http://${i.address}:${local.port}`);
+    return {
+      ok: true,
+      data: {
+        ...local,
+        token,
+        cloudUrl,
+        externalUrl,
+        lanUrls,
+        tunnel: tun,
+      },
+    };
+  } catch (e) {
+    return { ok: false, error: e?.message || String(e) };
+  }
+});
+
+ipcMain.handle('mobile:rotateToken', () => {
+  try {
+    const crypto = require('node:crypto');
+    const t = crypto.randomBytes(18).toString('base64url');
+    store.set('mobileAccessToken', t);
+    return { ok: true, data: { token: t } };
+  } catch (e) {
+    return { ok: false, error: e?.message || String(e) };
+  }
+});
+
 const gotTheLock = app.requestSingleInstanceLock();
 if (!gotTheLock) {
   app.quit();
@@ -124,7 +164,7 @@ function createWindow() {
     height: 1000,
     minWidth: 1200,
     minHeight: 800,
-    title: 'CNC 채용 커맨드센터',
+    title: 'CNC 채용',
     icon: path.join(__dirname, '..', 'icon.png'),
     backgroundColor: '#0a0a23',
     show: false,
@@ -148,6 +188,25 @@ function createWindow() {
     mainWindow.focus();
     sync.setWindow(mainWindow.webContents);
     sync.startFromConfig().catch(() => {});
+    // 모바일 LAN 브릿지 — 폰에서 같은 WiFi로 본체에 붙어 실시간 데이터 조회
+    try {
+      mobileServer.start();
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.warn('[mobile-server] start failed:', e?.message || e);
+    }
+    // Cloudflare quick tunnel — 사외에서도 URL 한 번으로 접속
+    try {
+      cfTunnel.start();
+      cfTunnel.onChange(({ url }) => {
+        if (url && mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.webContents.send('mobile:tunnelUrl', { url });
+        }
+      });
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.warn('[cloudflared] start failed:', e?.message || e);
+    }
     // 창 뜨고 5초 뒤에 업데이트 체크 (앱 초기화에 영향 X)
     setTimeout(setupAutoUpdater, 5000);
   });
@@ -226,6 +285,8 @@ app.on('second-instance', () => {
 app.whenReady().then(createWindow);
 
 app.on('window-all-closed', () => {
+  try { mobileServer.stop(); } catch {}
+  try { cfTunnel.stop(); } catch {}
   app.quit();
 });
 

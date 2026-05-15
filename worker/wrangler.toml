@@ -1,0 +1,33 @@
+# Cloudflare Worker - CNC Recruit Cloud (works even when PC is off, fixed URL)
+# Deployed URL: https://cnc-recruit.<account>.workers.dev
+
+name = "cnc-recruit"
+main = "src/index.ts"
+compatibility_date = "2025-01-01"
+compatibility_flags = ["nodejs_compat"]
+
+# Static viewer build served at /
+# run_worker_first ensures our auth/redirect/snapshot logic runs BEFORE Cloudflare's
+# static asset handler — otherwise `?t=token` would hit a cached `/index.html` and
+# the auth cookie would never be set.
+[assets]
+directory = "../dist-viewer"
+binding = "ASSETS"
+run_worker_first = true
+
+# Cached snapshot (sheets + calendar) - refreshed every 5 minutes by the Cron trigger
+[[kv_namespaces]]
+binding = "SNAPSHOT_KV"
+id = "5a1ee7e6431a42668ccd772aed12b8dd"
+
+# Cron: every 5 minutes
+[triggers]
+crons = ["*/5 * * * *"]
+
+# Public configuration: sheet IDs, calendar IDs, mappings.
+# Secrets (GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REFRESH_TOKEN, ACCESS_TOKEN)
+# are uploaded via `wrangler secret put`.
+[vars]
+SHEET_IDS = '["1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY","1TtCbTyZ9XIItZ08APYNuYbxPppZHN3iAJGiWewmcJGw"]'
+CALENDAR_IDS = '["primary","c_d2a3298862ba8bba109c13c83c2cc7c1ac85560bdc12a305c40c79f6964c65a2@group.calendar.google.com","c_711021d8db3140f0fa36874c11e98a449ee5528637e020d891cf903cd4b8c443@group.calendar.google.com","c_e006d0f491165344836f40c2589456a597676d6d551c00a477e5fe6c46a8804f@group.calendar.google.com","c_6b893ca53cb3b057d4e04928dffae5408a3b4c81332b561668190094bf09c2a7@group.calendar.google.com"]'
+MAPPINGS = '{"office_headcount":[{"spreadsheetId":"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY","tabName":"★전사인원현황","headerRow":1},{"spreadsheetId":"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY","tabName":"★부서별TO","headerRow":1}],"recruit_request":[{"spreadsheetId":"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY","tabName":"채용요청(정규직)DB","headerRow":1},{"spreadsheetId":"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY","tabName":"채용요청(도급직)DB","headerRow":1},{"spreadsheetId":"1TtCbTyZ9XIItZ08APYNuYbxPppZHN3iAJGiWewmcJGw","tabName":"채용요청관리","headerRow":1}],"office_pipeline":[{"spreadsheetId":"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY","tabName":"정규직DB","headerRow":1},{"spreadsheetId":"1TtCbTyZ9XIItZ08APYNuYbxPppZHN3iAJGiWewmcJGw","tabName":"정규직 채용 현황","headerRow":1}],"incoming":[{"spreadsheetId":"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY","tabName":"입사예정(정규직)DB","headerRow":1}],"weekly_log":[{"spreadsheetId":"1TtCbTyZ9XIItZ08APYNuYbxPppZHN3iAJGiWewmcJGw","tabName":"위클리업무","headerRow":1}],"field_pipeline":[{"spreadsheetId":"1TtCbTyZ9XIItZ08APYNuYbxPppZHN3iAJGiWewmcJGw","tabName":"생산직 면접 내용","headerRow":1}],"office_interview":[{"spreadsheetId":"1TtCbTyZ9XIItZ08APYNuYbxPppZHN3iAJGiWewmcJGw","tabName":"면접 및 처우 현황","headerRow":1}],"field_incoming":[{"spreadsheetId":"1TtCbTyZ9XIItZ08APYNuYbxPppZHN3iAJGiWewmcJGw","tabName":"생산입사예정자","headerRow":1}]}'

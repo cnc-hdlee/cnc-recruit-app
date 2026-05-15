@@ -7,6 +7,8 @@ import {
   suggestKind,
 } from '../lib/sheetMapping';
 import { setMappings, useLiveData, refreshNow } from '../store/liveData';
+import { MobileAccessCard } from '../components/MobileAccessCard';
+import { ResourceCalendarTidyCard } from '../components/ResourceCalendarTidyCard';
 
 interface SheetEntry {
   spreadsheetId: string;
@@ -180,14 +182,20 @@ export function Settings() {
 
       {live.lastError && <Banner kind="warn" msg={`동기화 경고: ${live.lastError}`} />}
 
+      <MobileAccessCard />
+
+      {gStatus?.authed && <ResourceCalendarTidyCard />}
+
       <section className="card p-5">
         <div className="flex items-center justify-between mb-3">
           <div>
             <h2 className="text-lg font-semibold flex items-center gap-2">
-              <span className="text-2xl">🔑</span> Google 연동 (읽기 전용)
+              <span className="text-2xl">🔑</span> Google 연동
             </h2>
             <p className="text-xs text-slate-400 mt-1">
-              Sheets · Gmail · Calendar는 모두 <b className="text-accent-green">읽기 전용</b> 권한으로만 접근. 시트는 절대 앱이 수정하지 않습니다.
+              <b className="text-accent-green">Sheets · Drive: 읽기 전용</b> (앱이 절대 수정 안 함) ·
+              <b className="text-accent-green"> Gmail: 읽기 + 본인 발송용 send</b> ·
+              <b className="text-accent-green"> Calendar: 읽기 + 쓰기</b> (면접/회의실 예약 자동화에 필요)
             </p>
           </div>
           <StatusPill ok={gStatus?.authed} label={gStatus?.authed ? gStatus.profile?.email || '연결됨' : '연결 안 됨'} />

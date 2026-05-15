@@ -171,6 +171,31 @@ async function readSheetRange(spreadsheetId, range) {
   return r.data.values || [];
 }
 
+// Walk Gmail message payload and collect attachment filenames (recursively).
+// 또한 attachmentId/mimeType을 별도 _detailed로 수집해 다운로드/오픈 기능에 활용.
+function collectAttachmentNames(payload, detailed) {
+  const out = [];
+  const walk = (part) => {
+    if (!part) return;
+    if (part.filename && part.filename.length > 0) {
+      out.push(part.filename);
+      if (detailed && part.body?.attachmentId) {
+        detailed.push({
+          filename: part.filename,
+          attachmentId: part.body.attachmentId,
+          mimeType: part.mimeType || '',
+          size: part.body.size || 0,
+        });
+      }
+    }
+    if (Array.isArray(part.parts)) {
+      for (const p of part.parts) walk(p);
+    }
+  };
+  walk(payload);
+  return out;
+}
+
 async function listGmail(query, max = 30) {
   const auth = buildClient();
   const gmail = google.gmail({ version: 'v1', auth });
@@ -181,10 +206,11 @@ async function listGmail(query, max = 30) {
       const det = await gmail.users.messages.get({
         userId: 'me',
         id: m.id,
-        format: 'metadata',
-        metadataHeaders: ['From', 'To', 'Subject', 'Date'],
+        format: 'full',
       });
-      const h = (name) => (det.data.payload.headers || []).find((x) => x.name === name)?.value || '';
+      const h = (name) => (det.data.payload?.headers || []).find((x) => x.name === name)?.value || '';
+      const attachmentInfos = [];
+      const attachments = collectAttachmentNames(det.data.payload, attachmentInfos);
       return {
         id: m.id,
         threadId: m.threadId,
@@ -194,10 +220,50 @@ async function listGmail(query, max = 30) {
         subject: h('Subject'),
         date: h('Date'),
         labelIds: det.data.labelIds || [],
+        attachments,
+        attachmentInfos, // [{filename, attachmentId, mimeType, size}]
       };
     })
   );
   return detailed;
+}
+
+// Gmail 첨부 다운로드 → 임시 폴더에 저장 → 시스템 기본 앱으로 open.
+// 사용처: 이력서 메일 박스 옆 PDF 버튼 클릭 → 바로 PDF Reader로 열림.
+async function openGmailAttachment(messageId, filename, attachmentId) {
+  const auth = buildClient();
+  const gmail = google.gmail({ version: 'v1', auth });
+  // attachmentId가 안 들어왔으면 메시지 다시 fetch해서 파일명으로 찾는다.
+  let attId = attachmentId;
+  if (!attId) {
+    const det = await gmail.users.messages.get({ userId: 'me', id: messageId, format: 'full' });
+    const infos = [];
+    collectAttachmentNames(det.data.payload, infos);
+    const hit = infos.find((x) => x.filename === filename);
+    if (!hit) throw new Error(`첨부 "${filename}"을 찾을 수 없습니다.`);
+    attId = hit.attachmentId;
+  }
+  const att = await gmail.users.messages.attachments.get({
+    userId: 'me',
+    messageId,
+    id: attId,
+  });
+  const b64 = (att.data.data || '').replace(/-/g, '+').replace(/_/g, '/');
+  const buf = Buffer.from(b64, 'base64');
+  const fs = require('node:fs');
+  const path = require('node:path');
+  const os = require('node:os');
+  const { app } = require('electron');
+  const tempRoot = app?.getPath ? app.getPath('temp') : os.tmpdir();
+  const dir = path.join(tempRoot, 'cnc-recruit-attachments');
+  try { fs.mkdirSync(dir, { recursive: true }); } catch {}
+  const safe = (filename || `attachment-${Date.now()}`).replace(/[\\/:*?"<>|]/g, '_');
+  // messageId prefix로 중복 방지 (다른 메일에 같은 파일명이 있어도 충돌 X)
+  const filePath = path.join(dir, `${messageId.slice(0, 8)}__${safe}`);
+  fs.writeFileSync(filePath, buf);
+  const err = await shell.openPath(filePath);
+  if (err) throw new Error(`파일 열기 실패: ${err}`);
+  return { path: filePath };
 }
 
 async function listCalendar(timeMin, timeMax, calendarId = 'primary') {
@@ -224,6 +290,8 @@ async function listCalendar(timeMin, timeMax, calendarId = 'primary') {
     htmlLink: e.htmlLink,
     status: e.status,
     conferenceUrl: e.conferenceData?.entryPoints?.[0]?.uri || e.hangoutLink || null,
+    creator: e.creator ? { email: e.creator.email || null, self: !!e.creator.self } : null,
+    organizer: e.organizer ? { email: e.organizer.email || null, self: !!e.organizer.self } : null,
     attendees: (e.attendees || []).map((a) => ({
       email: a.email,
       name: a.displayName,
@@ -275,13 +343,13 @@ async function patchCalendarListEntry(calendarId, body) {
 // Calendar event WRITE — user explicitly authorized read+write on Calendar only.
 // `body` shape mirrors Google Calendar event resource:
 //   { summary, description, location, start: {dateTime|date}, end: {dateTime|date}, attendees: [{email}], reminders, ... }
-async function insertCalendarEvent(calendarId, body) {
+async function insertCalendarEvent(calendarId, body, sendUpdates = 'none') {
   const auth = buildClient();
   const cal = google.calendar({ version: 'v3', auth });
   const r = await cal.events.insert({
     calendarId: calendarId || 'primary',
     requestBody: body,
-    sendUpdates: 'none', // do NOT auto-email attendees by default; user can opt in later
+    sendUpdates,
   });
   return r.data;
 }
@@ -289,23 +357,40 @@ async function insertCalendarEvent(calendarId, body) {
 async function updateCalendarEvent(calendarId, eventId, body, sendUpdates = 'none') {
   const auth = buildClient();
   const cal = google.calendar({ version: 'v3', auth });
-  const r = await cal.events.patch({
-    calendarId: calendarId || 'primary',
-    eventId,
-    requestBody: body,
-    sendUpdates,
-  });
-  return r.data;
+  try {
+    const r = await cal.events.patch({
+      calendarId: calendarId || 'primary',
+      eventId,
+      requestBody: body,
+      sendUpdates,
+    });
+    return r.data;
+  } catch (e) {
+    // 410 Gone / 404 Not Found — race condition으로 이미 삭제됐을 때 false-fail 방지.
+    // (deleteCalendarEvent와 동일한 패턴)
+    const code = e?.code || e?.response?.status || e?.status;
+    if (code === 404 || code === 410) return { ok: true, alreadyGone: true };
+    throw e;
+  }
 }
 
 async function deleteCalendarEvent(calendarId, eventId, sendUpdates = 'none') {
   const auth = buildClient();
   const cal = google.calendar({ version: 'v3', auth });
-  await cal.events.delete({
-    calendarId: calendarId || 'primary',
-    eventId,
-    sendUpdates,
-  });
+  try {
+    await cal.events.delete({
+      calendarId: calendarId || 'primary',
+      eventId,
+      sendUpdates,
+    });
+  } catch (e) {
+    // 이미 삭제됨(410 Gone)이나 존재하지 않음(404)은 결과적으로 "사라진 상태"라 성공으로 간주.
+    // googleapis는 사실 events.delete 성공 시 204 No Content를 반환하면서 가끔 응답 처리에서
+    // throw하는 케이스가 있어, 동일 신호로 잡아 alert가 잘못 뜨는 것 방지.
+    const code = e?.code || e?.response?.status || e?.status;
+    if (code === 404 || code === 410) return { ok: true, alreadyGone: true };
+    throw e;
+  }
   return { ok: true };
 }
 
@@ -320,6 +405,7 @@ module.exports = {
   listSheetTabs,
   readSheetRange,
   listGmail,
+  openGmailAttachment,
   // Calendar: read + WRITE (user explicitly authorized)
   listCalendar,
   listCalendars,

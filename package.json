@@ -9,6 +9,8 @@
     "dev:vite": "vite",
     "dev:electron": "wait-on tcp:5173 && cross-env NODE_ENV=development electron .",
     "build": "vite build",
+    "build:viewer": "cross-env VITE_VIEWER_MODE=true vite build --mode production",
+    "sync:mobile": "npm run build:viewer && cd worker && npx --yes wrangler deploy",
     "build:portable": "vite build && electron-builder --win portable --x64",
     "build:installer": "vite build && electron-builder --win nsis --x64",
     "release": "npm version patch --no-git-tag-version && vite build && electron-builder --win nsis --x64 --publish always",
@@ -42,7 +44,7 @@
   },
   "build": {
     "appId": "com.cnccosmetic.recruit",
-    "productName": "CNC Recruit",
+    "productName": "CNC 채용",
     "directories": {
       "output": "release"
     },
@@ -69,7 +71,7 @@
       "allowToChangeInstallationDirectory": false,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "CNC 채용 커맨드센터",
+      "shortcutName": "CNC 채용",
       "deleteAppDataOnUninstall": false,
       "artifactName": "CNC-Recruit-Setup-${version}.${ext}"
     },

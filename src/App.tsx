@@ -7,10 +7,12 @@ import { refreshNow } from './store/liveData';
 import { IS_VIEWER } from './lib/mode';
 import { Sidebar } from './components/Sidebar';
 import { TopBar } from './components/TopBar';
+import { InstallPrompt } from './components/InstallPrompt';
 import { Dashboard } from './pages/Dashboard';
 import { Headcount } from './pages/Headcount';
 import { IncomingHires } from './pages/IncomingHires';
 import { CalendarPage } from './pages/CalendarPage';
+import { MeetingRooms } from './pages/MeetingRooms';
 import { JobCenters } from './pages/JobCenters';
 import { CandidateLookup } from './pages/CandidateLookup';
 import { MailLog } from './pages/MailLog';
@@ -24,6 +26,7 @@ const PAGE_TITLES: Record<PageId, string> = {
   headcount: '인원현황',
   incoming: '입사예정자',
   calendar: '면접 캘린더',
+  rooms: '회의실 예약',
   jobcenters: '일자리센터',
   lookup: '후보자 검색',
   mail: '메일 / 커뮤니케이션',
@@ -34,6 +37,7 @@ const PAGE_TITLES: Record<PageId, string> = {
 
 export default function App() {
   const [page, setPage] = useState<PageId>('dashboard');
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   useEffect(() => {
     // 첫 실행: 빌드에 박힌 OAuth + 시트 기본값 자동 적용 → 로그인 필요하면 자동 OAuth → sync 시작
@@ -57,16 +61,33 @@ export default function App() {
     loadOverrides().catch(() => {});
   }, []);
 
+  const handlePageChange = (p: PageId) => {
+    setPage(p);
+    setSidebarOpen(false);
+  };
+
   return (
-    <div className="flex h-screen overflow-hidden">
-      <Sidebar active={page} onChange={setPage} />
+    <div className="flex h-[100dvh] overflow-hidden">
+      <Sidebar
+        active={page}
+        onChange={handlePageChange}
+        isOpen={sidebarOpen}
+        onClose={() => setSidebarOpen(false)}
+      />
+      {sidebarOpen && (
+        <div
+          className="md:hidden fixed inset-0 bg-black/60 z-30 backdrop-blur-sm"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
       <div className="flex-1 flex flex-col min-w-0">
-        <TopBar title={PAGE_TITLES[page]} />
-        <main className="flex-1 overflow-y-auto p-6 animate-fade-in">
+        <TopBar title={PAGE_TITLES[page]} onMenuClick={() => setSidebarOpen(true)} />
+        <main className="flex-1 overflow-y-auto overflow-x-auto p-3 sm:p-4 md:p-6 animate-fade-in">
           {page === 'dashboard' && <Dashboard onNavigate={setPage} />}
           {page === 'headcount' && <Headcount />}
           {page === 'incoming' && <IncomingHires />}
           {page === 'calendar' && <CalendarPage />}
+          {page === 'rooms' && <MeetingRooms />}
           {page === 'jobcenters' && <JobCenters />}
           {page === 'lookup' && <CandidateLookup />}
           {page === 'mail' && <MailLog />}
@@ -75,6 +96,7 @@ export default function App() {
           {page === 'usage' && <Usage />}
         </main>
       </div>
+      <InstallPrompt />
     </div>
   );
 }

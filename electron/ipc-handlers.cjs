@@ -42,12 +42,14 @@ function register() {
   safeHandle('g:readSheet', async (id, range) => google.readSheetRange(id, range));
   // No write IPC for Google Sheets — strictly read-only.
   safeHandle('g:listGmail', async (q, max) => google.listGmail(q, max));
+  safeHandle('g:openAttachment', async (messageId, filename, attachmentId) =>
+    google.openGmailAttachment(messageId, filename, attachmentId));
   safeHandle('g:listCalendar', async (min, max, id) => google.listCalendar(min, max, id));
   safeHandle('g:listCalendars', async () => google.listCalendars());
   safeHandle('g:listCalendarsFull', async () => google.listCalendarsFull());
   safeHandle('g:patchCalendarListEntry', async (calendarId, body) => google.patchCalendarListEntry(calendarId, body));
   // Calendar write (only Calendar — Sheets/Gmail/Drive remain read-only)
-  safeHandle('g:insertCalEvent', async (calendarId, body) => google.insertCalendarEvent(calendarId, body));
+  safeHandle('g:insertCalEvent', async (calendarId, body, sendUpdates) => google.insertCalendarEvent(calendarId, body, sendUpdates));
   safeHandle('g:updateCalEvent', async (calendarId, eventId, body, sendUpdates) => google.updateCalendarEvent(calendarId, eventId, body, sendUpdates));
   safeHandle('g:deleteCalEvent', async (calendarId, eventId, sendUpdates) => google.deleteCalendarEvent(calendarId, eventId, sendUpdates));
 

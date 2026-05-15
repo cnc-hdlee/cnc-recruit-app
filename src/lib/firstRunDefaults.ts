@@ -54,16 +54,24 @@ export async function applyFirstRunDefaultsIfNeeded(): Promise<{ needsLogin: boo
     }
   }
 
-  // 2) 시트 ID + 매핑 — 비어있을 때만 기본값 박기
+  // 2) 시트 ID + 매핑 — 비어있으면 기본값 박고, 일부만 등록돼있으면 누락된 default ID를 합쳐줌
+  // (이미 사용 중인 사용자도 새로 추가된 default 시트를 자동으로 받아볼 수 있도록)
   if (DEFAULT_SHEETS && DEFAULT_SHEETS.sheetIds.length > 0) {
     try {
       const cur = await api.cfg.get<{ list?: { spreadsheetId: string; url: string }[] }>('sheetIds');
-      const hasSheets = cur.ok && cur.data && Array.isArray(cur.data.list) && cur.data.list.length > 0;
-      if (!hasSheets) {
+      const curList = cur.ok && cur.data && Array.isArray(cur.data.list) ? cur.data.list : [];
+      const have = new Set(curList.map((x) => x.spreadsheetId));
+      const missing = DEFAULT_SHEETS.sheetIds.filter((id) => !have.has(id));
+      if (curList.length === 0) {
         const list = DEFAULT_SHEETS.sheetIds.map((id) => ({ spreadsheetId: id, url: id }));
         await api.cfg.set('sheetIds', { list });
         // eslint-disable-next-line no-console
         console.info('[first-run] 시트 ID 기본값 적용:', list.length, '개');
+      } else if (missing.length > 0) {
+        const merged = [...curList, ...missing.map((id) => ({ spreadsheetId: id, url: id }))];
+        await api.cfg.set('sheetIds', { list: merged });
+        // eslint-disable-next-line no-console
+        console.info('[first-run] 누락된 default 시트 자동 추가:', missing);
       }
     } catch {
       // non-fatal

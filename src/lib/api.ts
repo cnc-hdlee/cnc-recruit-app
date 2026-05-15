@@ -29,6 +29,13 @@ export interface SheetMeta {
   tabs: SheetTab[];
 }
 
+export interface GmailAttachmentInfo {
+  filename: string;
+  attachmentId: string;
+  mimeType: string;
+  size: number;
+}
+
 export interface GmailMsg {
   id: string;
   threadId: string;
@@ -38,6 +45,8 @@ export interface GmailMsg {
   subject: string;
   date: string;
   labelIds: string[];
+  attachments?: string[];
+  attachmentInfos?: GmailAttachmentInfo[];
 }
 
 export interface GCalEvent {
@@ -53,6 +62,8 @@ export interface GCalEvent {
   htmlLink?: string;
   status: string;
   conferenceUrl: string | null;
+  creator?: { email: string | null; self: boolean } | null;
+  organizer?: { email: string | null; self: boolean } | null;
   attendees: { email?: string; name?: string; responseStatus?: string; organizer?: boolean; self?: boolean }[];
 }
 
@@ -165,12 +176,20 @@ interface ElectronAPI {
     readSheet(id: string, range: string): Promise<Result<string[][]>>;
     // App is strictly read-only on Google Sheets — no write methods exposed.
     listGmail(q: string, max: number): Promise<Result<GmailMsg[]>>;
+    openAttachment(messageId: string, filename: string, attachmentId?: string): Promise<Result<{ path: string }>>;
     listCalendar(min: string, max: string, id?: string): Promise<Result<GCalEvent[]>>;
     listCalendars(): Promise<Result<GCalListItem[]>>;
     listCalendarsFull(): Promise<Result<GCalListEntry[]>>;
     patchCalendarListEntry(
       calendarId: string,
-      body: { selected?: boolean; hidden?: boolean; colorId?: string }
+      body: {
+        selected?: boolean;
+        hidden?: boolean;
+        colorId?: string;
+        summaryOverride?: string;
+        backgroundColor?: string;
+        foregroundColor?: string;
+      }
     ): Promise<Result<{ id: string }>>;
     // Calendar WRITE
     insertCalEvent(
@@ -181,8 +200,9 @@ interface ElectronAPI {
         location?: string;
         start: { dateTime?: string; date?: string; timeZone?: string };
         end: { dateTime?: string; date?: string; timeZone?: string };
-        attendees?: { email: string }[];
-      }
+        attendees?: { email: string; resource?: boolean }[];
+      },
+      sendUpdates?: 'all' | 'externalOnly' | 'none'
     ): Promise<Result<{ id: string; htmlLink?: string }>>;
     updateCalEvent(
       calendarId: string,
@@ -210,6 +230,22 @@ interface ElectronAPI {
     get<T = unknown>(key: string): Promise<Result<T | null>>;
     set(key: string, value: unknown): Promise<Result<void>>;
     del(key: string): Promise<Result<void>>;
+  };
+
+  mobile: {
+    getInfo(): Promise<Result<{
+      port: number;
+      listening: boolean;
+      viewerBuilt: boolean;
+      ips: { name: string; address: string }[];
+      token: string | null;
+      cloudUrl: string | null;
+      externalUrl: string | null;
+      lanUrls: string[];
+      tunnel: { running: boolean; url: string | null; error: string | null };
+    }>>;
+    rotateToken(): Promise<Result<{ token: string }>>;
+    onTunnelUrl(cb: (p: { url: string }) => void): () => void;
   };
 
   sync: {
