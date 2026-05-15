@@ -19,35 +19,43 @@ echo [1/4] 현재 변경 사항
 git status --short
 echo.
 
-echo [2/4] 커밋 중...
+echo [2/4] commit 중...
 git add -A
-git commit -m "update %date% %time:~0,5%"
+git diff --cached --quiet
+if errorlevel 1 (
+  rem 스테이지에 변경사항 있음 → 일반 commit
+  echo   변경사항 발견 → 일반 commit 생성
+  git commit -m "update %date% %time:~0,5%"
+) else (
+  rem 변경사항 없음 → 빈 commit으로 GitHub Actions 강제 트리거
+  echo   변경사항 없음 → 빈 commit으로 강제 재배포 트리거
+  git commit --allow-empty -m "chore: 강제 재배포 %date% %time:~0,5%"
+)
 if errorlevel 1 (
   echo.
-  echo   변경사항이 없거나 commit 실패. 위 메시지 확인 후 종료합니다.
-  echo.
+  echo   X commit 실패. 위 메시지 확인.
   pause
-  exit /b 0
+  exit /b 1
 )
 echo.
 
-echo [3/4] 원격 변경 가져오기 (rebase)...
+echo [3/4] 원격 동기화 (pull --rebase)...
 git pull --rebase origin main
 if errorlevel 1 (
   echo.
-  echo   ❌ pull 실패. 충돌이 있거나 네트워크 문제입니다.
+  echo   X pull 실패. 충돌이 있거나 네트워크 문제.
   echo   git status 확인 후 git rebase --continue 또는 --abort 하세요.
   pause
   exit /b 1
 )
 echo.
 
-echo [4/4] GitHub로 푸시 (이후 클라우드에서 자동 빌드+배포)...
+echo [4/4] GitHub 로 push...
 git push origin main
 if errorlevel 1 (
   echo.
-  echo   ❌ push 실패. 네트워크 또는 인증 문제일 수 있습니다.
-  echo   gh auth status 로 토큰 확인하세요.
+  echo   X push 실패. 네트워크 또는 인증 문제.
+  echo   gh auth status 로 토큰 상태 확인.
   echo.
   pause
   exit /b 1
@@ -55,12 +63,11 @@ if errorlevel 1 (
 
 echo.
 echo ============================================
-echo   ✅ 완료!
+echo   완료!
 echo ============================================
 echo.
-echo   클라우드에서 자동 빌드+publish가 시작되었습니다.
-echo   약 5~7분 후 팀원들 앱에서 자동으로 업데이트 팝업이 뜹니다.
-echo   (체크 주기: 5분)
+echo   GitHub Actions 가 자동으로 빌드+publish 시작합니다.
+echo   약 5~7분 후 팀원 PC 에서 자동 업데이트 팝업이 떠요. (5분 polling)
 echo.
 echo   진행 확인: https://github.com/cnc-hdlee/cnc-recruit-app/actions
 echo.
