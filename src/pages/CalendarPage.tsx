@@ -2336,65 +2336,13 @@ function InterviewEditModal({
       colorId: '3', // 보라색 면접 라벨 유지
     };
 
-    // ✂ 시간·회의실 변경 없으면 충돌 체크 자체를 skip — 이름/팀/메모만 수정 케이스 보호.
-    //   사용자 인용: "이름만 바꾸는건데 왜 안된다고 하는거냐"
-    //   원본 event의 시작/종료/회의실 리소스를 비교해 모두 그대로면 무조건 통과시킴.
-    const originalStartISO = (event.startISO || '').replace(/[+\-]\d{2}:\d{2}$/, '').replace(/Z$/, '');
-    const originalEndISO = (event.endISO || '').replace(/[+\-]\d{2}:\d{2}$/, '').replace(/Z$/, '');
-    const originalRoomResource = (event.attendees || []).find((a) => a.includes('resource.calendar.google.com')) || null;
-    const newRoomResource = roomMapping?.resourceEmail || null;
-    const timeUnchanged = originalStartISO.startsWith(startISO) && originalEndISO.startsWith(endISO);
-    const roomUnchanged = (originalRoomResource || '') === (newRoomResource || '');
-    const skipConflictCheck = timeUnchanged && roomUnchanged;
-
-    if (roomMapping && !skipConflictCheck) {
-      try {
-        const dayStart = `${form.date}T00:00:00+09:00`;
-        const dayEnd = `${form.date}T23:59:59+09:00`;
-        const existing = await api.google.listCalendar(dayStart, dayEnd, roomMapping.resourceEmail);
-        if (existing.ok && existing.data) {
-          const ivStart = Date.parse(`${startISO}+09:00`);
-          const ivEnd = Date.parse(`${endISO}+09:00`);
-          const candidateName = form.candidate.trim();
-          const myEmailLow = (myEmail || '').toLowerCase();
-          const conflicts = existing.data.filter((e) => {
-            const s = Date.parse(e.start);
-            const en = Date.parse(e.end);
-            if (!Number.isFinite(s) || !Number.isFinite(en)) return false;
-            if (!(s < ivEnd && en > ivStart)) return false;
-            // 자기 자신 (수정 대상 이벤트의 회의실 캘린더 sync본) — eventId 직접 일치 시 무조건 skip.
-            //   이름만 수정하는 케이스도 정확히 처리됨 (이전 이름/새 이름 무관).
-            if (e.id === event.id) return false;
-            // 자기 이벤트 제외 (보강) — summary/description에 같은 후보자 이름 포함되면 자기 것의 회의실 sync본
-            const text = `${e.summary || ''} ${e.description || ''}`;
-            if (candidateName && text.includes(candidateName)) return false;
-            // 본인 러프 booking이 strictly contain → 충돌 아님
-            const creator = (e.creator?.email || '').toLowerCase();
-            if (myEmailLow && creator === myEmailLow && s <= ivStart && en >= ivEnd && (en - s) > (ivEnd - ivStart)) {
-              return false;
-            }
-            return true;
-          });
-          if (conflicts.length > 0) {
-            const lines = conflicts.map((c) => {
-              const s = new Date(c.start);
-              const en = new Date(c.end);
-              const time = `${String(s.getHours()).padStart(2, '0')}:${String(s.getMinutes()).padStart(2, '0')}-${String(en.getHours()).padStart(2, '0')}:${String(en.getMinutes()).padStart(2, '0')}`;
-              return `  · ${time} ${c.summary || '(제목 없음)'}`;
-            }).join('\n');
-            window.alert(
-              `⛔ 회의실 중복 예약 — 수정 불가\n\n` +
-              `${roomMapping.shortName}에 ${form.date} ${form.startTime}-${form.endTime} 시간대 ` +
-              `이미 다른 예약이 있어 변경할 수 없습니다:\n\n${lines}\n\n` +
-              `다른 회의실을 선택하거나 시간을 변경해주세요.`
-            );
-            return;
-          }
-        }
-      } catch {
-        /* 체크 실패는 무시하고 진행 */
-      }
-    }
+    // 회의실 충돌 사전 체크는 EDIT 모달에서 완전 제거 — 사용자 인용:
+    //   "내가 예약한 글인데 왜 수정이 안되는거야 ? 상식적으로"
+    // 자기 이벤트의 회의실 sync 본을 충돌로 잘못 잡거나 (eventId/이름 매칭 실패),
+    // strictly-contain 보호도 종종 미스해서 정상 수정이 막히는 사고 반복.
+    // 정책 변경: EDIT는 무조건 통과 (사용자가 예약한 본인 이벤트). 충돌 발생 시 Google이 회의실
+    // 리소스 응답으로 declined 처리하므로 데이터는 깨지지 않음. CREATE는 여전히 차단함.
+    void roomMapping; // intentionally unused — kept for future re-enable
 
     setSubmitting(true);
     try {
