@@ -43,6 +43,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
     insertCalEvent: (calendarId, body, sendUpdates) => invoke('g:insertCalEvent', calendarId, body, sendUpdates),
     updateCalEvent: (calendarId, eventId, body, sendUpdates) => invoke('g:updateCalEvent', calendarId, eventId, body, sendUpdates),
     deleteCalEvent: (calendarId, eventId, sendUpdates) => invoke('g:deleteCalEvent', calendarId, eventId, sendUpdates),
+    listCalAcl: (calendarId) => invoke('g:listCalAcl', calendarId),
+    insertCalAcl: (calendarId, email, role, scopeType) => invoke('g:insertCalAcl', calendarId, email, role, scopeType),
+    deleteCalAcl: (calendarId, ruleId) => invoke('g:deleteCalAcl', calendarId, ruleId),
   },
 
   slack: {

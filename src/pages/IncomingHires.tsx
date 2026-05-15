@@ -32,6 +32,13 @@ function addDaysIso(iso: string, n: number): string {
   return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
 }
 
+// 입사 캘린더 자동 공유 대상 — 사용자 결정: 구성원경험팀(ga@), 인사팀(People Ops 운영 담당 yshwang@).
+// 회사에 hr@/peopleops@ 같은 그룹 메일이 없어 운영 담당자 개별 메일로 공유. role=reader (읽기 전용).
+const ONBOARDING_CAL_SHARED_EMAILS: { email: string; role: 'reader' | 'writer' }[] = [
+  { email: 'ga@cnccosmetic.com', role: 'reader' },       // 구성원경험팀
+  { email: 'yshwang@cnccosmetic.com', role: 'reader' },  // People Ops팀 (인사팀 운영)
+];
+
 // 메일 본문(snippet)에서 "□ 입사일 : 2026년 5월 18일(월)" 같은 패턴을 YYYY-MM-DD로 변환
 function extractHireDateFromSnippet(snippet: string): string | null {
   if (!snippet) return null;
@@ -392,6 +399,32 @@ export function IncomingHires() {
       void refreshCalendarFromGoogle();
     })();
   }, [allRows, live.calendarEvents, dismissedHires, dismissedHiresLoaded, today, autoRegHires, live.hasLive]);
+
+  // 입사 캘린더 ACL 자동 보장 — mount 시 1회: 누락된 공유 대상 자동 추가.
+  // 구성원경험팀/인사팀이 같은 입사 캘린더를 자동으로 보게 함 (사용자 한 번도 수동 클릭 안 해도 됨).
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const r = await api.google.listCalAcl(SHARED_CAL.onboardingMain);
+        if (!r.ok || !r.data || cancelled) return;
+        const existing = new Set(r.data.map((rule) => (rule.scope?.value || '').toLowerCase()));
+        for (const target of ONBOARDING_CAL_SHARED_EMAILS) {
+          if (existing.has(target.email.toLowerCase())) continue;
+          try {
+            await api.google.insertCalAcl(SHARED_CAL.onboardingMain, target.email, target.role, 'user');
+            // eslint-disable-next-line no-console
+            console.info('[acl-auto] 입사 캘린더 공유 추가:', target.email, target.role);
+          } catch (e) {
+            // eslint-disable-next-line no-console
+            console.warn('[acl-auto] 추가 실패:', target.email, e);
+          }
+        }
+      } catch { /* 권한/네트워크 실패는 무시 — 다음 mount에서 재시도 */ }
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // 입사 자동 취소 — 우리가 자동 등록한 입사 캘린더 이벤트 중 시트에서 사라지거나
   // 결재가 풀린(approved 아닌) 경우 자동 삭제. 외부에서 수동 등록한 이벤트는 절대 건드리지 않음

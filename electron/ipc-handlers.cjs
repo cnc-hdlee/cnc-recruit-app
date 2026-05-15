@@ -52,6 +52,10 @@ function register() {
   safeHandle('g:insertCalEvent', async (calendarId, body, sendUpdates) => google.insertCalendarEvent(calendarId, body, sendUpdates));
   safeHandle('g:updateCalEvent', async (calendarId, eventId, body, sendUpdates) => google.updateCalendarEvent(calendarId, eventId, body, sendUpdates));
   safeHandle('g:deleteCalEvent', async (calendarId, eventId, sendUpdates) => google.deleteCalendarEvent(calendarId, eventId, sendUpdates));
+  // Calendar ACL — 캘린더 공유 권한 관리 (입사 캘린더를 인사팀/구성원경험팀에 reader로 공유 등)
+  safeHandle('g:listCalAcl', async (calendarId) => google.listCalendarAcl(calendarId));
+  safeHandle('g:insertCalAcl', async (calendarId, email, role, scopeType) => google.insertCalendarAcl(calendarId, email, role, scopeType));
+  safeHandle('g:deleteCalAcl', async (calendarId, ruleId) => google.deleteCalendarAcl(calendarId, ruleId));
 
   // Slack
   safeHandle('s:saveToken', async (token) => {

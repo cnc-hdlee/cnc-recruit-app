@@ -215,6 +215,14 @@ interface ElectronAPI {
       eventId: string,
       sendUpdates?: 'all' | 'externalOnly' | 'none'
     ): Promise<Result<{ ok: boolean }>>;
+    listCalAcl(calendarId: string): Promise<Result<{ id: string; role: string; scope: { type: string; value?: string } }[]>>;
+    insertCalAcl(
+      calendarId: string,
+      email: string,
+      role?: 'reader' | 'writer' | 'owner' | 'freeBusyReader',
+      scopeType?: 'user' | 'group' | 'domain'
+    ): Promise<Result<{ id: string; role: string }>>;
+    deleteCalAcl(calendarId: string, ruleId: string): Promise<Result<{ ok: boolean }>>;
   };
   slack: {
     saveToken(token: string): Promise<Result<{ ok: boolean; team: string; user: string; url: string }>>;

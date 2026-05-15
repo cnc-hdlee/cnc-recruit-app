@@ -394,6 +394,41 @@ async function deleteCalendarEvent(calendarId, eventId, sendUpdates = 'none') {
   return { ok: true };
 }
 
+// Calendar ACL — 캘린더 공유 대상(사용자/그룹) 권한 관리. 입사 캘린더를 인사팀/구성원경험팀에 공유.
+async function listCalendarAcl(calendarId) {
+  const auth = buildClient();
+  const cal = google.calendar({ version: 'v3', auth });
+  const r = await cal.acl.list({ calendarId });
+  return r.data.items || [];
+}
+
+async function insertCalendarAcl(calendarId, email, role = 'reader', scopeType = 'user') {
+  const auth = buildClient();
+  const cal = google.calendar({ version: 'v3', auth });
+  const r = await cal.acl.insert({
+    calendarId,
+    requestBody: {
+      role, // 'reader' | 'writer' | 'owner' | 'freeBusyReader'
+      scope: { type: scopeType, value: email }, // 'user' | 'group' | 'domain'
+    },
+    sendNotifications: false, // 사용자에게 공유 알림 메일 안 보냄 (자동 적용이라)
+  });
+  return r.data;
+}
+
+async function deleteCalendarAcl(calendarId, ruleId) {
+  const auth = buildClient();
+  const cal = google.calendar({ version: 'v3', auth });
+  try {
+    await cal.acl.delete({ calendarId, ruleId });
+  } catch (e) {
+    const code = e?.code || e?.response?.status || e?.status;
+    if (code === 404 || code === 410) return { ok: true, alreadyGone: true };
+    throw e;
+  }
+  return { ok: true };
+}
+
 module.exports = {
   setCreds,
   getCreds,
@@ -414,4 +449,7 @@ module.exports = {
   insertCalendarEvent,
   updateCalendarEvent,
   deleteCalendarEvent,
+  listCalendarAcl,
+  insertCalendarAcl,
+  deleteCalendarAcl,
 };
