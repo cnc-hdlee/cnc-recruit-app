@@ -2354,7 +2354,10 @@ function InterviewEditModal({
             const en = Date.parse(e.end);
             if (!Number.isFinite(s) || !Number.isFinite(en)) return false;
             if (!(s < ivEnd && en > ivStart)) return false;
-            // 자기 이벤트 제외 — summary/description에 같은 후보자 이름 포함되면 자기 것의 회의실 sync본
+            // 자기 자신 (수정 대상 이벤트의 회의실 캘린더 sync본) — eventId 직접 일치 시 무조건 skip.
+            //   이름만 수정하는 케이스도 정확히 처리됨 (이전 이름/새 이름 무관).
+            if (e.id === event.id) return false;
+            // 자기 이벤트 제외 (보강) — summary/description에 같은 후보자 이름 포함되면 자기 것의 회의실 sync본
             const text = `${e.summary || ''} ${e.description || ''}`;
             if (candidateName && text.includes(candidateName)) return false;
             // 본인 러프 booking이 strictly contain → 충돌 아님

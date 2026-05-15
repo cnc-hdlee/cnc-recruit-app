@@ -319,8 +319,10 @@ export function IncomingHires() {
   );
 
   // 입사 캘린더 자동 등록 — 결재 완료(approved) + 미래 입사 + 캘린더 미등록 조건
-  // 메모리 룰: 노란색(colorId=5), summary에 "팀 + 이름", 결재 진행중은 절대 등록 안 함.
+  // 메모리 룰: 노란색(colorId=5), summary에 "팀 + 이름", 결재 진행중도 등록 (시트 삭제 시 자동 cleanup).
   // dismissedHireKeys cfg로 사용자가 "자동 등록 안 함" 처리한 사람은 skip.
+  // hireCalId — shim@ owner 메인 입사 캘린더는 hdlee write 권한 없음. 자동 우회: hdlee 본인 owner 새 캘린더.
+  const [hireCalId, setHireCalId] = useState<string | null>(null);
   const [autoRegHires, setAutoRegHires] = useState<Set<string>>(new Set());
   const [dismissedHires, setDismissedHires] = useState<Set<string>>(new Set());
   const [dismissedHiresLoaded, setDismissedHiresLoaded] = useState(false);
@@ -338,15 +340,24 @@ export function IncomingHires() {
   }, []);
   useEffect(() => {
     if (!dismissedHiresLoaded || !live.hasLive || allRows.length === 0) return;
-    const events = liveCalendarEventsNormalized();
-    const isOnboardingEvent = (e: typeof events[number]) =>
-      e.raw.calendarId === SHARED_CAL.onboardingMain && e.raw.colorId === '5';
-    const onboardingEvents = events.filter(isOnboardingEvent);
-    const isAlreadyRegistered = (date: string, name: string) =>
-      onboardingEvents.some((e) => e.dt === date && e.title.includes(name));
+    if (!hireCalId) return; // 자동 캘린더 부트스트랩 대기
 
+    void (async () => {
+    // hireCalId의 이벤트는 READ_CALENDAR_IDS에 안 들어있으니 직접 fetch
+    const calStart = `${today}T00:00:00+09:00`;
+    const calEnd = '2027-01-01T00:00:00+09:00';
+    const calRes = await api.google.listCalendar(calStart, calEnd, hireCalId);
+    const onboardingEvents = (calRes.ok && calRes.data) ? calRes.data : [];
+    const isAlreadyRegistered = (date: string, name: string) =>
+      onboardingEvents.some((e) => {
+        const dt = (e.start || '').slice(0, 10);
+        return dt === date && (e.summary || '').includes(name);
+      });
+
+    // 결재완료 + 결재중 모두 등록 (시트에 입사예정 행이 있다 = 입사 일정 잡혔다는 신호).
+    // 결재 풀리거나 시트에서 사라지면 아래 자동 취소 로직이 정리.
     const toRegister = allRows.filter((r) => {
-      if (r.approval !== 'approved') return false; // 결재 완료만
+      if (r.approval === 'unknown' && !r.noteRaw) return false; // 비고 비어있는 unknown은 skip
       if (r.date < today) return false; // 미래 + 오늘만
       const key = `${r.date}|${r.name.trim()}`;
       if (dismissedHires.has(key)) return false;
@@ -361,11 +372,11 @@ export function IncomingHires() {
       for (const r of toRegister) next.add(`${r.date}|${r.name.trim()}`);
       return next;
     });
-    void (async () => {
       for (const r of toRegister) {
         try {
           const teamLabel = (r.team || r.bonbu || '').trim();
-          const summary = teamLabel ? `${teamLabel} ${r.name.trim()}` : r.name.trim();
+          const pendingMark = r.approval === 'pending' ? ' (결재중)' : '';
+          const summary = (teamLabel ? `${teamLabel} ${r.name.trim()}` : r.name.trim()) + pendingMark;
           const body: Parameters<typeof api.google.insertCalEvent>[1] = {
             summary,
             description:
@@ -377,13 +388,14 @@ export function IncomingHires() {
               (r.gender ? `성별: ${r.gender}\n` : '') +
               (r.site ? `근무지: ${r.site}\n` : '') +
               (r.jikgu ? `직/간접: ${r.jikgu}\n` : '') +
-              (r.approvalLink ? `\n결재: ${r.approvalLink}` : '') +
-              `\n※ 입사예정자 시트에서 자동 등록 (${getTodayStr()})`,
+              `결재: ${r.approval === 'approved' ? '완료' : r.approval === 'pending' ? '결재중' : '상태미상'}\n` +
+              (r.approvalLink ? `링크: ${r.approvalLink}\n` : '') +
+              `※ 입사예정자 시트에서 자동 등록 (${getTodayStr()})`,
             start: { date: r.date },
             end: { date: addDaysIso(r.date, 1) },
           };
           (body as Record<string, unknown>).colorId = '5';
-          await api.google.insertCalEvent(SHARED_CAL.onboardingMain, body, 'none');
+          await api.google.insertCalEvent(hireCalId, body, 'none');
           // eslint-disable-next-line no-console
           console.info('[hire-auto-reg] 입사 등록:', r.date, summary);
         } catch (e) {
@@ -398,74 +410,113 @@ export function IncomingHires() {
       });
       void refreshCalendarFromGoogle();
     })();
-  }, [allRows, live.calendarEvents, dismissedHires, dismissedHiresLoaded, today, autoRegHires, live.hasLive]);
+  }, [allRows, live.calendarEvents, dismissedHires, dismissedHiresLoaded, today, autoRegHires, live.hasLive, hireCalId]);
 
-  // 입사 캘린더 ACL 자동 보장 — mount 시 1회: 누락된 공유 대상 자동 추가.
-  // 구성원경험팀/인사팀이 같은 입사 캘린더를 자동으로 보게 함 (사용자 한 번도 수동 클릭 안 해도 됨).
+  // 입사 자동 캘린더 부트스트랩 — shim@ owner인 SHARED_CAL.onboardingMain은 hdlee write 권한 없음
+  // (Google API "EDITOR access 없음" 거부). 우회: hdlee 본인 owner 새 캘린더 1회 자동 생성 + cfg 저장.
+  // 그 후 모든 자동 등록/취소는 이 캘린더에 적용. ga@/yshwang@에 reader 자동 공유.
   useEffect(() => {
     let cancelled = false;
     void (async () => {
       try {
-        const r = await api.google.listCalAcl(SHARED_CAL.onboardingMain);
+        const r = await api.cfg.get<string>('hireAutoCalendarId');
+        if (cancelled) return;
+        if (r.ok && typeof r.data === 'string' && r.data) {
+          setHireCalId(r.data);
+        } else {
+          // 없으면 새로 생성
+          const cr = await api.google.createCalendar(
+            '입사 (자동)',
+            'Asia/Seoul',
+            'CNC 채용 커맨드센터가 입사예정자를 자동 등록하는 캘린더. 권한 우회 — shim@ owner 메인 캘린더에 hdlee write 권한 없음.'
+          );
+          if (!cancelled && cr.ok && cr.data?.id) {
+            const newId = cr.data.id;
+            await api.cfg.set('hireAutoCalendarId', newId);
+            setHireCalId(newId);
+            // 즉시 ACL 추가 (본인 + ga@/yshwang@ reader)
+            for (const target of ONBOARDING_CAL_SHARED_EMAILS) {
+              try {
+                await api.google.insertCalAcl(newId, target.email, target.role, 'user');
+              } catch { /* ignore */ }
+            }
+            // eslint-disable-next-line no-console
+            console.info('[hire-auto-cal] 새 입사 자동 캘린더 생성:', newId);
+          }
+        }
+      } catch (e) {
+        // eslint-disable-next-line no-console
+        console.warn('[hire-auto-cal] 부트스트랩 실패:', e);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  // ACL 보장 (이미 hireCalId 있는 경우에도 누락 자동 보강)
+  useEffect(() => {
+    if (!hireCalId) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const r = await api.google.listCalAcl(hireCalId);
         if (!r.ok || !r.data || cancelled) return;
         const existing = new Set(r.data.map((rule) => (rule.scope?.value || '').toLowerCase()));
         for (const target of ONBOARDING_CAL_SHARED_EMAILS) {
           if (existing.has(target.email.toLowerCase())) continue;
           try {
-            await api.google.insertCalAcl(SHARED_CAL.onboardingMain, target.email, target.role, 'user');
+            await api.google.insertCalAcl(hireCalId, target.email, target.role, 'user');
             // eslint-disable-next-line no-console
-            console.info('[acl-auto] 입사 캘린더 공유 추가:', target.email, target.role);
-          } catch (e) {
-            // eslint-disable-next-line no-console
-            console.warn('[acl-auto] 추가 실패:', target.email, e);
-          }
+            console.info('[acl-auto] 입사 자동 캘린더 공유 추가:', target.email, target.role);
+          } catch { /* ignore */ }
         }
-      } catch { /* 권한/네트워크 실패는 무시 — 다음 mount에서 재시도 */ }
+      } catch { /* ignore */ }
     })();
     return () => { cancelled = true; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [hireCalId]);
 
   // 입사 자동 취소 — 우리가 자동 등록한 입사 캘린더 이벤트 중 시트에서 사라지거나
   // 결재가 풀린(approved 아닌) 경우 자동 삭제. 외부에서 수동 등록한 이벤트는 절대 건드리지 않음
   // (description에 우리 자동 등록 마커 있는 것만 cleanup 대상).
   useEffect(() => {
-    if (!dismissedHiresLoaded || !live.hasLive) return;
-    const events = liveCalendarEventsNormalized();
+    if (!dismissedHiresLoaded || !live.hasLive || !hireCalId) return;
+    void (async () => {
+    const calStart = `${today}T00:00:00+09:00`;
+    const calEnd = '2027-01-01T00:00:00+09:00';
+    const calRes = await api.google.listCalendar(calStart, calEnd, hireCalId);
+    if (!calRes.ok || !calRes.data) return;
     const ourMarker = '※ 입사예정자 시트에서 자동 등록';
-    const ourEvents = events.filter((e) =>
-      e.raw.calendarId === SHARED_CAL.onboardingMain
-      && e.raw.colorId === '5'
-      && (e.raw.description || '').includes(ourMarker)
+    const ourEvents = calRes.data.filter((e) =>
+      e.colorId === '5' && (e.description || '').includes(ourMarker)
     );
     if (ourEvents.length === 0) return;
+    // 시트에 (approved or pending) 행이 있는 키 = 유지 대상 (결재중도 cleanup 안 함)
     const validKeys = new Set(
       allRows
-        .filter((r) => r.approval === 'approved' && r.date >= today)
+        .filter((r) => (r.approval === 'approved' || r.approval === 'pending') && r.date >= today)
         .map((r) => `${r.date}|${r.name.trim()}`)
     );
-    void (async () => {
-      for (const e of ourEvents) {
-        if (e.dt < today) continue; // 과거 입사는 cleanup 안 함 (이력 보존)
-        // summary 마지막 토큰 = 이름
-        const tokens = e.title.trim().split(/\s+/);
-        const name = (tokens[tokens.length - 1] || '').trim();
-        if (!name) continue;
-        const key = `${e.dt}|${name}`;
-        if (validKeys.has(key)) continue; // 시트에 그대로 있음 → OK
-        if (autoRegHires.has(key)) continue; // 등록 진행 중 → skip
-        try {
-          await api.google.deleteCalEvent(SHARED_CAL.onboardingMain, e.id, 'none');
-          // eslint-disable-next-line no-console
-          console.info('[hire-auto-cancel] 시트에서 사라짐/결재 취하 → 캘린더 삭제:', e.dt, name);
-        } catch (err) {
-          // eslint-disable-next-line no-console
-          console.warn('[hire-auto-cancel] 실패:', e.dt, name, err);
-        }
+    for (const e of ourEvents) {
+      const dt = (e.start || '').slice(0, 10);
+      if (!dt || dt < today) continue; // 과거 입사는 cleanup 안 함 (이력 보존)
+      const cleanTitle = (e.summary || '').replace(/\s*\(결재중\)\s*$/, '').trim();
+      const tokens = cleanTitle.split(/\s+/);
+      const name = (tokens[tokens.length - 1] || '').trim();
+      if (!name) continue;
+      const key = `${dt}|${name}`;
+      if (validKeys.has(key)) continue;
+      if (autoRegHires.has(key)) continue;
+      try {
+        await api.google.deleteCalEvent(hireCalId, e.id, 'none');
+        // eslint-disable-next-line no-console
+        console.info('[hire-auto-cancel] 시트에서 사라짐 → 캘린더 삭제:', dt, name);
+      } catch (err) {
+        // eslint-disable-next-line no-console
+        console.warn('[hire-auto-cancel] 실패:', dt, name, err);
       }
-      void refreshCalendarFromGoogle();
+    }
+    void refreshCalendarFromGoogle();
     })();
-  }, [allRows, live.calendarEvents, dismissedHiresLoaded, today, autoRegHires, live.hasLive]);
+  }, [allRows, dismissedHiresLoaded, today, autoRegHires, live.hasLive, hireCalId]);
 
 
   // 지난 입사자 보강: '입사예정' 시트엔 미래만 남고, 입사 후엔 보통 '정규직DB'/'도급직DB'/'재직자'

@@ -215,6 +215,7 @@ interface ElectronAPI {
       eventId: string,
       sendUpdates?: 'all' | 'externalOnly' | 'none'
     ): Promise<Result<{ ok: boolean }>>;
+    createCalendar(summary: string, timeZone?: string, description?: string): Promise<Result<{ id: string; summary: string }>>;
     listCalAcl(calendarId: string): Promise<Result<{ id: string; role: string; scope: { type: string; value?: string } }[]>>;
     insertCalAcl(
       calendarId: string,

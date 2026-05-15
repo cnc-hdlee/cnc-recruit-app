@@ -394,6 +394,16 @@ async function deleteCalendarEvent(calendarId, eventId, sendUpdates = 'none') {
   return { ok: true };
 }
 
+// Calendar create — 새 캘린더 생성 (사용자 owner). 권한 문제 회피용.
+async function createCalendarForUser(summary, timeZone = 'Asia/Seoul', description = '') {
+  const auth = buildClient();
+  const cal = google.calendar({ version: 'v3', auth });
+  const r = await cal.calendars.insert({
+    requestBody: { summary, timeZone, description },
+  });
+  return r.data; // { id, summary, ... }
+}
+
 // Calendar ACL — 캘린더 공유 대상(사용자/그룹) 권한 관리. 입사 캘린더를 인사팀/구성원경험팀에 공유.
 async function listCalendarAcl(calendarId) {
   const auth = buildClient();
@@ -449,6 +459,7 @@ module.exports = {
   insertCalendarEvent,
   updateCalendarEvent,
   deleteCalendarEvent,
+  createCalendarForUser,
   listCalendarAcl,
   insertCalendarAcl,
   deleteCalendarAcl,
