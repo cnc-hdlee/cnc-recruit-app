@@ -650,17 +650,26 @@ export function MeetingRooms() {
                             const wide = width >= 140;      // 1.5시간 이상
                             const timeText = veryNarrow ? b.startWall : `${b.startWall}~${b.endWall}`;
                             // 분할된 sub-segment(면접 캘린더 이벤트)를 이 booking 안에서 찾기 — 시각적 분할 표시용
-                            // 매칭 조건: 면접의 시간이 booking 안에 완전히 들어있고, location이 회의실 이름과 매칭
+                            // 매칭 조건: (1) 면접 시간이 booking 안에 완전히 들어있음 (2) location에 회의실의 distinctive token 포함
+                            // ⚠️ "퍼플" 같은 generic site token은 다른 회의실/차량에도 매칭되므로 제외 — distinctive token만 사용
+                            // ex) "미팅룸-2", "1285", "대회의실", "구내식당" 등 그 회의실만의 식별 토큰
+                            const GENERIC_TOKENS = new Set(['퍼플', '그린', '수원', '회의실', '미팅룸', '소회의실', '대회의실', '카페테리아', '구내식당', '자동차', '차량']);
                             const subSegs = interviewEvents.filter((iv) => {
                               if (iv.startMin < b.startMin || iv.endMin > b.endMin) return false;
                               if (iv.startMin === b.startMin && iv.endMin === b.endMin) return false; // 본인과 같은 슬롯은 sub 아님
-                              const rm = `${r.shortName} ${r.rawSummary}`.toLowerCase();
-                              const loc = (iv.location || '').toLowerCase();
+                              const loc = (iv.location || '').toLowerCase().replace(/\s+/g, '');
                               if (!loc) return false;
-                              const tokenize = (t: string) => t.replace(/[()[\]/\\\-,.]/g, ' ').split(/\s+/).filter((x) => x.length >= 2);
-                              const lt = tokenize(loc);
-                              const rt = tokenize(rm);
-                              return lt.some((x) => rt.some((y) => x.includes(y) || y.includes(x)));
+                              const rm = `${r.shortName} ${r.rawSummary}`.toLowerCase();
+                              // distinctive token만 추출 — generic 제거 + 숫자/하이픈 포함 식별자 우선
+                              const tokenize = (t: string) => t.replace(/[()[\]/\\,.]/g, ' ').split(/[\s_]+/).filter((x) => x.length >= 2);
+                              const distinctiveRoomTokens = tokenize(rm).filter((tok) => {
+                                const stripped = tok.replace(/[-\d]/g, '');
+                                if (GENERIC_TOKENS.has(stripped) || GENERIC_TOKENS.has(tok)) return false;
+                                // "미팅룸-2", "미팅룸-1", "1285", "7139" 등 숫자/하이픈 포함은 distinctive
+                                return /[\d-]/.test(tok) || tok.length >= 3;
+                              });
+                              if (distinctiveRoomTokens.length === 0) return false;
+                              return distinctiveRoomTokens.some((tok) => loc.includes(tok.replace(/-/g, '')) || loc.includes(tok));
                             }).sort((a, b1) => a.startMin - b1.startMin);
                             // 이형도/임세현/본인 예약은 빨간 박스로 강조
                             const flagged = b.isFlagged;
@@ -1307,45 +1316,11 @@ function SplitInterviewModal({
       }
       setProgress({ done: i + 1, total: rows.length, failed: [...failed] });
     }
-    // 분할 성공 후, 면접 캘린더에 남아있는 parent stub(같은 시간·장소의 placeholder)을 자동 삭제.
-    // ex) "10:00 / 퍼플 / 영업관리 - 면접 / 영업관리" 10:00-13:00 이 통 booking에 매핑된 placeholder가 있으면
-    // 분할 후엔 N건의 sub만 남아야지 parent는 중복.
-    if (failed.length === 0) {
-      try {
-        const dayStart = `${date}T00:00:00+09:00`;
-        const dayEnd = `${date}T23:59:59+09:00`;
-        const ivRes = await api.google.listCalendar(dayStart, dayEnd, SHARED_CAL.interview);
-        if (ivRes.ok && ivRes.data) {
-          const bookingStart = `${date}T${booking.startWall}:00`;
-          const bookingEnd = `${date}T${booking.endWall}:00`;
-          const roomToken = (room?.shortName || '').replace(/\s+/g, '');
-          for (const ev of ivRes.data) {
-            // 우리가 방금 만든 sub들(설명에 "🟣 회의실 슬롯에서 분할 등록")은 보존
-            if ((ev.description || '').includes('🟣 회의실 슬롯에서 분할 등록')) continue;
-            const evStart = ev.start || '';
-            const evEnd = ev.end || '';
-            // ISO startsWith 매칭 — timezone 다를 수 있어 prefix만 비교
-            const startMatches = evStart.startsWith(bookingStart) || evStart.includes(`${date}T${booking.startWall}`);
-            const endMatches = evEnd.startsWith(bookingEnd) || evEnd.includes(`${date}T${booking.endWall}`);
-            if (!startMatches || !endMatches) continue;
-            // 위치 매칭 — booking과 같은 회의실인지 (location 토큰 매칭)
-            const evLoc = (ev.location || '').replace(/\s+/g, '');
-            if (roomToken && !evLoc.includes(roomToken) && !roomToken.includes(evLoc)) continue;
-            try {
-              await api.google.deleteCalEvent(SHARED_CAL.interview, ev.id, 'none');
-              // eslint-disable-next-line no-console
-              console.info('[split-modal] parent stub 자동 삭제:', ev.summary);
-            } catch (delErr) {
-              // eslint-disable-next-line no-console
-              console.warn('[split-modal] stub 삭제 실패 (무시):', delErr);
-            }
-          }
-        }
-      } catch (cleanupErr) {
-        // eslint-disable-next-line no-console
-        console.warn('[split-modal] parent stub cleanup 실패 (무시):', cleanupErr);
-      }
-    }
+    // ⚠️ parent stub 자동 삭제는 절대 금지 — 2026-05-15 사고
+    // 면접 캘린더의 parent 이벤트에 회의실 resource attendee가 붙어있는 경우,
+    // 그 이벤트를 삭제하면 회의실 booking도 함께 사라져버려 슬롯이 풀림.
+    // 사용자 인용: "5/21 미팅룸 예약 사라졌잖아 빨리 해 뭐하냐 시발".
+    // 정책: parent stub 정리는 사용자가 수동으로 판단하는 게 안전. 자동 삭제 안 함.
     setSubmitting(false);
     if (failed.length === 0) {
       // 1) app의 면접 캘린더 view (CalendarPage) 즉시 새로고침
