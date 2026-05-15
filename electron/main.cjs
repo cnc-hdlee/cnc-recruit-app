@@ -69,11 +69,12 @@ function setupAutoUpdater() {
     }
   });
 
-  // 시작 시 + 4시간마다 한 번씩 체크
+  // 시작 시 + 5분마다 체크 — push 후 팀원 PC에 빠르게 팝업이 뜨도록.
+  // (이전엔 4시간이라 사용자가 "왜 반영 안 돼?"라고 묻는 경우 발생.)
   autoUpdater.checkForUpdates().catch(() => {});
   setInterval(() => {
     autoUpdater.checkForUpdates().catch(() => {});
-  }, 4 * 60 * 60 * 1000);
+  }, 5 * 60 * 1000);
 }
 
 // IPC: 앱 버전 + 수동 업데이트 체크 (TopBar 메뉴에서 호출)
