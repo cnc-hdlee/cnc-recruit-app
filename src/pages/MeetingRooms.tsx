@@ -10,6 +10,7 @@ import {
   type RoomSite,
 } from '../lib/meetingRooms';
 import { SHARED_CAL } from '../lib/sharedCalendars';
+import { refreshCalendarFromGoogle } from '../store/liveData';
 
 // 회의실 예약 블록을 빨간 박스로 강조할 직원 이메일.
 // - 이형도(hdlee@)는 본인이라 항상 빨강(기존 isMine 로직과 통합).
@@ -1201,6 +1202,8 @@ function SplitInterviewModal({
   const [submitting, setSubmitting] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [progress, setProgress] = useState<{ done: number; total: number; failed: { idx: number; error: string }[] } | null>(null);
+  const [successCount, setSuccessCount] = useState(0);
+  const submittedRef = useRef(false); // double-submit 방지 (HMR로 onClick 복제될 때 안전장치)
 
   const updateRow = (idx: number, patch: Partial<SplitRow>) => {
     setRows((prev) => prev.map((r, i) => (i === idx ? { ...r, ...patch } : r)));
@@ -1235,8 +1238,10 @@ function SplitInterviewModal({
   };
 
   const handleSubmit = async () => {
+    if (submittedRef.current) return; // 더블클릭/HMR 복제 방어
     const v = validate();
     if (v) { setErr(v); return; }
+    submittedRef.current = true;
     setErr(null);
     setSubmitting(true);
     setProgress({ done: 0, total: rows.length, failed: [] });
@@ -1271,9 +1276,16 @@ function SplitInterviewModal({
     }
     setSubmitting(false);
     if (failed.length === 0) {
-      onCreated();
+      // 1) app의 면접 캘린더 view (CalendarPage) 즉시 새로고침
+      void refreshCalendarFromGoogle();
+      // 2) 모달에 성공 메시지 0.8초 표시 후 닫기 (사용자가 결과 확인 가능)
+      setSuccessCount(rows.length);
+      setTimeout(() => {
+        onCreated();
+      }, 800);
     } else {
       setErr(`${failed.length}/${rows.length}건 실패. 첫 오류: ${failed[0].error}`);
+      submittedRef.current = false; // 실패 시 재시도 가능
     }
   };
 
@@ -1371,6 +1383,12 @@ function SplitInterviewModal({
             {progress.failed.length > 0 && (
               <span className="ml-2 text-rose-700 font-semibold">실패 {progress.failed.length}건</span>
             )}
+          </div>
+        )}
+        {successCount > 0 && (
+          <div className="p-2 rounded-md bg-emerald-50 border border-emerald-300 text-emerald-800 text-sm font-semibold flex items-center gap-2">
+            <span className="text-lg">✅</span>
+            {successCount}건 면접 캘린더 등록 완료 — 잠시 후 닫힙니다
           </div>
         )}
         {err && <div className="p-2 rounded-md bg-rose-50 border border-rose-200 text-rose-800 text-xs">{err}</div>}
