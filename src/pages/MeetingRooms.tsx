@@ -162,6 +162,7 @@ export function MeetingRooms() {
   const [error, setError] = useState<string | null>(null);
   const [fetchedAt, setFetchedAt] = useState<Date | null>(null);
   const [creating, setCreating] = useState<{ roomId: string | null; startMin: number; endMin: number } | null>(null);
+  const [splitting, setSplitting] = useState<RoomBooking | null>(null);
   const [siteFilter, setSiteFilter] = useState<RoomSite | null>(null);
   const [myEmail, setMyEmail] = useState<string | null>(null);
   // 면접 캘린더에서 가져온 오늘 날짜 이벤트 (면접자 회의실 예약 현황 박스에 사용)
@@ -679,22 +680,34 @@ export function MeetingRooms() {
                                   <div className="truncate text-[9px] opacity-70">{b.organizer.split('@')[0]}</div>
                                 )}
                                 {b.isMine && (
-                                  <button
-                                    onClick={(ev) => {
-                                      ev.stopPropagation();
-                                      void handleDelete(b);
-                                    }}
-                                    className={`absolute top-0.5 right-0.5 w-4 h-4 rounded-full text-white text-[10px] font-black leading-none flex items-center justify-center shadow opacity-0 group-hover:opacity-100 transition-opacity z-30 ${
-                                      b.isOwner ? 'bg-rose-600 hover:bg-rose-700' : 'bg-amber-500 hover:bg-amber-600'
-                                    }`}
-                                    title={
-                                      b.isOwner
-                                        ? '이 예약을 구글 캘린더에서 완전 삭제'
-                                        : `다른 사람이 만든 일정 — "참석 거절"로 내 캘린더에서만 제거`
-                                    }
-                                  >
-                                    ×
-                                  </button>
+                                  <>
+                                    <button
+                                      onClick={(ev) => {
+                                        ev.stopPropagation();
+                                        setSplitting(b);
+                                      }}
+                                      className="absolute top-0.5 right-5 h-4 px-1 rounded-full text-white text-[9px] font-black leading-none flex items-center justify-center shadow opacity-0 group-hover:opacity-100 transition-opacity z-30 bg-violet-600 hover:bg-violet-700"
+                                      title={`이 슬롯을 N개 면접으로 분할 등록 (회의실은 이 예약 그대로 유지, 면접 캘린더에만 N건 추가)`}
+                                    >
+                                      ✂ 분할
+                                    </button>
+                                    <button
+                                      onClick={(ev) => {
+                                        ev.stopPropagation();
+                                        void handleDelete(b);
+                                      }}
+                                      className={`absolute top-0.5 right-0.5 w-4 h-4 rounded-full text-white text-[10px] font-black leading-none flex items-center justify-center shadow opacity-0 group-hover:opacity-100 transition-opacity z-30 ${
+                                        b.isOwner ? 'bg-rose-600 hover:bg-rose-700' : 'bg-amber-500 hover:bg-amber-600'
+                                      }`}
+                                      title={
+                                        b.isOwner
+                                          ? '이 예약을 구글 캘린더에서 완전 삭제'
+                                          : `다른 사람이 만든 일정 — "참석 거절"로 내 캘린더에서만 제거`
+                                      }
+                                    >
+                                      ×
+                                    </button>
+                                  </>
                                 )}
                               </div>
                             );
@@ -742,6 +755,19 @@ export function MeetingRooms() {
           onClose={() => setCreating(null)}
           onCreated={async () => {
             setCreating(null);
+            await refreshBookings();
+          }}
+        />
+      )}
+
+      {splitting && (
+        <SplitInterviewModal
+          booking={splitting}
+          date={date}
+          room={rooms.find((r) => r.id === splitting.roomId) || null}
+          onClose={() => setSplitting(null)}
+          onCreated={async () => {
+            setSplitting(null);
             await refreshBookings();
           }}
         />
@@ -1128,4 +1154,253 @@ function NewBookingModal({
     </div>,
     document.body
   );
+}
+
+// 회의실을 N분 단위로 러프하게 잡아두고, 실제 면접자별로 시간을 쪼개 등록하는 모달.
+// - 회의실 attendee를 또 넣지 않음 (parent booking이 이미 잡고 있음)
+// - 면접 캘린더(SHARED_CAL.interview)에 colorId='3'(보라)로 등록
+// - hdlee@cnccosmetic.com을 attendees에 절대 안 넣음 (memory: feedback_no_self_in_attendees)
+// - 행 추가/삭제, 시간 균등 분할 자동 생성 지원
+interface SplitRow {
+  candidate: string;
+  team: string;
+  start: string; // "HH:MM"
+  end: string;
+}
+
+function SplitInterviewModal({
+  booking,
+  date,
+  room,
+  onClose,
+  onCreated,
+}: {
+  booking: RoomBooking;
+  date: string;
+  room: RoomMeta | null;
+  onClose: () => void;
+  onCreated: () => void;
+}) {
+  const slotStartMin = booking.startMin;
+  const slotEndMin = booking.endMin;
+  const slotDurMin = Math.max(0, slotEndMin - slotStartMin);
+
+  // 균등 분할로 N개 row를 생성. 기본 N=2.
+  const buildEvenRows = (n: number): SplitRow[] => {
+    const each = Math.max(1, Math.floor(slotDurMin / Math.max(1, n)));
+    const rows: SplitRow[] = [];
+    for (let i = 0; i < n; i++) {
+      const s = slotStartMin + i * each;
+      const e = i === n - 1 ? slotEndMin : s + each;
+      rows.push({ candidate: '', team: '', start: minsToHHMM(s), end: minsToHHMM(e) });
+    }
+    return rows;
+  };
+
+  const [rows, setRows] = useState<SplitRow[]>(() => buildEvenRows(2));
+  const [submitting, setSubmitting] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const [progress, setProgress] = useState<{ done: number; total: number; failed: { idx: number; error: string }[] } | null>(null);
+
+  const updateRow = (idx: number, patch: Partial<SplitRow>) => {
+    setRows((prev) => prev.map((r, i) => (i === idx ? { ...r, ...patch } : r)));
+  };
+  const addRow = () => {
+    setRows((prev) => {
+      // 마지막 row의 끝부터, 슬롯 끝까지 남은 시간을 빈 row로 추가
+      const last = prev[prev.length - 1];
+      const lastEndMin = last ? hhmmToMin(last.end) : slotStartMin;
+      const newStart = Math.min(lastEndMin, slotEndMin - 15);
+      const newEnd = slotEndMin;
+      return [...prev, { candidate: '', team: '', start: minsToHHMM(newStart), end: minsToHHMM(newEnd) }];
+    });
+  };
+  const removeRow = (idx: number) => {
+    setRows((prev) => (prev.length <= 1 ? prev : prev.filter((_, i) => i !== idx)));
+  };
+  const redistribute = () => setRows(buildEvenRows(rows.length));
+
+  const validate = (): string | null => {
+    for (let i = 0; i < rows.length; i++) {
+      const r = rows[i];
+      if (!r.candidate.trim()) return `${i + 1}번 행: 후보자 이름을 입력해 주세요.`;
+      const sM = hhmmToMin(r.start);
+      const eM = hhmmToMin(r.end);
+      if (sM < slotStartMin || eM > slotEndMin) {
+        return `${i + 1}번 행: 시간이 회의실 슬롯(${minsToHHMM(slotStartMin)}~${minsToHHMM(slotEndMin)}) 밖입니다.`;
+      }
+      if (sM >= eM) return `${i + 1}번 행: 종료 시간이 시작보다 빨라요.`;
+    }
+    return null;
+  };
+
+  const handleSubmit = async () => {
+    const v = validate();
+    if (v) { setErr(v); return; }
+    setErr(null);
+    setSubmitting(true);
+    setProgress({ done: 0, total: rows.length, failed: [] });
+    const failed: { idx: number; error: string }[] = [];
+    for (let i = 0; i < rows.length; i++) {
+      const r = rows[i];
+      const summary = r.team
+        ? `${r.team} 면접 - ${r.candidate.trim()}`
+        : `면접 - ${r.candidate.trim()}`;
+      const description =
+        `🟣 회의실 슬롯에서 분할 등록\n` +
+        `📍 장소: ${room?.shortName || booking.summary}\n` +
+        `🕐 슬롯: ${booking.startWall}~${booking.endWall} (${booking.summary})\n` +
+        (r.team ? `👥 팀: ${r.team}\n` : '') +
+        `👤 후보자: ${r.candidate.trim()}`;
+      const body = {
+        summary,
+        description,
+        location: room?.shortName || booking.summary,
+        start: { dateTime: `${date}T${r.start}:00`, timeZone: 'Asia/Seoul' },
+        end: { dateTime: `${date}T${r.end}:00`, timeZone: 'Asia/Seoul' },
+        colorId: '3',
+        // attendees 비움 — 회의실은 parent booking이 잡고 있고, hdlee@는 절대 self-invite 금지
+      };
+      try {
+        const r2 = await api.google.insertCalEvent(SHARED_CAL.interview, body, 'none');
+        if (!r2.ok) failed.push({ idx: i, error: r2.error || '응답 ok=false' });
+      } catch (e: unknown) {
+        failed.push({ idx: i, error: e instanceof Error ? e.message : String(e) });
+      }
+      setProgress({ done: i + 1, total: rows.length, failed: [...failed] });
+    }
+    setSubmitting(false);
+    if (failed.length === 0) {
+      onCreated();
+    } else {
+      setErr(`${failed.length}/${rows.length}건 실패. 첫 오류: ${failed[0].error}`);
+    }
+  };
+
+  return createPortal(
+    <div
+      className="fixed inset-0 z-[9999] bg-black/40 flex items-center justify-center p-4"
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      <div className="bg-white text-slate-900 rounded-xl shadow-2xl w-full max-w-2xl p-5 space-y-3 relative max-h-[90vh] overflow-y-auto">
+        <div className="flex items-center gap-2 mb-1">
+          <span className="text-2xl">✂️</span>
+          <h3 className="text-lg font-bold text-slate-900">회의실 슬롯 분할 등록</h3>
+        </div>
+
+        <div className="rounded-lg border border-violet-200 bg-violet-50 p-3 text-[12px]">
+          <div className="font-bold text-violet-900 mb-0.5">
+            🚪 {room?.shortName || '(회의실)'} · {booking.startWall}~{booking.endWall} ({slotDurMin}분)
+          </div>
+          <div className="text-violet-800/80">
+            기존 예약: <span className="font-semibold">{booking.summary}</span>
+          </div>
+          <div className="mt-1 text-[11px] text-violet-700/80">
+            ⓘ 이 슬롯 안에서 면접 캘린더(보라)에 N건의 개별 면접을 등록합니다.
+            회의실은 위 예약이 그대로 잡혀 있고, 면접 일정만 추가됩니다.
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <span className="text-xs font-semibold text-slate-700">분할 행 ({rows.length}개)</span>
+          <button
+            type="button"
+            onClick={redistribute}
+            className="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-slate-100 text-slate-700 border border-slate-200 hover:bg-slate-200"
+            title="행 개수에 맞춰 시간을 균등하게 다시 나눔"
+          >
+            ⚖ 시간 균등 분할
+          </button>
+          <button
+            type="button"
+            onClick={addRow}
+            className="ml-auto px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-600 text-white hover:bg-emerald-700"
+          >
+            + 행 추가
+          </button>
+        </div>
+
+        <div className="space-y-1.5">
+          {rows.map((r, i) => (
+            <div key={i} className="grid grid-cols-12 gap-1.5 items-center">
+              <div className="col-span-1 text-center text-[11px] font-bold text-slate-500">{i + 1}</div>
+              <input
+                type="text"
+                value={r.candidate}
+                onChange={(e) => updateRow(i, { candidate: e.target.value })}
+                placeholder="후보자 이름"
+                className="col-span-3 px-2 py-1.5 rounded-md border border-slate-300 bg-white text-slate-900 text-sm"
+              />
+              <input
+                type="text"
+                value={r.team}
+                onChange={(e) => updateRow(i, { team: e.target.value })}
+                placeholder="팀/직무"
+                className="col-span-3 px-2 py-1.5 rounded-md border border-slate-300 bg-white text-slate-900 text-sm"
+              />
+              <input
+                type="time"
+                value={r.start}
+                onChange={(e) => updateRow(i, { start: e.target.value })}
+                step={300}
+                className="col-span-2 px-1 py-1.5 rounded-md border border-slate-300 bg-white text-slate-900 text-sm"
+              />
+              <input
+                type="time"
+                value={r.end}
+                onChange={(e) => updateRow(i, { end: e.target.value })}
+                step={300}
+                className="col-span-2 px-1 py-1.5 rounded-md border border-slate-300 bg-white text-slate-900 text-sm"
+              />
+              <button
+                type="button"
+                onClick={() => removeRow(i)}
+                disabled={rows.length <= 1}
+                className="col-span-1 px-1 py-1 rounded-md text-rose-600 hover:bg-rose-50 disabled:opacity-30 text-sm font-bold"
+                title="이 행 삭제"
+              >
+                ✕
+              </button>
+            </div>
+          ))}
+        </div>
+
+        {progress && (
+          <div className="rounded-md bg-slate-50 border border-slate-200 p-2 text-[11px]">
+            진행 {progress.done}/{progress.total}
+            {progress.failed.length > 0 && (
+              <span className="ml-2 text-rose-700 font-semibold">실패 {progress.failed.length}건</span>
+            )}
+          </div>
+        )}
+        {err && <div className="p-2 rounded-md bg-rose-50 border border-rose-200 text-rose-800 text-xs">{err}</div>}
+
+        <div className="flex items-center gap-2 pt-1">
+          <button
+            type="button"
+            onClick={(ev) => { ev.stopPropagation(); void handleSubmit(); }}
+            disabled={submitting}
+            className="flex-1 py-2 rounded-md text-sm font-bold bg-violet-600 text-white hover:bg-violet-700 disabled:opacity-50"
+          >
+            {submitting ? `등록 중... (${progress?.done || 0}/${rows.length})` : `${rows.length}건 모두 등록`}
+          </button>
+          <button
+            type="button"
+            onClick={(ev) => { ev.stopPropagation(); onClose(); }}
+            disabled={submitting}
+            className="px-4 py-2 rounded-md text-sm font-semibold bg-white text-slate-800 border border-slate-300 hover:bg-slate-50 disabled:opacity-50"
+          >
+            닫기
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
+}
+
+function hhmmToMin(s: string): number {
+  const m = /^(\d{2}):(\d{2})$/.exec(s);
+  if (!m) return 0;
+  return parseInt(m[1], 10) * 60 + parseInt(m[2], 10);
 }

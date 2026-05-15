@@ -144,8 +144,12 @@ export function Sidebar({ active, onChange, isOpen = false, onClose }: SidebarPr
           </div>
         )}
         {live.lastError && (
-          <div className="mt-1 text-[10px] text-rose-300 truncate" title={live.lastError}>
-            ⚠ {live.lastError}
+          <div
+            className="mt-1 text-[10px] text-rose-300 leading-tight overflow-hidden"
+            style={{ display: '-webkit-box', WebkitLineClamp: 1, WebkitBoxOrient: 'vertical', maxHeight: '1.2em' }}
+            title={live.lastError}
+          >
+            ⚠ {live.lastError.length > 32 ? live.lastError.slice(0, 32) + '…' : live.lastError}
           </div>
         )}
       </div>

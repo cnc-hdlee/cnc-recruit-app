@@ -61,9 +61,21 @@ const subscribe = (l: () => void) => {
 const getSnapshot = () => state;
 const emit = () => listeners.forEach((l) => l());
 
+let lastErrorClearTimer: ReturnType<typeof setTimeout> | null = null;
 function setState(patch: Partial<LiveState>) {
   state = { ...state, ...patch };
   emit();
+  // lastError 자동 dismiss — 새 에러 들어오면 8초 후 자동 clear (사용자 시각 노이즈 줄이기)
+  if (Object.prototype.hasOwnProperty.call(patch, 'lastError') && patch.lastError) {
+    if (lastErrorClearTimer) clearTimeout(lastErrorClearTimer);
+    lastErrorClearTimer = setTimeout(() => {
+      lastErrorClearTimer = null;
+      if (state.lastError === patch.lastError) {
+        state = { ...state, lastError: null };
+        emit();
+      }
+    }, 8000);
+  }
 }
 
 let initialized = false;
