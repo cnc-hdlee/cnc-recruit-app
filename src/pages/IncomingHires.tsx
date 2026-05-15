@@ -410,7 +410,10 @@ export function IncomingHires() {
       });
       void refreshCalendarFromGoogle();
     })();
-  }, [allRows, live.calendarEvents, dismissedHires, dismissedHiresLoaded, today, autoRegHires, live.hasLive, hireCalId]);
+    // 무한 루프 방지: deps에서 live.calendarEvents 제거 (안에서 refreshCalendarFromGoogle 호출하면 무한)
+    // autoRegHires도 제거 (안에서 set 변경 → 재실행). closure로 fresh value 매번 새로 캡쳐됨.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [allRows, dismissedHires, dismissedHiresLoaded, today, live.hasLive, hireCalId]);
 
   // 입사 자동 캘린더 부트스트랩 — shim@ owner인 SHARED_CAL.onboardingMain은 hdlee write 권한 없음
   // (Google API "EDITOR access 없음" 거부). 우회: hdlee 본인 owner 새 캘린더 1회 자동 생성 + cfg 저장.
@@ -516,7 +519,8 @@ export function IncomingHires() {
     }
     void refreshCalendarFromGoogle();
     })();
-  }, [allRows, dismissedHiresLoaded, today, autoRegHires, live.hasLive, hireCalId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [allRows, dismissedHiresLoaded, today, live.hasLive, hireCalId]);
 
 
   // 지난 입사자 보강: '입사예정' 시트엔 미래만 남고, 입사 후엔 보통 '정규직DB'/'도급직DB'/'재직자'
