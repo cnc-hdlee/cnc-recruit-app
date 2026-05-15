@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useLiveData, liveByKindOrScan } from '../store/liveData';
+import { useLiveData, liveByKindOrScan, liveCalendarEventsNormalized, refreshCalendarFromGoogle } from '../store/liveData';
 import { getTodayStr } from '../store';
 import { parseSheetDate, field, fmtDateLabel } from '../lib/sheetParse';
 import { rowsToObjects } from '../lib/sheetMapping';
 import { api } from '../lib/api';
+import { SHARED_CAL } from '../lib/sharedCalendars';
 
 // 입사안내 메일 발송 정보 — Gmail 발송함 검색 결과 1건
 interface OnboardingMail {
@@ -22,6 +23,14 @@ const SENDER_EMAILS: Record<string, string> = {
   'hdlee@cnccosmetic.com': '이형도',
   'shim@cnccosmetic.com': '임세현',
 };
+
+// 종일 이벤트 종료일 계산 — Google Calendar all-day 이벤트는 end.date가 exclusive (다음날)
+function addDaysIso(iso: string, n: number): string {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(iso)) return iso;
+  const [y, m, d] = iso.split('-').map((s) => parseInt(s, 10));
+  const dt = new Date(y, m - 1, d + n);
+  return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
+}
 
 // 메일 본문(snippet)에서 "□ 입사일 : 2026년 5월 18일(월)" 같은 패턴을 YYYY-MM-DD로 변환
 function extractHireDateFromSnippet(snippet: string): string | null {
@@ -301,6 +310,130 @@ export function IncomingHires() {
     () => scanSheetOnboardingMarks(live.snapshots),
     [live.snapshots]
   );
+
+  // 입사 캘린더 자동 등록 — 결재 완료(approved) + 미래 입사 + 캘린더 미등록 조건
+  // 메모리 룰: 노란색(colorId=5), summary에 "팀 + 이름", 결재 진행중은 절대 등록 안 함.
+  // dismissedHireKeys cfg로 사용자가 "자동 등록 안 함" 처리한 사람은 skip.
+  const [autoRegHires, setAutoRegHires] = useState<Set<string>>(new Set());
+  const [dismissedHires, setDismissedHires] = useState<Set<string>>(new Set());
+  const [dismissedHiresLoaded, setDismissedHiresLoaded] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const r = await api.cfg.get<string[]>('dismissedHireKeys');
+        if (!cancelled && r.ok && Array.isArray(r.data)) setDismissedHires(new Set(r.data));
+      } catch { /* ignore */ } finally {
+        if (!cancelled) setDismissedHiresLoaded(true);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+  useEffect(() => {
+    if (!dismissedHiresLoaded || !live.hasLive || allRows.length === 0) return;
+    const events = liveCalendarEventsNormalized();
+    const isOnboardingEvent = (e: typeof events[number]) =>
+      e.raw.calendarId === SHARED_CAL.onboardingMain && e.raw.colorId === '5';
+    const onboardingEvents = events.filter(isOnboardingEvent);
+    const isAlreadyRegistered = (date: string, name: string) =>
+      onboardingEvents.some((e) => e.dt === date && e.title.includes(name));
+
+    const toRegister = allRows.filter((r) => {
+      if (r.approval !== 'approved') return false; // 결재 완료만
+      if (r.date < today) return false; // 미래 + 오늘만
+      const key = `${r.date}|${r.name.trim()}`;
+      if (dismissedHires.has(key)) return false;
+      if (autoRegHires.has(key)) return false;
+      if (isAlreadyRegistered(r.date, r.name.trim())) return false;
+      return true;
+    });
+    if (toRegister.length === 0) return;
+    // 진행중 set 업데이트
+    setAutoRegHires((prev) => {
+      const next = new Set(prev);
+      for (const r of toRegister) next.add(`${r.date}|${r.name.trim()}`);
+      return next;
+    });
+    void (async () => {
+      for (const r of toRegister) {
+        try {
+          const teamLabel = (r.team || r.bonbu || '').trim();
+          const summary = teamLabel ? `${teamLabel} ${r.name.trim()}` : r.name.trim();
+          const body: Parameters<typeof api.google.insertCalEvent>[1] = {
+            summary,
+            description:
+              (r.bonbu ? `본부: ${r.bonbu}\n` : '') +
+              (r.team ? `팀: ${r.team}\n` : '') +
+              (r.job ? `직무: ${r.job}\n` : '') +
+              (r.rank ? `직급: ${r.rank}\n` : '') +
+              (r.career ? `구분: ${r.career}\n` : '') +
+              (r.gender ? `성별: ${r.gender}\n` : '') +
+              (r.site ? `근무지: ${r.site}\n` : '') +
+              (r.jikgu ? `직/간접: ${r.jikgu}\n` : '') +
+              (r.approvalLink ? `\n결재: ${r.approvalLink}` : '') +
+              `\n※ 입사예정자 시트에서 자동 등록 (${getTodayStr()})`,
+            start: { date: r.date },
+            end: { date: addDaysIso(r.date, 1) },
+          };
+          (body as Record<string, unknown>).colorId = '5';
+          await api.google.insertCalEvent(SHARED_CAL.onboardingMain, body, 'none');
+          // eslint-disable-next-line no-console
+          console.info('[hire-auto-reg] 입사 등록:', r.date, summary);
+        } catch (e) {
+          // eslint-disable-next-line no-console
+          console.warn('[hire-auto-reg] 실패 (다음 polling 재시도):', r.name, e);
+        }
+      }
+      setAutoRegHires((prev) => {
+        const next = new Set(prev);
+        for (const r of toRegister) next.delete(`${r.date}|${r.name.trim()}`);
+        return next;
+      });
+      void refreshCalendarFromGoogle();
+    })();
+  }, [allRows, live.calendarEvents, dismissedHires, dismissedHiresLoaded, today, autoRegHires, live.hasLive]);
+
+  // 입사 자동 취소 — 우리가 자동 등록한 입사 캘린더 이벤트 중 시트에서 사라지거나
+  // 결재가 풀린(approved 아닌) 경우 자동 삭제. 외부에서 수동 등록한 이벤트는 절대 건드리지 않음
+  // (description에 우리 자동 등록 마커 있는 것만 cleanup 대상).
+  useEffect(() => {
+    if (!dismissedHiresLoaded || !live.hasLive) return;
+    const events = liveCalendarEventsNormalized();
+    const ourMarker = '※ 입사예정자 시트에서 자동 등록';
+    const ourEvents = events.filter((e) =>
+      e.raw.calendarId === SHARED_CAL.onboardingMain
+      && e.raw.colorId === '5'
+      && (e.raw.description || '').includes(ourMarker)
+    );
+    if (ourEvents.length === 0) return;
+    const validKeys = new Set(
+      allRows
+        .filter((r) => r.approval === 'approved' && r.date >= today)
+        .map((r) => `${r.date}|${r.name.trim()}`)
+    );
+    void (async () => {
+      for (const e of ourEvents) {
+        if (e.dt < today) continue; // 과거 입사는 cleanup 안 함 (이력 보존)
+        // summary 마지막 토큰 = 이름
+        const tokens = e.title.trim().split(/\s+/);
+        const name = (tokens[tokens.length - 1] || '').trim();
+        if (!name) continue;
+        const key = `${e.dt}|${name}`;
+        if (validKeys.has(key)) continue; // 시트에 그대로 있음 → OK
+        if (autoRegHires.has(key)) continue; // 등록 진행 중 → skip
+        try {
+          await api.google.deleteCalEvent(SHARED_CAL.onboardingMain, e.id, 'none');
+          // eslint-disable-next-line no-console
+          console.info('[hire-auto-cancel] 시트에서 사라짐/결재 취하 → 캘린더 삭제:', e.dt, name);
+        } catch (err) {
+          // eslint-disable-next-line no-console
+          console.warn('[hire-auto-cancel] 실패:', e.dt, name, err);
+        }
+      }
+      void refreshCalendarFromGoogle();
+    })();
+  }, [allRows, live.calendarEvents, dismissedHiresLoaded, today, autoRegHires, live.hasLive]);
+
 
   // 지난 입사자 보강: '입사예정' 시트엔 미래만 남고, 입사 후엔 보통 '정규직DB'/'도급직DB'/'재직자'
   // 같은 별도 탭으로 옮겨감. suggestKind는 이런 시트를 의도적으로 제외하므로 (sheetMapping.ts:52)
