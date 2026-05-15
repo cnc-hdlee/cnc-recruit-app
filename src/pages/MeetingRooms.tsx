@@ -267,6 +267,15 @@ export function MeetingRooms() {
             if (!er.ok || !er.data) return [r.id, []];
             const list: RoomBooking[] = (er.data as GCalEvent[])
               .filter((e) => e.start && !e.allDay && isoToWall(e.start).dt === date)
+              // 회의실 attendee responseStatus가 declined면 그 슬롯은 회의실 안 잡힘 → 그리드에서도 숨김
+              // (기존엔 잔재 표시되어 통 booking과 시각 중복 발생: 5/19 손유민 declined 사고)
+              .filter((e) => {
+                const ras = (e.attendees || []).find((a) => {
+                  const em = (a as { email?: string }).email;
+                  return em && em.toLowerCase() === r.id.toLowerCase();
+                });
+                return !ras || (ras as { responseStatus?: string }).responseStatus !== 'declined';
+              })
               .map((e) => {
                 const sMin = isoToMinutes(e.start) ?? 0;
                 const eMin = isoToMinutes(e.end) ?? sMin + 30;
