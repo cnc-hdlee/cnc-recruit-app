@@ -649,6 +649,19 @@ export function MeetingRooms() {
                             const narrow = width < 100;     // ~1시간 미만
                             const wide = width >= 140;      // 1.5시간 이상
                             const timeText = veryNarrow ? b.startWall : `${b.startWall}~${b.endWall}`;
+                            // 분할된 sub-segment(면접 캘린더 이벤트)를 이 booking 안에서 찾기 — 시각적 분할 표시용
+                            // 매칭 조건: 면접의 시간이 booking 안에 완전히 들어있고, location이 회의실 이름과 매칭
+                            const subSegs = interviewEvents.filter((iv) => {
+                              if (iv.startMin < b.startMin || iv.endMin > b.endMin) return false;
+                              if (iv.startMin === b.startMin && iv.endMin === b.endMin) return false; // 본인과 같은 슬롯은 sub 아님
+                              const rm = `${r.shortName} ${r.rawSummary}`.toLowerCase();
+                              const loc = (iv.location || '').toLowerCase();
+                              if (!loc) return false;
+                              const tokenize = (t: string) => t.replace(/[()[\]/\\\-,.]/g, ' ').split(/\s+/).filter((x) => x.length >= 2);
+                              const lt = tokenize(loc);
+                              const rt = tokenize(rm);
+                              return lt.some((x) => rt.some((y) => x.includes(y) || y.includes(x)));
+                            }).sort((a, b1) => a.startMin - b1.startMin);
                             // 이형도/임세현/본인 예약은 빨간 박스로 강조
                             const flagged = b.isFlagged;
                             const bgCls = flagged ? 'bg-rose-50' : colors.bg;
@@ -679,6 +692,26 @@ export function MeetingRooms() {
                                 )}
                                 {wide && b.organizer && (
                                   <div className="truncate text-[9px] opacity-70">{b.organizer.split('@')[0]}</div>
+                                )}
+                                {/* 분할 시각화 — 면접 캘린더에 sub-segment가 있으면 vertical divider + 라벨 */}
+                                {subSegs.length > 0 && (
+                                  <div className="absolute inset-0 pointer-events-none">
+                                    {subSegs.map((iv) => {
+                                      const segLeft = ((iv.startMin - b.startMin) / (b.endMin - b.startMin)) * 100;
+                                      const segWidth = ((iv.endMin - iv.startMin) / (b.endMin - b.startMin)) * 100;
+                                      return (
+                                        <div
+                                          key={iv.id}
+                                          className="absolute top-0 bottom-0 border-l-2 border-r-2 border-violet-700/80 bg-violet-700/20 flex flex-col items-center justify-center text-[8px] font-bold text-violet-900 leading-tight overflow-hidden"
+                                          style={{ left: `${segLeft}%`, width: `${segWidth}%` }}
+                                          title={`✂ 분할: ${iv.startWall}~${iv.endWall} · ${iv.candidate || iv.summary}`}
+                                        >
+                                          <span className="truncate w-full text-center px-0.5">{iv.candidate || '?'}</span>
+                                          <span className="font-mono text-[7px] opacity-80">{iv.startWall}</span>
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
                                 )}
                                 {b.isMine && (
                                   <>
@@ -1273,6 +1306,45 @@ function SplitInterviewModal({
         failed.push({ idx: i, error: e instanceof Error ? e.message : String(e) });
       }
       setProgress({ done: i + 1, total: rows.length, failed: [...failed] });
+    }
+    // 분할 성공 후, 면접 캘린더에 남아있는 parent stub(같은 시간·장소의 placeholder)을 자동 삭제.
+    // ex) "10:00 / 퍼플 / 영업관리 - 면접 / 영업관리" 10:00-13:00 이 통 booking에 매핑된 placeholder가 있으면
+    // 분할 후엔 N건의 sub만 남아야지 parent는 중복.
+    if (failed.length === 0) {
+      try {
+        const dayStart = `${date}T00:00:00+09:00`;
+        const dayEnd = `${date}T23:59:59+09:00`;
+        const ivRes = await api.google.listCalendar(dayStart, dayEnd, SHARED_CAL.interview);
+        if (ivRes.ok && ivRes.data) {
+          const bookingStart = `${date}T${booking.startWall}:00`;
+          const bookingEnd = `${date}T${booking.endWall}:00`;
+          const roomToken = (room?.shortName || '').replace(/\s+/g, '');
+          for (const ev of ivRes.data) {
+            // 우리가 방금 만든 sub들(설명에 "🟣 회의실 슬롯에서 분할 등록")은 보존
+            if ((ev.description || '').includes('🟣 회의실 슬롯에서 분할 등록')) continue;
+            const evStart = ev.start || '';
+            const evEnd = ev.end || '';
+            // ISO startsWith 매칭 — timezone 다를 수 있어 prefix만 비교
+            const startMatches = evStart.startsWith(bookingStart) || evStart.includes(`${date}T${booking.startWall}`);
+            const endMatches = evEnd.startsWith(bookingEnd) || evEnd.includes(`${date}T${booking.endWall}`);
+            if (!startMatches || !endMatches) continue;
+            // 위치 매칭 — booking과 같은 회의실인지 (location 토큰 매칭)
+            const evLoc = (ev.location || '').replace(/\s+/g, '');
+            if (roomToken && !evLoc.includes(roomToken) && !roomToken.includes(evLoc)) continue;
+            try {
+              await api.google.deleteCalEvent(SHARED_CAL.interview, ev.id, 'none');
+              // eslint-disable-next-line no-console
+              console.info('[split-modal] parent stub 자동 삭제:', ev.summary);
+            } catch (delErr) {
+              // eslint-disable-next-line no-console
+              console.warn('[split-modal] stub 삭제 실패 (무시):', delErr);
+            }
+          }
+        }
+      } catch (cleanupErr) {
+        // eslint-disable-next-line no-console
+        console.warn('[split-modal] parent stub cleanup 실패 (무시):', cleanupErr);
+      }
     }
     setSubmitting(false);
     if (failed.length === 0) {
