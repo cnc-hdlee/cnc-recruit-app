@@ -1404,6 +1404,7 @@ export function CalendarPage() {
         <InterviewCreateModal
           rooms={roomsMeta}
           roomBookings={roomBookings}
+          myEmail={myEmail}
           onClose={() => setCreating(false)}
           onCreated={() => {
             // 모달 즉시 닫음 + refresh는 백그라운드 (await 안 함) — 사용자 체감 속도 우선.
@@ -1419,6 +1420,7 @@ export function CalendarPage() {
           event={editingEvent}
           rooms={roomsMeta}
           roomBookings={roomBookings}
+          myEmail={myEmail}
           onClose={() => setEditingEvent(null)}
           onSaved={() => {
             setEditingEvent(null);
@@ -1433,7 +1435,7 @@ export function CalendarPage() {
 
 type RoomBookingItem = { id: string; resourceId: string; shortName: string; startMs: number; endMs: number; summary: string; description: string; htmlLink?: string; creatorEmail?: string };
 
-function InterviewCreateModal({ onClose, onCreated, rooms, roomBookings }: { onClose: () => void; onCreated: () => void; rooms: RoomMeta[]; roomBookings: RoomBookingItem[] }) {
+function InterviewCreateModal({ onClose, onCreated, rooms, roomBookings, myEmail }: { onClose: () => void; onCreated: () => void; rooms: RoomMeta[]; roomBookings: RoomBookingItem[]; myEmail: string | null }) {
   const init = nextHalfHour();
   const [form, setForm] = useState<InterviewForm>({
     candidate: '',
@@ -1526,8 +1528,10 @@ function InterviewCreateModal({ onClose, onCreated, rooms, roomBookings }: { onC
       };
     }
 
-    // 회의실 충돌 사전 체크 — 같은 회의실에 같은 시간대 booking이 이미 있으면 등록 차단.
-    // 다른 사람 booking과 겹치면 무조건 막아서 회의실 중복 예약(declined 사고) 방지.
+    // 회의실 충돌 사전 체크 — 다른 사람 booking과 겹치면 차단.
+    // 단 "본인이 미리 잡아둔 러프 booking 안에 sub-슬롯 면접 추가"는 정상 워크플로 → skip.
+    //   예: hdlee가 5/20 10-13 박연수+박혜경+하은서 통booking 잡아두고, 박혜경 11-12 단독 면접 추가.
+    //   조건: booking.creator === myEmail && booking이 새 면접을 strictly contain (start <= newStart && end >= newEnd && booking이 더 김)
     if (roomMapping) {
       try {
         const dayStart = `${form.date}T00:00:00+09:00`;
@@ -1536,17 +1540,24 @@ function InterviewCreateModal({ onClose, onCreated, rooms, roomBookings }: { onC
         if (existing.ok && existing.data) {
           const ivStart = Date.parse(`${startISO}+09:00`);
           const ivEnd = Date.parse(`${endISO}+09:00`);
+          const myEmailLow = (myEmail || '').toLowerCase();
           const conflicts = existing.data.filter((e) => {
             const s = Date.parse(e.start);
             const en = Date.parse(e.end);
-            return Number.isFinite(s) && Number.isFinite(en) && s < ivEnd && en > ivStart;
+            if (!(Number.isFinite(s) && Number.isFinite(en) && s < ivEnd && en > ivStart)) return false;
+            // 본인 러프 booking이 새 면접을 strictly contain → 충돌 아님
+            const creator = (e.creator?.email || '').toLowerCase();
+            if (myEmailLow && creator === myEmailLow && s <= ivStart && en >= ivEnd && (en - s) > (ivEnd - ivStart)) {
+              return false;
+            }
+            return true;
           });
           if (conflicts.length > 0) {
             const lines = conflicts.map((c) => {
               const s = new Date(c.start);
               const en = new Date(c.end);
               const time = `${String(s.getHours()).padStart(2, '0')}:${String(s.getMinutes()).padStart(2, '0')}-${String(en.getHours()).padStart(2, '0')}:${String(en.getMinutes()).padStart(2, '0')}`;
-              return `  · ${time} ${c.summary || '(제목 없음)'}`;
+              return `  · ${time} ${c.summary || '(제목 없음)'} (만든이: ${c.creator?.email || '?'})`;
             }).join('\n');
             window.alert(
               `⛔ 회의실 중복 예약 — 등록 불가\n\n` +
@@ -2224,12 +2235,14 @@ function InterviewEditModal({
   onSaved,
   rooms,
   roomBookings,
+  myEmail,
 }: {
   event: InterviewEvent;
   onClose: () => void;
   onSaved: () => void;
   rooms: RoomMeta[];
   roomBookings: RoomBookingItem[];
+  myEmail: string | null;
 }) {
   // 기존 시간 prefill — startISO/endISO에서 추출. 없으면 event.tm/+1h 사용
   const startTm = isoToHHMM(event.startISO) || (event.tm !== '종일' ? event.tm : '10:00');
@@ -2324,6 +2337,7 @@ function InterviewEditModal({
 
     // 회의실 충돌 사전 체크 (수정 시) — 같은 회의실에 같은 시간대 다른 사람 booking 있으면 차단.
     // 자기 자신(수정 대상 이벤트)의 회의실 sync본은 후보자 이름으로 식별해 제외.
+    // 본인 러프 booking이 새 시간대를 strictly contain하면 정상 워크플로 → skip.
     if (roomMapping) {
       try {
         const dayStart = `${form.date}T00:00:00+09:00`;
@@ -2333,6 +2347,7 @@ function InterviewEditModal({
           const ivStart = Date.parse(`${startISO}+09:00`);
           const ivEnd = Date.parse(`${endISO}+09:00`);
           const candidateName = form.candidate.trim();
+          const myEmailLow = (myEmail || '').toLowerCase();
           const conflicts = existing.data.filter((e) => {
             const s = Date.parse(e.start);
             const en = Date.parse(e.end);
@@ -2341,6 +2356,11 @@ function InterviewEditModal({
             // 자기 이벤트 제외 — summary/description에 같은 후보자 이름 포함되면 자기 것의 회의실 sync본
             const text = `${e.summary || ''} ${e.description || ''}`;
             if (candidateName && text.includes(candidateName)) return false;
+            // 본인 러프 booking이 strictly contain → 충돌 아님
+            const creator = (e.creator?.email || '').toLowerCase();
+            if (myEmailLow && creator === myEmailLow && s <= ivStart && en >= ivEnd && (en - s) > (ivEnd - ivStart)) {
+              return false;
+            }
             return true;
           });
           if (conflicts.length > 0) {
