@@ -280,6 +280,51 @@ async function fetchOnboardingMails(): Promise<Map<string, OnboardingMail[]>> {
   return map;
 }
 
+// 입사 자동 등록 마커 — 우리가 만든 이벤트만 cleanup 대상이 되도록 description에 박아둠.
+const HIRE_AUTO_MARKER = '※ 입사예정자 시트에서 자동 등록';
+
+// 1일 1이벤트 정책 — 그날 입사자 N명을 한 줄 summary에 모두 나열, description에 상세표.
+function buildHireDateSummary(rows: HireRow[]): string {
+  const names = rows.map((r) => r.name.trim()).filter(Boolean);
+  return `입사 - ${names.join(', ')} (${names.length}명)`;
+}
+function buildHireDateDescription(rows: HireRow[]): string {
+  const approved = rows.filter((r) => r.approval === 'approved');
+  const pending = rows.filter((r) => r.approval === 'pending');
+  // unknown but with note → "결재상신예정/기타" 섹션
+  const other = rows.filter((r) => r.approval === 'unknown');
+  const fmt = (r: HireRow) => {
+    const team = r.team || '-';
+    const career = r.career + (r.birthYear ? `(${r.birthYear})` : '');
+    return `• ${r.name.trim()} — ${r.bonbu || '-'} / ${team} / ${r.job || '-'} / ${r.rank || '-'} / ${career || '-'} / ${r.gender || '-'} / ${r.site || '-'} / ${r.jikgu || '-'}`;
+  };
+  const totalLabel = `총 ${rows.length}명 입사 (` + [
+    approved.length > 0 ? `결재완료 ${approved.length}` : '',
+    pending.length > 0 ? `결재중 ${pending.length}` : '',
+    other.length > 0 ? `기타 ${other.length}` : '',
+  ].filter(Boolean).join(' / ') + ')';
+  const sep = '────────────────────────';
+  const parts: string[] = [totalLabel, '', sep];
+  if (approved.length > 0) {
+    parts.push(`✓ 결재완료 (${approved.length}명)`);
+    parts.push(...approved.map(fmt));
+    parts.push('');
+  }
+  if (pending.length > 0) {
+    parts.push(`⏳ 결재중 (${pending.length}명)`);
+    parts.push(...pending.map(fmt));
+    parts.push('');
+  }
+  if (other.length > 0) {
+    parts.push(`📋 기타 (${other.length}명)`);
+    parts.push(...other.map(fmt));
+    parts.push('');
+  }
+  parts.push(sep);
+  parts.push(`${HIRE_AUTO_MARKER} (${getTodayStr()})`);
+  return parts.join('\n').replace(/\n+$/g, '\n').trim();
+}
+
 export function IncomingHires() {
   const live = useLiveData();
   const today = getTodayStr();
@@ -348,67 +393,79 @@ export function IncomingHires() {
     const calEnd = '2027-01-01T00:00:00+09:00';
     const calRes = await api.google.listCalendar(calStart, calEnd, hireCalId);
     const onboardingEvents = (calRes.ok && calRes.data) ? calRes.data : [];
-    const isAlreadyRegistered = (date: string, name: string) =>
-      onboardingEvents.some((e) => {
-        const dt = (e.start || '').slice(0, 10);
-        return dt === date && (e.summary || '').includes(name);
-      });
 
-    // 결재완료 + 결재중 모두 등록 (시트에 입사예정 행이 있다 = 입사 일정 잡혔다는 신호).
-    // 결재 풀리거나 시트에서 사라지면 아래 자동 취소 로직이 정리.
-    const toRegister = allRows.filter((r) => {
+    // 날짜별 그룹핑 — 정책: 1일 1이벤트, summary에 모든 이름, description에 상세표
+    // (사용자 요청: "한개 입사 - 김차윤, 김위 ... 이런식으로 한개만 해 세부사항에 내용을 적으면 되잖아")
+    const eligible = allRows.filter((r) => {
       if (r.approval === 'unknown' && !r.noteRaw) return false; // 비고 비어있는 unknown은 skip
-      if (r.date < today) return false; // 미래 + 오늘만
+      if (r.date < today) return false;
       const key = `${r.date}|${r.name.trim()}`;
       if (dismissedHires.has(key)) return false;
-      if (autoRegHires.has(key)) return false;
-      if (isAlreadyRegistered(r.date, r.name.trim())) return false;
       return true;
     });
-    if (toRegister.length === 0) return;
-    // 진행중 set 업데이트
+    const byDate = new Map<string, HireRow[]>();
+    for (const r of eligible) {
+      if (!byDate.has(r.date)) byDate.set(r.date, []);
+      byDate.get(r.date)!.push(r);
+    }
+
+    // 진행중 set — 같은 날짜의 동시 처리 방지
+    const inflightDates = new Set<string>();
+    for (const [date] of byDate) if (autoRegHires.has(`date:${date}`)) inflightDates.add(date);
     setAutoRegHires((prev) => {
       const next = new Set(prev);
-      for (const r of toRegister) next.add(`${r.date}|${r.name.trim()}`);
+      for (const [date] of byDate) next.add(`date:${date}`);
       return next;
     });
-      for (const r of toRegister) {
-        try {
-          const teamLabel = (r.team || r.bonbu || '').trim();
-          const pendingMark = r.approval === 'pending' ? ' (결재중)' : '';
-          const summary = (teamLabel ? `${teamLabel} ${r.name.trim()}` : r.name.trim()) + pendingMark;
+
+    for (const [date, rows] of byDate) {
+      if (inflightDates.has(date)) continue;
+      try {
+        const summary = buildHireDateSummary(rows);
+        const description = buildHireDateDescription(rows);
+        const existing = onboardingEvents.find((e) => {
+          const dt = (e.start || '').slice(0, 10);
+          if (dt !== date) return false;
+          const desc = e.description || '';
+          return e.colorId === '5' && desc.includes(HIRE_AUTO_MARKER);
+        });
+        if (existing) {
+          // 이름 set + 결재 상태가 모두 동일하면 skip, 다르면 update
+          if (existing.summary === summary && (existing.description || '').replace(/\s+/g, '') === description.replace(/\s+/g, '')) {
+            continue;
+          }
+          await api.google.updateCalEvent(hireCalId, existing.id, {
+            summary,
+            description,
+            colorId: '5',
+            start: { date },
+            end: { date: addDaysIso(date, 1) },
+          }, 'none');
+          // eslint-disable-next-line no-console
+          console.info('[hire-auto-reg] 입사 이벤트 갱신:', date, `${rows.length}명`);
+        } else {
           const body: Parameters<typeof api.google.insertCalEvent>[1] = {
             summary,
-            description:
-              (r.bonbu ? `본부: ${r.bonbu}\n` : '') +
-              (r.team ? `팀: ${r.team}\n` : '') +
-              (r.job ? `직무: ${r.job}\n` : '') +
-              (r.rank ? `직급: ${r.rank}\n` : '') +
-              (r.career ? `구분: ${r.career}\n` : '') +
-              (r.gender ? `성별: ${r.gender}\n` : '') +
-              (r.site ? `근무지: ${r.site}\n` : '') +
-              (r.jikgu ? `직/간접: ${r.jikgu}\n` : '') +
-              `결재: ${r.approval === 'approved' ? '완료' : r.approval === 'pending' ? '결재중' : '상태미상'}\n` +
-              (r.approvalLink ? `링크: ${r.approvalLink}\n` : '') +
-              `※ 입사예정자 시트에서 자동 등록 (${getTodayStr()})`,
-            start: { date: r.date },
-            end: { date: addDaysIso(r.date, 1) },
+            description,
+            start: { date },
+            end: { date: addDaysIso(date, 1) },
           };
           (body as Record<string, unknown>).colorId = '5';
           await api.google.insertCalEvent(hireCalId, body, 'none');
           // eslint-disable-next-line no-console
-          console.info('[hire-auto-reg] 입사 등록:', r.date, summary);
-        } catch (e) {
-          // eslint-disable-next-line no-console
-          console.warn('[hire-auto-reg] 실패 (다음 polling 재시도):', r.name, e);
+          console.info('[hire-auto-reg] 입사 이벤트 신규:', date, `${rows.length}명`);
         }
+      } catch (e) {
+        // eslint-disable-next-line no-console
+        console.warn('[hire-auto-reg] 실패 (다음 polling 재시도):', date, e);
       }
-      setAutoRegHires((prev) => {
-        const next = new Set(prev);
-        for (const r of toRegister) next.delete(`${r.date}|${r.name.trim()}`);
-        return next;
-      });
-      void refreshCalendarFromGoogle();
+    }
+    setAutoRegHires((prev) => {
+      const next = new Set(prev);
+      for (const [date] of byDate) next.delete(`date:${date}`);
+      return next;
+    });
+    void refreshCalendarFromGoogle();
     })();
     // 무한 루프 방지: deps에서 live.calendarEvents 제거 (안에서 refreshCalendarFromGoogle 호출하면 무한)
     // autoRegHires도 제거 (안에서 set 변경 → 재실행). closure로 fresh value 매번 새로 캡쳐됨.
@@ -477,9 +534,8 @@ export function IncomingHires() {
     return () => { cancelled = true; };
   }, [hireCalId]);
 
-  // 입사 자동 취소 — 우리가 자동 등록한 입사 캘린더 이벤트 중 시트에서 사라지거나
-  // 결재가 풀린(approved 아닌) 경우 자동 삭제. 외부에서 수동 등록한 이벤트는 절대 건드리지 않음
-  // (description에 우리 자동 등록 마커 있는 것만 cleanup 대상).
+  // 입사 자동 취소 — 1일 1이벤트 정책: 우리가 만든 마커 이벤트의 날짜에 시트에 더 이상 입사자가 없으면 삭제.
+  // 일부만 빠진 경우(roster 변경)는 위 auto-register useEffect가 update로 처리.
   useEffect(() => {
     if (!dismissedHiresLoaded || !live.hasLive || !hireCalId) return;
     void (async () => {
@@ -487,34 +543,29 @@ export function IncomingHires() {
     const calEnd = '2027-01-01T00:00:00+09:00';
     const calRes = await api.google.listCalendar(calStart, calEnd, hireCalId);
     if (!calRes.ok || !calRes.data) return;
-    const ourMarker = '※ 입사예정자 시트에서 자동 등록';
     const ourEvents = calRes.data.filter((e) =>
-      e.colorId === '5' && (e.description || '').includes(ourMarker)
+      e.colorId === '5' && (e.description || '').includes(HIRE_AUTO_MARKER)
     );
     if (ourEvents.length === 0) return;
-    // 시트에 (approved or pending) 행이 있는 키 = 유지 대상 (결재중도 cleanup 안 함)
-    const validKeys = new Set(
+    // 시트에 미래 입사자가 1명이라도 남아있는 날짜 = 유지 대상
+    const validDates = new Set(
       allRows
-        .filter((r) => (r.approval === 'approved' || r.approval === 'pending') && r.date >= today)
-        .map((r) => `${r.date}|${r.name.trim()}`)
+        .filter((r) => r.date >= today && !((r.approval === 'unknown') && !r.noteRaw))
+        .filter((r) => !dismissedHires.has(`${r.date}|${r.name.trim()}`))
+        .map((r) => r.date)
     );
     for (const e of ourEvents) {
       const dt = (e.start || '').slice(0, 10);
       if (!dt || dt < today) continue; // 과거 입사는 cleanup 안 함 (이력 보존)
-      const cleanTitle = (e.summary || '').replace(/\s*\(결재중\)\s*$/, '').trim();
-      const tokens = cleanTitle.split(/\s+/);
-      const name = (tokens[tokens.length - 1] || '').trim();
-      if (!name) continue;
-      const key = `${dt}|${name}`;
-      if (validKeys.has(key)) continue;
-      if (autoRegHires.has(key)) continue;
+      if (validDates.has(dt)) continue;
+      if (autoRegHires.has(`date:${dt}`)) continue;
       try {
         await api.google.deleteCalEvent(hireCalId, e.id, 'none');
         // eslint-disable-next-line no-console
-        console.info('[hire-auto-cancel] 시트에서 사라짐 → 캘린더 삭제:', dt, name);
+        console.info('[hire-auto-cancel] 시트에서 사라짐 → 캘린더 삭제:', dt);
       } catch (err) {
         // eslint-disable-next-line no-console
-        console.warn('[hire-auto-cancel] 실패:', dt, name, err);
+        console.warn('[hire-auto-cancel] 실패:', dt, err);
       }
     }
     void refreshCalendarFromGoogle();
