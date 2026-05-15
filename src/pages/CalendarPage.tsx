@@ -1717,6 +1717,7 @@ function InterviewCreateModal({ onClose, onCreated, rooms, roomBookings, myEmail
             bookings={roomBookings}
             selectedStart={form.startTime}
             selectedEnd={form.endTime}
+            selectedRoomLabel={form.room === '직접 입력' ? form.customRoom : form.room}
           />
           <Field label="면접관 이메일 (쉼표/줄바꿈 구분)">
             <textarea
@@ -2471,6 +2472,7 @@ function InterviewEditModal({
             bookings={roomBookings}
             selectedStart={form.startTime}
             selectedEnd={form.endTime}
+            selectedRoomLabel={form.room === '직접 입력' ? form.customRoom : form.room}
           />
           <Field label="면접관 이메일 (쉼표 구분)">
             <textarea value={form.interviewers} onChange={(e) => update('interviewers', e.target.value)} rows={2} className="input w-full font-mono text-xs" />
@@ -2511,6 +2513,7 @@ function RoomAvailabilityPanel({
   bookings,
   selectedStart,
   selectedEnd,
+  selectedRoomLabel,
 }: {
   date: string;
   site: string;
@@ -2518,6 +2521,7 @@ function RoomAvailabilityPanel({
   bookings: RoomBookingItem[];
   selectedStart: string;
   selectedEnd: string;
+  selectedRoomLabel: string;
 }) {
   const SITE_KEY: Record<string, 'purple' | 'green' | 'suwon'> = { 퍼플: 'purple', 그린: 'green', 수원: 'suwon' };
   const wantSite = SITE_KEY[site];
@@ -2554,6 +2558,10 @@ function RoomAvailabilityPanel({
   };
   // 선택 시간이 축 범위 밖이면 좌/우 가장자리에 marker 잘려보이지 않도록 표시 여부 결정
   const selVisible = hasSelection && selEndMs > axisStart && selStartMs < axisEnd;
+  // 사용자가 폼에서 고른 회의실의 resourceId 식별 — 빨간색 충돌 표시는 이 회의실에만 적용.
+  // 다른 회의실들은 정보 제공용으로 회색 chip만 (사용자가 빈 회의실 골라보라고).
+  const selectedRoom = selectedRoomLabel ? findResourceEmailByLocation(selectedRoomLabel, site, rooms) : null;
+  const selectedRoomId = selectedRoom?.resourceEmail || null;
   return (
     <div className="rounded-lg bg-amber-50/70 border border-amber-200 px-3 py-2.5">
       <div className="flex items-center justify-between mb-2">
@@ -2562,7 +2570,7 @@ function RoomAvailabilityPanel({
         </span>
         {hasSelection && (
           <span className="text-[10px] text-amber-800">
-            선택 <b>{selectedStart}-{selectedEnd}</b> · 회색=예약, <span className="text-indigo-700 font-bold">파랑=내 시간</span>, 🔴=충돌
+            선택 <b>{selectedStart}-{selectedEnd}</b> · ⭐=내가 고른 회의실, <span className="text-indigo-700 font-bold">파랑=내 시간</span>, 🔴=충돌(내 회의실만)
           </span>
         )}
       </div>
@@ -2603,19 +2611,24 @@ function RoomAvailabilityPanel({
                   && b.startMs < axisEnd
                 )
                 .sort((a, b) => a.startMs - b.startMs);
-              const conflict = hasSelection && dayBookings.some((b) => b.startMs < selEndMs && b.endMs > selStartMs);
+              // 빨간색 충돌 표시는 "사용자가 폼에서 고른 회의실"에만 적용.
+              // 다른 회의실 booking은 정보 제공용 회색만 (사용자가 빈 회의실 골라보라고).
+              const isSelectedRoom = !!selectedRoomId && r.id === selectedRoomId;
+              const conflict = isSelectedRoom && hasSelection && dayBookings.some((b) => b.startMs < selEndMs && b.endMs > selStartMs);
               return (
                 <div key={r.id} className="flex items-stretch gap-2">
                   <span
                     className={`shrink-0 w-24 truncate text-[11px] font-semibold leading-6 ${
-                      conflict ? 'text-rose-700' : 'text-slate-700'
+                      conflict ? 'text-rose-700' : isSelectedRoom ? 'text-indigo-700' : 'text-slate-700'
                     }`}
-                    title={r.shortName}
+                    title={r.shortName + (isSelectedRoom ? ' (선택됨)' : '')}
                   >
-                    {conflict ? '🔴 ' : ''}{r.shortName}
+                    {conflict ? '🔴 ' : isSelectedRoom ? '⭐ ' : ''}{r.shortName}
                   </span>
                   {/* 막대 영역 */}
-                  <div className="relative flex-1 h-6 rounded border border-emerald-200 bg-emerald-50 overflow-hidden">
+                  <div className={`relative flex-1 h-6 rounded border overflow-hidden ${
+                    isSelectedRoom ? 'border-indigo-300 bg-emerald-50' : 'border-emerald-200 bg-emerald-50'
+                  }`}>
                     {/* 1시간 grid line */}
                     {Array.from({ length: PANEL_HOUR_RANGE - 1 }, (_, i) => (
                       <div
@@ -2624,11 +2637,11 @@ function RoomAvailabilityPanel({
                         style={{ left: `${((i + 1) / PANEL_HOUR_RANGE) * 100}%` }}
                       />
                     ))}
-                    {/* booking 막대 */}
+                    {/* booking 막대 — 선택 회의실의 충돌 booking만 빨간색, 그 외(다른 회의실 또는 비충돌)는 회색 */}
                     {dayBookings.map((b) => {
                       const left = pct(b.startMs);
                       const width = Math.max(0.5, pct(b.endMs) - left);
-                      const overlap = hasSelection && b.startMs < selEndMs && b.endMs > selStartMs;
+                      const overlap = isSelectedRoom && hasSelection && b.startMs < selEndMs && b.endMs > selStartMs;
                       const label = `${fmt(b.startMs)} ${b.summary}`.slice(0, 24);
                       return (
                         <div
