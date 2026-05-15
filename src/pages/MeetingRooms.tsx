@@ -658,28 +658,10 @@ export function MeetingRooms() {
                             const narrow = width < 100;     // ~1시간 미만
                             const wide = width >= 140;      // 1.5시간 이상
                             const timeText = veryNarrow ? b.startWall : `${b.startWall}~${b.endWall}`;
-                            // 분할된 sub-segment(면접 캘린더 이벤트)를 이 booking 안에서 찾기 — 시각적 분할 표시용
-                            // 매칭 조건: (1) 면접 시간이 booking 안에 완전히 들어있음 (2) location에 회의실의 distinctive token 포함
-                            // ⚠️ "퍼플" 같은 generic site token은 다른 회의실/차량에도 매칭되므로 제외 — distinctive token만 사용
-                            // ex) "미팅룸-2", "1285", "대회의실", "구내식당" 등 그 회의실만의 식별 토큰
-                            const GENERIC_TOKENS = new Set(['퍼플', '그린', '수원', '회의실', '미팅룸', '소회의실', '대회의실', '카페테리아', '구내식당', '자동차', '차량']);
-                            const subSegs = interviewEvents.filter((iv) => {
-                              if (iv.startMin < b.startMin || iv.endMin > b.endMin) return false;
-                              if (iv.startMin === b.startMin && iv.endMin === b.endMin) return false; // 본인과 같은 슬롯은 sub 아님
-                              const loc = (iv.location || '').toLowerCase().replace(/\s+/g, '');
-                              if (!loc) return false;
-                              const rm = `${r.shortName} ${r.rawSummary}`.toLowerCase();
-                              // distinctive token만 추출 — generic 제거 + 숫자/하이픈 포함 식별자 우선
-                              const tokenize = (t: string) => t.replace(/[()[\]/\\,.]/g, ' ').split(/[\s_]+/).filter((x) => x.length >= 2);
-                              const distinctiveRoomTokens = tokenize(rm).filter((tok) => {
-                                const stripped = tok.replace(/[-\d]/g, '');
-                                if (GENERIC_TOKENS.has(stripped) || GENERIC_TOKENS.has(tok)) return false;
-                                // "미팅룸-2", "미팅룸-1", "1285", "7139" 등 숫자/하이픈 포함은 distinctive
-                                return /[\d-]/.test(tok) || tok.length >= 3;
-                              });
-                              if (distinctiveRoomTokens.length === 0) return false;
-                              return distinctiveRoomTokens.some((tok) => loc.includes(tok.replace(/-/g, '')) || loc.includes(tok));
-                            }).sort((a, b1) => a.startMin - b1.startMin);
+                            // sub-segment 시각화는 비활성화 — 2026-05-15 사고
+                            // location 텍스트 매칭이 false-positive를 계속 만들어 회의실 예약 그리드에 잘못된 보라색 overlay 발생.
+                            // 분할 정보는 면접 캘린더 view (CalendarPage)에서 충분히 보이므로 회의실 그리드는 순수 room booking만 표시.
+                            const subSegs: InterviewEvt[] = [];
                             // 이형도/임세현/본인 예약은 빨간 박스로 강조
                             const flagged = b.isFlagged;
                             const bgCls = flagged ? 'bg-rose-50' : colors.bg;
