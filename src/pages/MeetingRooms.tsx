@@ -1269,6 +1269,7 @@ function SplitInterviewModal({
     for (let i = 0; i < rows.length; i++) {
       const r = rows[i];
       if (!r.candidate.trim()) return `${i + 1}번 행: 후보자 이름을 입력해 주세요.`;
+      if (!r.team.trim()) return `${i + 1}번 행: 부서팀(직무)을 입력해 주세요. 면접 캘린더 컨벤션상 필수입니다.`;
       const sM = hhmmToMin(r.start);
       const eM = hhmmToMin(r.end);
       if (sM < slotStartMin || eM > slotEndMin) {
@@ -1288,16 +1289,26 @@ function SplitInterviewModal({
     setSubmitting(true);
     setProgress({ done: 0, total: rows.length, failed: [] });
     const failed: { idx: number; error: string }[] = [];
+    // 사이트 라벨 — 면접 캘린더 기존 컨벤션 "HH:MM / 사이트 / 이름 / 팀(직무)" 따라가기 위함
+    const siteShort = room?.site === 'purple' ? '퍼플'
+      : room?.site === 'green' ? '그린'
+      : room?.site === 'suwon' ? '수원'
+      : '';
     for (let i = 0; i < rows.length; i++) {
       const r = rows[i];
-      const summary = r.team
-        ? `${r.team} 면접 - ${r.candidate.trim()}`
-        : `면접 - ${r.candidate.trim()}`;
+      // summary 포맷: 기존 면접 캘린더 표준 "HH:MM / 사이트 / 이름 / 팀" 준수
+      // 예) "10:00 / 퍼플 / 문나은 / 영업관리팀(해외영업관리)"
+      const teamLabel = r.team.trim();
+      const namePart = r.candidate.trim();
+      const tail = teamLabel ? ` / ${teamLabel}` : '';
+      const summary = siteShort
+        ? `${r.start} / ${siteShort} / ${namePart}${tail}`
+        : `${r.start} / ${namePart}${tail}`;
       const description =
         `🟣 회의실 슬롯에서 분할 등록\n` +
         `📍 장소: ${room?.shortName || booking.summary}\n` +
         `🕐 슬롯: ${booking.startWall}~${booking.endWall} (${booking.summary})\n` +
-        (r.team ? `👥 팀: ${r.team}\n` : '') +
+        (r.team ? `👥 부서/직무: ${r.team}\n` : '') +
         `👤 후보자: ${r.candidate.trim()}`;
       const body = {
         summary,
@@ -1394,8 +1405,9 @@ function SplitInterviewModal({
                 type="text"
                 value={r.team}
                 onChange={(e) => updateRow(i, { team: e.target.value })}
-                placeholder="팀/직무"
-                className="col-span-3 px-2 py-1.5 rounded-md border border-slate-300 bg-white text-slate-900 text-sm"
+                placeholder="부서팀(직무) 필수"
+                className={`col-span-3 px-2 py-1.5 rounded-md border bg-white text-slate-900 text-sm ${r.team.trim() ? 'border-slate-300' : 'border-amber-400 ring-1 ring-amber-200'}`}
+                title="기존 면접 캘린더 컨벤션: '시간 / 사이트 / 이름 / 부서팀(직무)' — 부서팀은 반드시 채워주세요"
               />
               <input
                 type="time"
