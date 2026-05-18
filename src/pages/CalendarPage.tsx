@@ -722,6 +722,92 @@ export function CalendarPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [myEmail, roomBookings, live.calendarEvents]);
 
+  // 회의실 declined 자동 복구 — 사용자가 회의실을 placeholder로 선예약하고 따로 면접 이벤트를
+  // 만들면, 면접의 회의실 attendee가 자동 declined 됨 (placeholder가 슬롯 점유 중).
+  // 감지 즉시:
+  //   1) 같은 시간/같은 회의실의 본인 placeholder (후보자 이름 없는 booking) 삭제
+  //   2) 면접 이벤트의 resource attendee를 remove → re-add 하여 Google 재평가 유도
+  // 결과: 회의실은 본 면접 이벤트로 정상 예약, 사용자가 placeholder 손볼 필요 없음.
+  // 안전장치:
+  //   - 본인 owner placeholder만 (creatorEmail === myEmail)
+  //   - placeholder 후보 1개일 때만 처리 (여러 개면 모호 → skip + 콘솔 경고)
+  //   - 본 면접 이벤트와 같은 id는 placeholder 아님 (resource sync 본)
+  //   - 시도한 이벤트는 healAttempted에 기록하여 같은 세션 중복 시도 방지
+  const healAttempted = useRef(new Set<string>());
+  useEffect(() => {
+    if (!myEmail || roomBookings.length === 0 || roomsMeta.length === 0) return;
+    const interviews = liveCalendarEventsNormalized()
+      .filter((e) => isInterviewKind(e.title, e.raw.colorId))
+      .filter((e) => e.raw.calendarId === SHARED_CAL.interview);
+    if (interviews.length === 0) return;
+    void (async () => {
+      let healed = 0;
+      for (const iv of interviews) {
+        if (healAttempted.current.has(iv.id)) continue;
+        const declinedResource = (iv.raw.attendees || []).find(
+          (a) => typeof a.email === 'string'
+            && a.email.includes('resource.calendar.google.com')
+            && a.responseStatus === 'declined'
+        );
+        if (!declinedResource || !declinedResource.email) continue;
+        const ivStart = iv.raw.start ? Date.parse(iv.raw.start) : NaN;
+        const ivEnd = iv.raw.end ? Date.parse(iv.raw.end) : NaN;
+        if (!Number.isFinite(ivStart) || !Number.isFinite(ivEnd)) continue;
+        const parsed = parseInterviewTitle(iv.title);
+        const candidateName = (parsed.candidate || '').trim();
+        if (!candidateName) continue;
+        // 같은 시간/회의실의 본인 placeholder 찾기 — 후보자 이름 없는 booking
+        const placeholders = roomBookings.filter((b) => {
+          if (b.id === iv.id) return false;
+          if (b.resourceId !== declinedResource.email) return false;
+          if (b.startMs >= ivEnd || b.endMs <= ivStart) return false;
+          if (!b.creatorEmail || b.creatorEmail.toLowerCase() !== myEmail.toLowerCase()) return false;
+          if (b.summary.includes(candidateName)) return false;
+          const otherNameMatch = b.summary.match(/면접\s*[-—–]?\s*([가-힣]{2,4})/);
+          if (otherNameMatch && otherNameMatch[1] !== candidateName) return false;
+          return true;
+        });
+        if (placeholders.length === 0) continue;
+        if (placeholders.length > 1) {
+          // eslint-disable-next-line no-console
+          console.warn(`[auto-heal] ${candidateName}: placeholder ${placeholders.length}개 발견 — 모호하여 자동 정리 skip. 수동 정리 필요.`);
+          healAttempted.current.add(iv.id);
+          continue;
+        }
+        const placeholder = placeholders[0];
+        healAttempted.current.add(iv.id);
+        try {
+          // 1) placeholder 삭제 (회의실 리소스 캘린더 기준 id로 호출)
+          await api.google.deleteCalEvent(placeholder.resourceId, placeholder.id, 'none');
+          // 2) interview 이벤트에서 resource attendee 제거 (Google 캐시 무효화)
+          const otherAttendees = (iv.raw.attendees || [])
+            .filter((a) => a.email !== declinedResource.email && typeof a.email === 'string')
+            .map((a) => ({ email: a.email as string }));
+          const calId = iv.raw.calendarId || SHARED_CAL.interview;
+          await api.google.updateCalEvent(calId, iv.id, { attendees: otherAttendees }, 'none');
+          // 3) resource attendee 재추가 (Google이 placeholder 없으니 accept함)
+          await api.google.updateCalEvent(
+            calId,
+            iv.id,
+            { attendees: [...otherAttendees, { email: declinedResource.email, resource: true }] },
+            'none',
+          );
+          healed += 1;
+          // eslint-disable-next-line no-console
+          console.info(`[auto-heal] ${candidateName} declined → placeholder 정리 + 회의실 재초대 완료`);
+        } catch (e) {
+          // eslint-disable-next-line no-console
+          console.warn(`[auto-heal] ${candidateName} 복구 실패:`, e);
+        }
+      }
+      if (healed > 0) {
+        void refreshRoomBookings();
+        void refreshCalendarFromGoogle();
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [myEmail, roomBookings, live.calendarEvents]);
+
   const handleManualRefresh = async () => {
     setRefreshing(true);
     // 캘린더 + 모든 시트 + 보낸함 이력서 인덱스 + 회의실 booking 강제 fetch.
