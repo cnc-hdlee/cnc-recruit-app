@@ -2145,67 +2145,65 @@ function InterviewRow({ event, onDelete, onEdit, onMarkNoShow, resumeMails, room
                     : undefined
                 }
               />
-              {/* 이력서 첨부 바로열기 — 후보자 이름이 들어간 이력서 파일(PDF/HWP/DOCX 등) 매칭.
-                  사전질문지·평가표·면접평가서 등 다른 면접 자료는 제외. */}
+              {/* 후보자 관련 첨부 바로열기 — 후보자 이름이 들어간 모든 자료(이력서/사전질문지/자기소개서 등)
+                  EXCLUDE는 우선순위에만 사용, 이름 매칭되면 어떤 자료든 연동. */}
               {resumeShare && (() => {
                 const infos = resumeShare.mail.attachmentInfos || [];
                 const candidateNorm = (event.candidate || '').replace(/[\s_\-.()\[\]·ㆍ／（）［］、,，]+/g, '');
                 if (candidateNorm.length < 2) return null;
-                // 제외 키워드 — 이력서가 아닌 면접 자료들
-                const EXCLUDE = /사전질문|질문지|평가표|평가서|평가지|면접평가|자기평가|인성검사|적성검사|체크리스트|온보딩|입사안내|일정공유|평가|프로세스|가이드/i;
-                // 이력서 신호 — 이게 들어있으면 가장 확실
                 const RESUME = /이력서|이력|resume|cv|portfolio|포트폴리오|자기소개서|자소서|지원서|입사지원|서류전형/i;
-                // 이미지/시그니처 첨부 제외 — PDF/HWP/HWPX/DOC/DOCX/PPT/ZIP 등 문서 포맷만 후보
-                const isResumeFile = (a: { mimeType: string; filename: string }) => {
+                const EXCLUDE = /사전질문|질문지|평가표|평가서|평가지|면접평가|자기평가|인성검사|적성검사|체크리스트|온보딩|입사안내|일정공유|프로세스|가이드/i;
+                // 문서 포맷만 후보 (이미지/시그니처 제외)
+                const isDocFile = (a: { mimeType: string; filename: string }) => {
                   if (a.mimeType?.startsWith('image/')) return false;
-                  return /\.(pdf|hwp|hwpx|doc|docx|pptx|ppt|zip|xlsx)$/i.test(a.filename || '');
+                  return /\.(pdf|hwp|hwpx|doc|docx|pptx|ppt|zip|xlsx|xls)$/i.test(a.filename || '');
                 };
                 const norm = (s: string) => s.replace(/[\s_\-.()\[\]·ㆍ／（）［］、,，]+/g, '');
-                const filesWithName = infos.filter((a) => {
-                  if (!isResumeFile(a)) return false;
-                  return norm(a.filename || '').includes(candidateNorm);
-                });
-                // 다른 후보자 이름이 파일명에 명시되어 있는 경우 그 파일은 후보에서 제외 (multi-candidate 메일 보호)
+                const filesWithName = infos.filter((a) => isDocFile(a) && norm(a.filename || '').includes(candidateNorm));
+                // 다른 후보자 명시된 파일 제외 (multi-candidate 메일)
                 const otherCandidateNames = (() => {
                   const names = new Set<string>();
                   for (const a of infos) {
-                    if (!isResumeFile(a)) continue;
+                    if (!isDocFile(a)) continue;
                     const fn = a.filename || '';
                     if (norm(fn).includes(candidateNorm)) continue;
-                    // 파일명에서 한글 2-4자 이름 추출 (이력서/서류전형 등 일반 단어 제외)
                     const matches = fn.match(/[가-힣]{2,4}/g) || [];
                     for (const tok of matches) {
-                      if (/이력서|이력|지원서|지원자|서류|전형|평가|채용|면접|회사|팀|부서|온보딩|입사/.test(tok)) continue;
+                      if (/이력서|이력|지원서|지원자|서류|전형|평가|채용|면접|회사|팀|부서|온보딩|입사|사전|질문|품질|보증|영업|관리|생산|포장|제조|연구|TA|HR/.test(tok)) continue;
                       names.add(tok);
                     }
                   }
                   return names;
                 })();
                 const isSafeForThisCandidate = (filename: string) => {
-                  // 파일명에 본 후보자 이름 있으면 안전
                   if (norm(filename).includes(candidateNorm)) return true;
-                  // 다른 후보자 이름이 파일명에 명시되어 있으면 그건 다른 사람 파일
                   for (const other of otherCandidateNames) {
                     if (filename.includes(other)) return false;
                   }
                   return true;
                 };
-                // 1순위: 이름 + 이력서 키워드 + 제외 없음
+                // 우선순위: 이력서키워드 + 이름 + EXCLUDE없음 > 이름 + EXCLUDE없음 > 이름만 (사전질문지 등) > 이름없지만 추정
                 const exact = filesWithName.find((a) => RESUME.test(a.filename) && !EXCLUDE.test(a.filename));
-                // 2순위: 이름 + 제외 없음
                 const looseButSafe = !exact && filesWithName.find((a) => !EXCLUDE.test(a.filename));
-                // 3순위: 파일명에 본 후보자 이름 없지만 (a) 이력서 키워드 있고 (b) 제외 없음 (c) 다른 후보자 명시 안 됨
-                const inferredResume = !exact && !looseButSafe && infos.find((a) => {
-                  if (!isResumeFile(a)) return false;
+                const nameOnly = !exact && !looseButSafe && filesWithName[0]; // 사전질문지 - 최기웅.pdf 같은 케이스도 연동
+                const inferredResume = !exact && !looseButSafe && !nameOnly && infos.find((a) => {
+                  if (!isDocFile(a)) return false;
                   if (EXCLUDE.test(a.filename)) return false;
                   if (!RESUME.test(a.filename)) return false;
                   return isSafeForThisCandidate(a.filename);
                 });
-                // 4순위: 메일에 다른 후보자 이름 명시된 파일이 하나도 없고, 후보 파일이 1개면 그것 (외부 Fwd)
-                const allCandidate = infos.filter((a) => isResumeFile(a) && !EXCLUDE.test(a.filename) && isSafeForThisCandidate(a.filename));
-                const fallback = !exact && !looseButSafe && !inferredResume && allCandidate.length === 1 ? allCandidate[0] : null;
-                const myPdf = exact || looseButSafe || inferredResume || fallback;
+                const allCandidate = infos.filter((a) => isDocFile(a) && !EXCLUDE.test(a.filename) && isSafeForThisCandidate(a.filename));
+                const fallback = !exact && !looseButSafe && !nameOnly && !inferredResume && allCandidate.length === 1 ? allCandidate[0] : null;
+                const myPdf = exact || looseButSafe || nameOnly || inferredResume || fallback;
                 if (!myPdf) return null;
+                // 라벨 — 파일 종류에 따라
+                const docLabel = RESUME.test(myPdf.filename)
+                  ? '이력서'
+                  : /사전질문|질문지/i.test(myPdf.filename)
+                  ? '사전질문지'
+                  : /평가/i.test(myPdf.filename)
+                  ? '평가표'
+                  : '자료';
                 return (
                   <button
                     type="button"
@@ -2225,9 +2223,9 @@ function InterviewRow({ event, onDelete, onEdit, onMarkNoShow, resumeMails, room
                       })();
                     }}
                     className="ml-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100"
-                    title={`${myPdf.filename} (${Math.round((myPdf.size || 0) / 1024)} KB)\n클릭 → PDF 뷰어로 바로 열림`}
+                    title={`${myPdf.filename} (${Math.round((myPdf.size || 0) / 1024)} KB)\n클릭 → 시스템 기본 뷰어로 바로 열림`}
                   >
-                    📄 이력서
+                    📄 {docLabel}
                   </button>
                 );
               })()}
