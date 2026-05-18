@@ -2142,28 +2142,35 @@ function InterviewRow({ event, onDelete, onEdit, onMarkNoShow, resumeMails, room
                     : undefined
                 }
               />
-              {/* PDF 첨부 바로열기 — 후보자 이름이 들어간 "이력서" PDF만 1개 매칭.
+              {/* 이력서 첨부 바로열기 — 후보자 이름이 들어간 이력서 파일(PDF/HWP/DOCX 등) 매칭.
                   사전질문지·평가표·면접평가서 등 다른 면접 자료는 제외. */}
               {resumeShare && (() => {
                 const infos = resumeShare.mail.attachmentInfos || [];
-                const candidateNorm = (event.candidate || '').replace(/[\s_\-.()\[\]·]+/g, '');
+                const candidateNorm = (event.candidate || '').replace(/[\s_\-.()\[\]·ㆍ／（）［］、,，]+/g, '');
                 if (candidateNorm.length < 2) return null;
                 // 제외 키워드 — 이력서가 아닌 면접 자료들
-                const EXCLUDE = /사전질문|질문지|평가표|평가서|평가지|면접평가|자기평가|인성검사|적성검사|체크리스트|온보딩|입사안내|일정공유|평가/i;
+                const EXCLUDE = /사전질문|질문지|평가표|평가서|평가지|면접평가|자기평가|인성검사|적성검사|체크리스트|온보딩|입사안내|일정공유|평가|프로세스|가이드/i;
                 // 이력서 신호 — 이게 들어있으면 가장 확실
-                const RESUME = /이력서|이력|resume|cv|portfolio|포트폴리오|자기소개서|자소서/i;
-
-                const pdfsWithName = infos.filter((a) => {
-                  const isPdf = a.mimeType === 'application/pdf' || /\.pdf$/i.test(a.filename || '');
-                  if (!isPdf) return false;
-                  const fnNorm = (a.filename || '').replace(/[\s_\-.()\[\]·]+/g, '');
-                  return fnNorm.includes(candidateNorm);
+                const RESUME = /이력서|이력|resume|cv|portfolio|포트폴리오|자기소개서|자소서|지원서|입사지원|서류전형/i;
+                // 이미지/시그니처 첨부 제외 — PDF/HWP/HWPX/DOC/DOCX/PPT/ZIP 등 문서 포맷만 후보
+                const isResumeFile = (a: { mimeType: string; filename: string }) => {
+                  if (a.mimeType?.startsWith('image/')) return false;
+                  return /\.(pdf|hwp|hwpx|doc|docx|pptx|ppt|zip|xlsx)$/i.test(a.filename || '');
+                };
+                const norm = (s: string) => s.replace(/[\s_\-.()\[\]·ㆍ／（）［］、,，]+/g, '');
+                const filesWithName = infos.filter((a) => {
+                  if (!isResumeFile(a)) return false;
+                  return norm(a.filename || '').includes(candidateNorm);
                 });
-                // (1) 이름 + "이력서" 키워드 + 제외 키워드 없음 — 가장 확실한 매칭
-                const exact = pdfsWithName.find((a) => RESUME.test(a.filename) && !EXCLUDE.test(a.filename));
-                // (2) 이름 + 제외 키워드 없음 — 파일명에 "이력서" 단어 없어도 사전질문지/평가표는 아님
-                const looseButSafe = !exact && pdfsWithName.find((a) => !EXCLUDE.test(a.filename));
-                const myPdf = exact || looseButSafe;
+                // (1) 이름 + "이력서" 키워드 + 제외 키워드 없음
+                const exact = filesWithName.find((a) => RESUME.test(a.filename) && !EXCLUDE.test(a.filename));
+                // (2) 이름 + 제외 키워드 없음
+                const looseButSafe = !exact && filesWithName.find((a) => !EXCLUDE.test(a.filename));
+                // (3) 외부 Fwd 메일 등 파일명에 이름 없는 케이스 — 메일에 단 1개의 후보 파일이 있으면 그것
+                //     (resumeShare가 본문매칭으로 이 후보자 메일임을 확인했으므로 안전)
+                const allCandidate = infos.filter((a) => isResumeFile(a) && !EXCLUDE.test(a.filename));
+                const fallback = !exact && !looseButSafe && allCandidate.length === 1 ? allCandidate[0] : null;
+                const myPdf = exact || looseButSafe || fallback;
                 if (!myPdf) return null;
                 return (
                   <button
