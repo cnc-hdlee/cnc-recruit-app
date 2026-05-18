@@ -34,35 +34,38 @@ function findResumeShare(
 ): { mail: ResumeShareMail; filename: string; matchKind: 'filename' | 'body' } | null {
   const name = (candidate || '').trim();
   if (name.length < 2) return null;
-  const nameNorm = name.replace(/[\s_\-.()\[\]·]+/g, '');
+  const NORM = (s: string) => s.replace(/[\s_\-.()\[\]·ㆍ／（）［］、,，]+/g, '');
+  const nameNorm = NORM(name);
   const intvMs = Date.parse(`${interviewDt}T00:00:00+09:00`);
   if (!Number.isFinite(intvMs)) return null;
-  // 발송일 윈도우 완화: 면접일 60일 이전 ~ 7일 후 (이력서 검토 단계 ~ 사후 평가표까지 포함)
-  const WINDOW_MS = 60 * 24 * 60 * 60 * 1000;
-  const TAIL_MS = 7 * 24 * 60 * 60 * 1000;
-  // 채용 관련 키워드 — 면접 외에 외부 전달 이력서(입사지원서/Fwd) 포함
-  const RECRUIT_KEYWORDS = /면접|이력서|입사지원|지원서|지원자|채용|서류전형|서류 전형/;
+  // 발송일 윈도우 — 매우 관대: 면접일 120일 이전 ~ 14일 후 (외부 지원자 사전 송부 + 사후 평가표까지)
+  const WINDOW_MS = 120 * 24 * 60 * 60 * 1000;
+  const TAIL_MS = 14 * 24 * 60 * 60 * 1000;
+  // 후보 메일 — filename 매칭 발견 시 즉시 return. 본문 매칭은 일단 후보 모음 → 마지막에 가장 가까운 발송일 채택.
+  let bodyHit: { mail: ResumeShareMail; filename: string; sentMs: number } | null = null;
   for (const m of mails) {
     if (!m.attachments || m.attachments.length === 0) continue;
     const sentMs = Date.parse(m.date);
     if (!Number.isFinite(sentMs)) continue;
     if (sentMs > intvMs + TAIL_MS) continue;
     if (sentMs < intvMs - WINDOW_MS) continue;
-    // (a) 파일명에 후보자 이름 — 가장 강한 신호. 키워드 필터 우회 (이력서 PDF는 파일명만으로 충분)
+    // (a) 파일명에 후보자 이름 — 강한 신호. 키워드 필터 없이 즉시 매칭.
     let matchedFn: string | null = null;
     for (const fn of m.attachments) {
-      const fnNorm = fn.replace(/[\s_\-.()\[\]·]+/g, '');
-      if (fnNorm.includes(nameNorm)) { matchedFn = fn; break; }
+      if (NORM(fn).includes(nameNorm)) { matchedFn = fn; break; }
     }
     if (matchedFn) return { mail: m, filename: matchedFn, matchKind: 'filename' };
-    // (b) 본문/제목에 후보자 이름 + 채용 키워드 — 다른 후보자 메일 오인 방지를 위한 이중 조건
+    // (b) 본문/제목에 후보자 이름 — 키워드 요구 없이도 매칭. 첨부가 있는 이상 이력서로 추정.
+    //     이름이 흔한 한글(2자 김민수 등)이라 false-positive 위험은 있지만,
+    //     사용자 정책: "이력서로 추정되는거다 연동시켜놔" — 추정 우선.
     const hay = `${m.subject || ''} ${m.snippet || ''}`;
-    if (!RECRUIT_KEYWORDS.test(hay)) continue;
-    const hayNorm = hay.replace(/[\s_\-.()\[\]·]+/g, '');
-    if (hayNorm.includes(nameNorm)) {
-      return { mail: m, filename: m.attachments[0], matchKind: 'body' };
+    if (NORM(hay).includes(nameNorm)) {
+      if (!bodyHit || Math.abs(sentMs - intvMs) < Math.abs(bodyHit.sentMs - intvMs)) {
+        bodyHit = { mail: m, filename: m.attachments[0], sentMs };
+      }
     }
   }
+  if (bodyHit) return { mail: bodyHit.mail, filename: bodyHit.filename, matchKind: 'body' };
   return null;
 }
 
@@ -2162,15 +2165,46 @@ function InterviewRow({ event, onDelete, onEdit, onMarkNoShow, resumeMails, room
                   if (!isResumeFile(a)) return false;
                   return norm(a.filename || '').includes(candidateNorm);
                 });
-                // (1) 이름 + "이력서" 키워드 + 제외 키워드 없음
+                // 다른 후보자 이름이 파일명에 명시되어 있는 경우 그 파일은 후보에서 제외 (multi-candidate 메일 보호)
+                const otherCandidateNames = (() => {
+                  const names = new Set<string>();
+                  for (const a of infos) {
+                    if (!isResumeFile(a)) continue;
+                    const fn = a.filename || '';
+                    if (norm(fn).includes(candidateNorm)) continue;
+                    // 파일명에서 한글 2-4자 이름 추출 (이력서/서류전형 등 일반 단어 제외)
+                    const matches = fn.match(/[가-힣]{2,4}/g) || [];
+                    for (const tok of matches) {
+                      if (/이력서|이력|지원서|지원자|서류|전형|평가|채용|면접|회사|팀|부서|온보딩|입사/.test(tok)) continue;
+                      names.add(tok);
+                    }
+                  }
+                  return names;
+                })();
+                const isSafeForThisCandidate = (filename: string) => {
+                  // 파일명에 본 후보자 이름 있으면 안전
+                  if (norm(filename).includes(candidateNorm)) return true;
+                  // 다른 후보자 이름이 파일명에 명시되어 있으면 그건 다른 사람 파일
+                  for (const other of otherCandidateNames) {
+                    if (filename.includes(other)) return false;
+                  }
+                  return true;
+                };
+                // 1순위: 이름 + 이력서 키워드 + 제외 없음
                 const exact = filesWithName.find((a) => RESUME.test(a.filename) && !EXCLUDE.test(a.filename));
-                // (2) 이름 + 제외 키워드 없음
+                // 2순위: 이름 + 제외 없음
                 const looseButSafe = !exact && filesWithName.find((a) => !EXCLUDE.test(a.filename));
-                // (3) 외부 Fwd 메일 등 파일명에 이름 없는 케이스 — 메일에 단 1개의 후보 파일이 있으면 그것
-                //     (resumeShare가 본문매칭으로 이 후보자 메일임을 확인했으므로 안전)
-                const allCandidate = infos.filter((a) => isResumeFile(a) && !EXCLUDE.test(a.filename));
-                const fallback = !exact && !looseButSafe && allCandidate.length === 1 ? allCandidate[0] : null;
-                const myPdf = exact || looseButSafe || fallback;
+                // 3순위: 파일명에 본 후보자 이름 없지만 (a) 이력서 키워드 있고 (b) 제외 없음 (c) 다른 후보자 명시 안 됨
+                const inferredResume = !exact && !looseButSafe && infos.find((a) => {
+                  if (!isResumeFile(a)) return false;
+                  if (EXCLUDE.test(a.filename)) return false;
+                  if (!RESUME.test(a.filename)) return false;
+                  return isSafeForThisCandidate(a.filename);
+                });
+                // 4순위: 메일에 다른 후보자 이름 명시된 파일이 하나도 없고, 후보 파일이 1개면 그것 (외부 Fwd)
+                const allCandidate = infos.filter((a) => isResumeFile(a) && !EXCLUDE.test(a.filename) && isSafeForThisCandidate(a.filename));
+                const fallback = !exact && !looseButSafe && !inferredResume && allCandidate.length === 1 ? allCandidate[0] : null;
+                const myPdf = exact || looseButSafe || inferredResume || fallback;
                 if (!myPdf) return null;
                 return (
                   <button
