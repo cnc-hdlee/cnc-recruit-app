@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useData, getTodayStr } from '../store';
 import { useLiveData, liveCalendarEventsNormalized } from '../store/liveData';
 import { gmailSearchUrl } from '../lib/gmail';
@@ -39,20 +39,63 @@ function diffDays(a: string, b: string): number {
   return Math.round((da - db) / 86400000);
 }
 
-interface KindTone {
-  bar: string;
-  text: string;
-  bg: string;
-  chip: string;
-  label: string;
-  border: string;
+function startOfMonth(ymd: string): string {
+  return ymd.slice(0, 7) + '-01';
 }
 
-const KIND_TONE: Record<EventKind, KindTone> = {
-  면접: { bar: 'bg-blue-500', text: 'text-blue-700', bg: 'bg-blue-50', chip: 'bg-blue-100 text-blue-700', border: 'border-blue-200', label: '면접' },
-  입사: { bar: 'bg-amber-500', text: 'text-amber-700', bg: 'bg-amber-50', chip: 'bg-amber-100 text-amber-700', border: 'border-amber-200', label: '입사' },
-  퇴사: { bar: 'bg-pink-500', text: 'text-pink-700', bg: 'bg-pink-50', chip: 'bg-pink-100 text-pink-700', border: 'border-pink-200', label: '퇴사' },
-};
+function endOfMonth(ymd: string): string {
+  const d = new Date(ymd + 'T00:00:00');
+  const last = new Date(d.getFullYear(), d.getMonth() + 1, 0);
+  return `${last.getFullYear()}-${String(last.getMonth() + 1).padStart(2, '0')}-${String(last.getDate()).padStart(2, '0')}`;
+}
+
+// 면접 타이틀 파서 — "HH:MM / 사이트 / 후보자 / 팀(직무)" 표준 + 변형 대응
+function parseTitle(title: string): { time?: string; site?: string; team?: string } {
+  if (!title) return {};
+  const t = title.trim();
+  const parts = t.split('/').map((s) => s.trim()).filter(Boolean);
+  if (parts.length < 2) return {};
+  let time: string | undefined, site: string | undefined, team: string | undefined;
+  const SITES = ['퍼플', '그린', '수원', '위워크', '온라인', '방교'];
+  const TEAMS_HINT = /팀|연구소|본부|실$|센터/;
+  for (const p of parts) {
+    if (!time) {
+      const tm = p.match(/(\d{1,2}:\d{2})/);
+      if (tm) { time = tm[1]; continue; }
+    }
+    if (!site && SITES.some((s) => p.startsWith(s))) {
+      site = SITES.find((s) => p.startsWith(s));
+      continue;
+    }
+    if (!team && TEAMS_HINT.test(p)) {
+      team = p;
+      continue;
+    }
+  }
+  // team이 못 잡혔으면 마지막 파트
+  if (!team && parts.length >= 3) team = parts[parts.length - 1];
+  return { time, site, team };
+}
+
+function shortTeam(team: string): string {
+  let s = (team || '').trim();
+  // 직무 괄호 제거 — "영업관리팀 (PM)" → "영업관리팀"
+  s = s.replace(/\([^)]*\)/g, '').trim();
+  // 후행 메모 제거 — "생산/포장2팀 PM 면접 1명" → "생산/포장2팀"
+  s = s.replace(/\s*(PM|면접|\d+명).*$/i, '').trim();
+  // 너무 긴 건 자름
+  if (s.length > 10) s = s.slice(0, 10) + '…';
+  return s || '미분류';
+}
+
+function timeSlot(tm: string): '오전' | '오후' | '저녁' | '종일' {
+  if (!tm || tm === '종일') return '종일';
+  const h = parseInt(tm.split(':')[0], 10);
+  if (Number.isNaN(h)) return '종일';
+  if (h < 12) return '오전';
+  if (h < 18) return '오후';
+  return '저녁';
+}
 
 export function Dashboard({ onNavigate }: { onNavigate: (p: PageId) => void }) {
   const D = useData();
@@ -89,6 +132,8 @@ export function Dashboard({ onNavigate }: { onNavigate: (p: PageId) => void }) {
     return out;
   }, [D.calIntv, D.calJoin, D.calLeave, live.calendarEvents]);
 
+  const interviews = useMemo(() => allEvents.filter((e) => e.kind === '면접'), [allEvents]);
+
   const todayEvents = useMemo(
     () =>
       allEvents
@@ -112,9 +157,56 @@ export function Dashboard({ onNavigate }: { onNavigate: (p: PageId) => void }) {
     [allEvents, today]
   );
 
+  // 면접 인사이트 — 이번 주 (오늘 ~ +6) + 이번 달
+  const insights = useMemo(() => {
+    const weekStart = today;
+    const weekEnd = ymdAdd(today, 6);
+    const monthStart = startOfMonth(today);
+    const monthEnd = endOfMonth(today);
+    const weekIntv = interviews.filter((e) => e.dt >= weekStart && e.dt <= weekEnd);
+    const monthIntv = interviews.filter((e) => e.dt >= monthStart && e.dt <= monthEnd);
+    const todayIntv = interviews.filter((e) => e.dt === today);
+
+    // 부서별 (이번 주)
+    const teamMap = new Map<string, number>();
+    for (const e of weekIntv) {
+      const team = shortTeam(parseTitle(e.title).team || '');
+      teamMap.set(team, (teamMap.get(team) || 0) + 1);
+    }
+    const teamTop = Array.from(teamMap.entries()).sort((a, b) => b[1] - a[1]).slice(0, 5);
+
+    // 사이트별 (이번 주)
+    const siteMap = new Map<string, number>();
+    for (const e of weekIntv) {
+      const site = parseTitle(e.title).site || '미분류';
+      siteMap.set(site, (siteMap.get(site) || 0) + 1);
+    }
+    const siteAll = Array.from(siteMap.entries()).sort((a, b) => b[1] - a[1]);
+
+    // 시간대별 (이번 주)
+    const slotMap = new Map<string, number>();
+    for (const e of weekIntv) {
+      const slot = timeSlot(e.tm);
+      slotMap.set(slot, (slotMap.get(slot) || 0) + 1);
+    }
+
+    // 면접 → 입사 전환 (이번 달 면접 수 vs 이번 달 입사 수)
+    const monthJoin = allEvents.filter((e) => e.kind === '입사' && e.dt >= monthStart && e.dt <= monthEnd).length;
+
+    return {
+      todayCount: todayIntv.length,
+      weekCount: weekIntv.length,
+      monthCount: monthIntv.length,
+      monthJoin,
+      teamTop,
+      siteAll,
+      slotMap,
+      weekMax: Math.max(1, ...Array.from(teamMap.values()), ...Array.from(siteMap.values())),
+    };
+  }, [interviews, allEvents, today]);
+
   const high = D.missingAlerts.filter((a) => a.priority === 'high');
   const medium = D.missingAlerts.filter((a) => a.priority === 'medium');
-  const low = D.missingAlerts.filter((a) => a.priority === 'low');
 
   const consistency = useMemo(() => {
     const calIntvNoAtt = allEvents.filter(
@@ -122,270 +214,310 @@ export function Dashboard({ onNavigate }: { onNavigate: (p: PageId) => void }) {
     );
     const calJoinKeys = new Set(allEvents.filter((e) => e.source === 'calendar' && e.kind === '입사').map((e) => e.dt));
     const sheetOnlyJoinList = D.calJoin.filter((e) => e.dt >= today && !calJoinKeys.has(e.dt));
-    const groupedMap = new Map<string, { dt: string; titles: string[] }>();
-    for (const e of sheetOnlyJoinList) {
-      if (!groupedMap.has(e.dt)) groupedMap.set(e.dt, { dt: e.dt, titles: [] });
-      groupedMap.get(e.dt)!.titles.push(e.title);
-    }
-    const sheetOnlyJoin = Array.from(groupedMap.values()).sort((a, b) => a.dt.localeCompare(b.dt));
-    return { calIntvNoAtt, sheetOnlyJoin };
+    return { calIntvNoAtt: calIntvNoAtt.length, sheetOnlyJoin: sheetOnlyJoinList.length };
   }, [allEvents, D.calJoin, today]);
 
-  const recentMail = D.teamMail.slice(0, 4);
-
-  const todayCounts = {
-    면접: todayEvents.filter((e) => e.kind === '면접').length,
-    입사: todayEvents.filter((e) => e.kind === '입사').length,
-    퇴사: todayEvents.filter((e) => e.kind === '퇴사').length,
-  };
-  const weekCounts = {
-    면접: allEvents.filter((e) => e.kind === '면접' && e.dt >= today && e.dt <= ymdAdd(today, 7)).length,
-    입사: allEvents.filter((e) => e.kind === '입사' && e.dt >= today && e.dt <= ymdAdd(today, 7)).length,
-    퇴사: allEvents.filter((e) => e.kind === '퇴사' && e.dt >= today && e.dt <= ymdAdd(today, 7)).length,
-  };
-
-  const hasCriticalMisses = high.length > 0 || consistency.calIntvNoAtt.length > 0 || consistency.sheetOnlyJoin.length > 0;
+  const recentMail = D.teamMail.slice(0, 5);
 
   return (
     <div className="space-y-3">
-      <HeroToday today={today} counts={todayCounts} live={live} />
+      <HeroSummary today={today} insights={insights} live={live} />
 
-      <SevenDayTimeline next7={next7} today={today} weekCounts={weekCounts} onNavigate={onNavigate} />
+      <InsightStrip insights={insights} onNavigate={onNavigate} />
+
+      <SevenDayTimeline next7={next7} today={today} onNavigate={onNavigate} />
 
       <div className="grid lg:grid-cols-2 gap-3">
         <TodayScheduleCard events={todayEvents} onNavigate={onNavigate} />
         <UpcomingList events={upcoming} today={today} onNavigate={onNavigate} />
       </div>
 
-      <div className="grid lg:grid-cols-3 gap-3">
-        <div className="lg:col-span-2 space-y-3">
-          {medium.length > 0 && <AlertList title="📋 진행 알림" alerts={medium} accent="amber" />}
-          {low.length > 0 && <AlertList title="✅ 참고" alerts={low.slice(0, 6)} accent="emerald" />}
-          {medium.length === 0 && low.length === 0 && (
-            <div className="card p-3 text-xs text-slate-400 text-center">진행/참고 알림 없음</div>
-          )}
-        </div>
-        <RecentMail mail={recentMail} onNavigate={onNavigate} />
-      </div>
+      <BottomStrip
+        high={high}
+        medium={medium}
+        missAttendees={consistency.calIntvNoAtt}
+        missJoin={consistency.sheetOnlyJoin}
+        recentMail={recentMail}
+        onNavigate={onNavigate}
+      />
     </div>
   );
 }
 
-// ───────────────────────── HERO ─────────────────────────
+// ─────────────────────── HERO ───────────────────────
 
-function HeroToday({
+function HeroSummary({
   today,
-  counts,
+  insights,
   live,
 }: {
   today: string;
-  counts: Record<EventKind, number>;
+  insights: { todayCount: number; weekCount: number; monthCount: number; monthJoin: number };
   live: ReturnType<typeof useLiveData>;
 }) {
   const d = new Date(today + 'T00:00:00');
   const month = d.getMonth() + 1;
   const day = d.getDate();
   const dow = DOW[d.getDay()];
+  const dowTone = dow === '일' ? 'text-rose-300' : dow === '토' ? 'text-blue-300' : 'text-indigo-200';
 
   return (
     <div
-      className="relative overflow-hidden rounded-xl text-white shadow-md"
-      style={{ background: 'linear-gradient(135deg, #1e1b4b 0%, #312e81 60%, #4338ca 100%)' }}
+      className="relative overflow-hidden rounded-2xl text-white shadow-lg"
+      style={{ background: 'linear-gradient(135deg, #1e1b4b 0%, #312e81 55%, #4338ca 100%)' }}
     >
-      <div className="absolute -top-12 -right-12 w-48 h-48 rounded-full bg-indigo-300/20 blur-3xl pointer-events-none" />
-      <div className="relative flex flex-wrap items-center gap-x-5 gap-y-2 px-4 py-3">
-        <div className="flex items-baseline gap-2">
-          <span className="text-[9px] uppercase tracking-[0.25em] text-indigo-200/80 font-bold">TODAY</span>
-          <span
-            className="text-2xl font-black leading-none tracking-[-0.03em]"
-            style={{ background: 'linear-gradient(180deg, #fff, #c7d2fe)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}
-          >
-            {month}.{day}
-          </span>
-          <span className={`text-sm font-bold ${dow === '일' ? 'text-rose-300' : dow === '토' ? 'text-blue-300' : 'text-indigo-200'}`}>
-            ({dow})
-          </span>
-          <span className="text-[10px] text-indigo-200/60 ml-1">{today}</span>
+      <div className="absolute -top-16 -right-10 w-56 h-56 rounded-full bg-indigo-300/20 blur-3xl pointer-events-none" />
+      <div className="absolute -bottom-10 left-1/3 w-40 h-40 rounded-full bg-fuchsia-400/10 blur-3xl pointer-events-none" />
+      <div className="relative px-5 py-4">
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-baseline gap-2">
+            <span className="text-[10px] uppercase tracking-[0.3em] text-indigo-200/80 font-bold">TODAY</span>
+            <span
+              className="text-3xl font-black leading-none tracking-[-0.03em]"
+              style={{ background: 'linear-gradient(180deg, #fff, #c7d2fe)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}
+            >
+              {month}.{day}
+            </span>
+            <span className={`text-base font-bold ${dowTone}`}>({dow})</span>
+          </div>
+          <div className="flex items-center gap-2 text-[10px] text-indigo-200/70">
+            {live.hasLive ? (
+              <span className="text-emerald-300 font-semibold">📊 라이브</span>
+            ) : (
+              <span className="text-amber-300 font-semibold">📦 스냅샷</span>
+            )}
+            {live.lastTickAt && <span>· {Math.round((Date.now() - live.lastTickAt) / 1000)}s 전</span>}
+          </div>
         </div>
-        <div className="flex-1 grid grid-cols-3 gap-2 min-w-[240px]">
-          <HeroStat color="blue" count={counts.면접} label="오늘 면접" />
-          <HeroStat color="amber" count={counts.입사} label="오늘 입사" />
-          <HeroStat color="pink" count={counts.퇴사} label="오늘 퇴사" />
-        </div>
-        <div className="flex items-center gap-2 text-[10px] text-indigo-200/70 ml-auto">
-          {live.hasLive ? (
-            <span className="text-emerald-300 font-semibold">📊 라이브</span>
-          ) : (
-            <span className="text-amber-300 font-semibold">📦 스냅샷</span>
-          )}
-          {live.lastTickAt && <span>· {Math.round((Date.now() - live.lastTickAt) / 1000)}s 전</span>}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
+          <BigStat label="오늘 면접" value={insights.todayCount} accent="blue" emphasis />
+          <BigStat label="이번 주 면접" value={insights.weekCount} accent="indigo" />
+          <BigStat label="이번 달 면접" value={insights.monthCount} accent="violet" />
+          <BigStat label="이번 달 입사" value={insights.monthJoin} accent="amber" />
         </div>
       </div>
     </div>
   );
 }
 
-function HeroStat({
-  color,
-  count,
+function BigStat({
   label,
+  value,
+  accent,
+  emphasis,
 }: {
-  color: 'blue' | 'amber' | 'pink' | 'red';
-  count: number;
   label: string;
+  value: number;
+  accent: 'blue' | 'indigo' | 'violet' | 'amber';
+  emphasis?: boolean;
 }) {
-  const numColor = { blue: 'text-blue-200', amber: 'text-amber-200', pink: 'text-pink-200', red: 'text-rose-200' }[color];
-  const barColor = { blue: 'bg-blue-300', amber: 'bg-amber-300', pink: 'bg-pink-300', red: 'bg-rose-300' }[color];
+  const tone = {
+    blue: { bar: 'bg-blue-300', num: 'text-white' },
+    indigo: { bar: 'bg-indigo-300', num: 'text-indigo-100' },
+    violet: { bar: 'bg-violet-300', num: 'text-violet-100' },
+    amber: { bar: 'bg-amber-300', num: 'text-amber-100' },
+  }[accent];
   return (
-    <div className="rounded-lg px-2.5 py-1.5 bg-white/10 border border-white/15 backdrop-blur relative overflow-hidden flex items-center gap-2">
-      <div className={`absolute left-0 top-0 bottom-0 w-0.5 ${barColor}`} />
-      <div className={`text-xl font-black ${numColor} tabular-nums leading-none ml-1`}>{count}</div>
-      <div className="text-[10px] text-indigo-100 font-semibold leading-tight">{label}</div>
+    <div
+      className={`relative overflow-hidden rounded-xl px-4 py-3 ${
+        emphasis ? 'bg-white/15 border border-white/25' : 'bg-white/8 border border-white/15'
+      } backdrop-blur`}
+    >
+      <div className={`absolute left-0 top-0 bottom-0 w-1 ${tone.bar}`} />
+      <div className={`text-4xl font-black ${tone.num} tabular-nums leading-none mb-1.5`}>{value}</div>
+      <div className="text-[11px] text-indigo-100 font-semibold uppercase tracking-wider">{label}</div>
     </div>
   );
 }
 
-// ───────────────────────── 긴급 경보 ─────────────────────────
+// ─────────────────────── 인사이트 ───────────────────────
 
-function CriticalAlerts({
-  high,
-  calIntvNoAtt,
-  sheetOnlyJoin,
+function InsightStrip({
+  insights,
   onNavigate,
 }: {
-  high: MissingAlert[];
-  calIntvNoAtt: UnifiedEvent[];
-  sheetOnlyJoin: { dt: string; titles: string[] }[];
+  insights: {
+    teamTop: [string, number][];
+    siteAll: [string, number][];
+    slotMap: Map<string, number>;
+    weekMax: number;
+    weekCount: number;
+  };
   onNavigate: (p: PageId) => void;
 }) {
-  const total = high.length + calIntvNoAtt.length + sheetOnlyJoin.reduce((s, g) => s + g.titles.length, 0);
+  const slotItems: { label: string; key: string; tone: string }[] = [
+    { label: '오전', key: '오전', tone: 'bg-amber-400' },
+    { label: '오후', key: '오후', tone: 'bg-blue-400' },
+    { label: '저녁', key: '저녁', tone: 'bg-violet-400' },
+  ];
   return (
-    <div className="rounded-xl border-2 border-red-300 bg-gradient-to-br from-red-50 to-rose-50/30 overflow-hidden">
-      <div className="px-3 py-2 border-b border-red-200 bg-gradient-to-r from-red-100 to-rose-100/50 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <span className="text-base animate-breathe">🚨</span>
-          <div className="font-bold text-red-800 text-sm">긴급 — 즉시 확인</div>
-          <div className="text-[11px] text-red-700/80">{total}건</div>
-        </div>
-        <span className="px-2 py-0.5 rounded-full bg-red-600 text-white text-xs font-bold">{total}</span>
-      </div>
-      <div className="p-2 space-y-1.5">
-        {high.map((a, i) => (
-          <div key={`h-${i}`} className="flex gap-2 p-2 rounded-md bg-white border border-red-100">
-            <span className="text-base shrink-0">{a.icon}</span>
-            <div className="min-w-0 flex-1">
-              <div className="font-semibold text-slate-800 text-sm truncate">{a.title}</div>
-              <div className="text-[11px] text-slate-500 truncate">{a.desc}</div>
-            </div>
-            <span className="chip bg-red-100 text-red-700 shrink-0 self-start font-semibold text-[10px]">긴급</span>
-          </div>
+    <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
+      <InsightCard
+        title="🏢 부서별 면접"
+        subtitle="이번 주"
+        action={() => onNavigate('calendar')}
+        empty={insights.teamTop.length === 0}
+      >
+        {insights.teamTop.map(([team, count]) => (
+          <BarRow key={team} label={team} value={count} max={insights.weekMax} tone="indigo" />
         ))}
-        {calIntvNoAtt.map((e, i) => (
-          <div key={`a-${i}`} className="flex gap-2 p-2 rounded-md bg-white border border-amber-100">
-            <span className="text-base shrink-0">👥</span>
-            <div className="min-w-0 flex-1">
-              <div className="font-semibold text-slate-800 text-sm truncate">
-                {e.title} <span className="text-slate-400 font-normal">· {e.dt} {e.tm}</span>
-              </div>
-              <div className="text-[11px] text-amber-700">attendees 누락 — 면접 후보자/면접관 등록 필요</div>
-            </div>
-            <button onClick={() => onNavigate('calendar')} className="chip bg-amber-100 text-amber-700 shrink-0 self-start hover:bg-amber-200 text-[10px]">
-              캘린더 →
-            </button>
-          </div>
+      </InsightCard>
+      <InsightCard
+        title="📍 사이트별 면접"
+        subtitle="이번 주"
+        action={() => onNavigate('rooms')}
+        empty={insights.siteAll.length === 0}
+      >
+        {insights.siteAll.map(([site, count]) => (
+          <BarRow key={site} label={site} value={count} max={insights.weekMax} tone="emerald" />
         ))}
-        {sheetOnlyJoin.map((g, i) => {
-          const d = new Date(g.dt + 'T00:00:00');
-          const dow = DOW[d.getDay()];
-          const preview = g.titles.slice(0, 3).join(', ') + (g.titles.length > 3 ? ` 외 ${g.titles.length - 3}명` : '');
-          return (
-            <details key={`s-${i}`} className="group rounded-md bg-white border border-pink-100">
-              <summary className="flex gap-2 p-2 cursor-pointer list-none hover:bg-pink-50/50">
-                <span className="text-base shrink-0">⚠️</span>
-                <div className="min-w-0 flex-1">
-                  <div className="font-semibold text-slate-800 text-sm truncate">
-                    {g.dt} ({dow}) 입사 {g.titles.length}명 — 캘린더 미등록
-                  </div>
-                  <div className="text-[11px] text-slate-500 truncate">{preview}</div>
-                </div>
-                <span className="chip bg-pink-100 text-pink-700 shrink-0 self-start text-[10px]">+{g.titles.length}</span>
-                <span className="text-slate-400 self-center text-xs group-open:rotate-90 transition-transform">▶</span>
-              </summary>
-              <div className="px-3 pb-2 pt-1 grid grid-cols-2 md:grid-cols-3 gap-1">
-                {g.titles.map((t, j) => (
-                  <div key={j} className="text-[11px] px-2 py-0.5 rounded bg-pink-50 text-slate-700 truncate">
-                    {t}
-                  </div>
-                ))}
-              </div>
-            </details>
-          );
+      </InsightCard>
+      <InsightCard
+        title="🕒 시간대별 면접"
+        subtitle="이번 주"
+        empty={insights.weekCount === 0}
+      >
+        {slotItems.map((s) => {
+          const v = insights.slotMap.get(s.key) || 0;
+          return <BarRow key={s.key} label={s.label} value={v} max={insights.weekMax} tone="violet" />;
         })}
-      </div>
+      </InsightCard>
     </div>
   );
 }
 
-// ───────────────────────── 7일 타임라인 ─────────────────────────
+function InsightCard({
+  title,
+  subtitle,
+  action,
+  children,
+  empty,
+}: {
+  title: string;
+  subtitle: string;
+  action?: () => void;
+  children: React.ReactNode;
+  empty?: boolean;
+}) {
+  return (
+    <div className="card p-4">
+      <div className="flex items-center justify-between mb-2.5">
+        <div className="flex items-baseline gap-2">
+          <h3 className="font-bold text-sm text-slate-800">{title}</h3>
+          <span className="text-[10px] text-slate-400 uppercase tracking-wider">{subtitle}</span>
+        </div>
+        {action && (
+          <button className="text-[11px] text-indigo-600 hover:underline" onClick={action}>
+            상세 →
+          </button>
+        )}
+      </div>
+      {empty ? (
+        <div className="py-4 text-center text-[11px] text-slate-300">데이터 없음</div>
+      ) : (
+        <div className="space-y-1.5">{children}</div>
+      )}
+    </div>
+  );
+}
+
+function BarRow({
+  label,
+  value,
+  max,
+  tone,
+}: {
+  label: string;
+  value: number;
+  max: number;
+  tone: 'indigo' | 'emerald' | 'violet';
+}) {
+  const widthPct = Math.max(2, Math.round((value / Math.max(1, max)) * 100));
+  const barBg = { indigo: 'bg-indigo-500', emerald: 'bg-emerald-500', violet: 'bg-violet-500' }[tone];
+  const trackBg = { indigo: 'bg-indigo-50', emerald: 'bg-emerald-50', violet: 'bg-violet-50' }[tone];
+  return (
+    <div className="grid grid-cols-[72px_1fr_28px] items-center gap-2">
+      <div className="text-[11px] text-slate-700 font-semibold truncate">{label}</div>
+      <div className={`h-4 rounded-full ${trackBg} overflow-hidden`}>
+        <div
+          className={`h-full ${barBg} rounded-full transition-all`}
+          style={{ width: value > 0 ? `${widthPct}%` : 0 }}
+        />
+      </div>
+      <div className="text-[12px] font-black text-slate-800 tabular-nums text-right">{value}</div>
+    </div>
+  );
+}
+
+// ─────────────────────── 7일 트렌드 ───────────────────────
 
 function SevenDayTimeline({
   next7,
   today,
-  weekCounts,
   onNavigate,
 }: {
   next7: { dt: string; events: UnifiedEvent[] }[];
   today: string;
-  weekCounts: Record<EventKind, number>;
   onNavigate: (p: PageId) => void;
 }) {
+  const maxIntv = Math.max(1, ...next7.map((d) => d.events.filter((e) => e.kind === '면접').length));
   return (
-    <div className="card p-3">
-      <div className="flex items-center justify-between mb-2">
+    <div className="card p-4">
+      <div className="flex items-center justify-between mb-3">
         <div className="flex items-baseline gap-2">
-          <h3 className="font-bold text-sm text-slate-800">📊 다음 7일</h3>
-          <div className="text-[11px] text-slate-500">
-            면접 <b className="text-blue-700">{weekCounts.면접}</b> · 입사 <b className="text-amber-700">{weekCounts.입사}</b> · 퇴사 <b className="text-pink-700">{weekCounts.퇴사}</b>
-          </div>
+          <h3 className="font-bold text-sm text-slate-800">📅 다음 7일 면접 트렌드</h3>
+          <span className="text-[11px] text-slate-400">일별 건수</span>
         </div>
-        <button className="btn text-[11px] px-2 py-1" onClick={() => onNavigate('calendar')}>
+        <button className="text-[11px] text-indigo-600 hover:underline" onClick={() => onNavigate('calendar')}>
           캘린더 →
         </button>
       </div>
-      <div className="grid grid-cols-7 gap-1.5">
+      <div className="grid grid-cols-7 gap-2">
         {next7.map(({ dt, events }) => {
           const d = new Date(dt + 'T00:00:00');
           const dow = DOW[d.getDay()];
           const isToday = dt === today;
           const dowTone = d.getDay() === 0 ? 'text-rose-500' : d.getDay() === 6 ? 'text-blue-500' : 'text-slate-500';
-          const counts = {
-            면접: events.filter((e) => e.kind === '면접').length,
-            입사: events.filter((e) => e.kind === '입사').length,
-            퇴사: events.filter((e) => e.kind === '퇴사').length,
-          };
-          const total = counts.면접 + counts.입사 + counts.퇴사;
+          const intv = events.filter((e) => e.kind === '면접').length;
+          const join = events.filter((e) => e.kind === '입사').length;
+          const leave = events.filter((e) => e.kind === '퇴사').length;
+          const heightPct = intv > 0 ? Math.max(15, Math.round((intv / maxIntv) * 100)) : 0;
           return (
             <div
               key={dt}
-              className={`rounded-lg p-2 border transition-all ${
-                isToday ? 'bg-gradient-to-b from-indigo-50 to-white border-indigo-300 shadow-glow' : 'bg-slate-50 border-slate-200'
-              }`}
+              className={`rounded-xl border ${
+                isToday ? 'bg-indigo-50/60 border-indigo-300 shadow-sm' : 'bg-slate-50/70 border-slate-100'
+              } p-2.5 flex flex-col`}
             >
               <div className="flex items-baseline justify-between mb-1">
-                <span className={`text-[18px] font-extrabold leading-none tracking-tight ${isToday ? 'text-indigo-700' : 'text-slate-800'}`}>
+                <span className={`text-lg font-black leading-none ${isToday ? 'text-indigo-700' : 'text-slate-800'}`}>
                   {d.getDate()}
                 </span>
-                <span className={`text-[10px] font-semibold ${dowTone}`}>{isToday ? '오늘' : dow}</span>
+                <span className={`text-[10px] font-bold ${dowTone}`}>{isToday ? '오늘' : dow}</span>
               </div>
-              {total === 0 ? (
-                <div className="text-center text-[10px] text-slate-300">-</div>
-              ) : (
-                <div className="space-y-0.5">
-                  {counts.면접 > 0 && <KindBadge kind="면접" count={counts.면접} />}
-                  {counts.입사 > 0 && <KindBadge kind="입사" count={counts.입사} />}
-                  {counts.퇴사 > 0 && <KindBadge kind="퇴사" count={counts.퇴사} />}
-                </div>
-              )}
+              {/* 면접 bar */}
+              <div className="flex-1 flex items-end h-12 mb-1">
+                {intv > 0 ? (
+                  <div
+                    className="w-full bg-gradient-to-t from-indigo-500 to-blue-400 rounded-md flex items-end justify-center text-white text-[11px] font-black pb-0.5"
+                    style={{ height: `${heightPct}%` }}
+                  >
+                    {intv}
+                  </div>
+                ) : (
+                  <div className="w-full text-center text-[10px] text-slate-300">-</div>
+                )}
+              </div>
+              {/* 입사·퇴사 미니 */}
+              <div className="flex items-center justify-center gap-1 text-[9px]">
+                {join > 0 && (
+                  <span className="px-1 rounded bg-amber-100 text-amber-700 font-bold">입{join}</span>
+                )}
+                {leave > 0 && (
+                  <span className="px-1 rounded bg-pink-100 text-pink-700 font-bold">퇴{leave}</span>
+                )}
+                {join === 0 && leave === 0 && <span className="text-slate-300">·</span>}
+              </div>
             </div>
           );
         })}
@@ -394,38 +526,32 @@ function SevenDayTimeline({
   );
 }
 
-function KindBadge({ kind, count }: { kind: EventKind; count: number }) {
-  const t = KIND_TONE[kind];
-  return (
-    <div className={`flex items-center justify-between px-1.5 py-0.5 rounded ${t.bg}`}>
-      <span className={`text-[9px] font-bold ${t.text}`}>{t.label}</span>
-      <span className={`text-[10px] font-extrabold ${t.text} tabular-nums`}>{count}</span>
-    </div>
-  );
-}
-
-// ───────────────────────── 오늘 일정 ─────────────────────────
+// ─────────────────────── 오늘 일정 ───────────────────────
 
 function TodayScheduleCard({ events, onNavigate }: { events: UnifiedEvent[]; onNavigate: (p: PageId) => void }) {
+  const intvCount = events.filter((e) => e.kind === '면접').length;
   return (
-    <div className="card p-3">
-      <div className="flex items-center justify-between mb-2 pb-2 border-b border-slate-100">
-        <h3 className="font-bold text-sm text-slate-800 flex items-center gap-1.5">
-          🗓️ 오늘의 일정 <span className="text-[11px] font-normal text-slate-400">({events.length}건)</span>
+    <div className="card p-4">
+      <div className="flex items-center justify-between mb-3 pb-2 border-b border-slate-100">
+        <h3 className="font-bold text-sm text-slate-800 flex items-baseline gap-2">
+          🗓️ 오늘 일정
+          <span className="text-[11px] font-normal text-slate-400">
+            {events.length}건 {intvCount > 0 && <span className="text-blue-600 font-bold">· 면접 {intvCount}</span>}
+          </span>
         </h3>
-        <button className="btn text-[11px] px-2 py-1" onClick={() => onNavigate('calendar')}>
+        <button className="text-[11px] text-indigo-600 hover:underline" onClick={() => onNavigate('calendar')}>
           전체 →
         </button>
       </div>
       {events.length === 0 ? (
-        <div className="py-6 text-center">
-          <div className="text-2xl mb-1 opacity-40">🌤️</div>
-          <div className="text-[11px] text-slate-400">오늘 예정된 일정 없음</div>
+        <div className="py-10 text-center">
+          <div className="text-3xl mb-2 opacity-30">🌤️</div>
+          <div className="text-[11px] text-slate-400">오늘 예정 없음</div>
         </div>
       ) : (
-        <div className="space-y-1.5 max-h-72 overflow-y-auto">
+        <div className="space-y-1.5 max-h-72 overflow-y-auto pr-1">
           {events.map((e, i) => (
-            <CompactEventRow key={i} event={e} dense />
+            <CompactEventRow key={i} event={e} />
           ))}
         </div>
       )}
@@ -433,7 +559,7 @@ function TodayScheduleCard({ events, onNavigate }: { events: UnifiedEvent[]; onN
   );
 }
 
-// ───────────────────────── 향후 7일 ─────────────────────────
+// ─────────────────────── 다가오는 일정 ───────────────────────
 
 function UpcomingList({ events, today, onNavigate }: { events: UnifiedEvent[]; today: string; onNavigate: (p: PageId) => void }) {
   const byDate = new Map<string, UnifiedEvent[]>();
@@ -442,35 +568,36 @@ function UpcomingList({ events, today, onNavigate }: { events: UnifiedEvent[]; t
     byDate.get(e.dt)!.push(e);
   });
   return (
-    <div className="card p-3">
-      <div className="flex items-center justify-between mb-2 pb-2 border-b border-slate-100">
-        <h3 className="font-bold text-sm text-slate-800 flex items-center gap-1.5">
-          🔜 향후 7일 <span className="text-[11px] font-normal text-slate-400">({events.length}건)</span>
+    <div className="card p-4">
+      <div className="flex items-center justify-between mb-3 pb-2 border-b border-slate-100">
+        <h3 className="font-bold text-sm text-slate-800 flex items-baseline gap-2">
+          🔜 다가오는 7일
+          <span className="text-[11px] font-normal text-slate-400">{events.length}건</span>
         </h3>
-        <button className="btn text-[11px] px-2 py-1" onClick={() => onNavigate('calendar')}>
+        <button className="text-[11px] text-indigo-600 hover:underline" onClick={() => onNavigate('calendar')}>
           전체 →
         </button>
       </div>
       {events.length === 0 ? (
-        <div className="py-6 text-center text-[11px] text-slate-400">예정된 일정 없음</div>
+        <div className="py-10 text-center text-[11px] text-slate-400">예정 없음</div>
       ) : (
-        <div className="space-y-2 max-h-72 overflow-y-auto">
+        <div className="space-y-2.5 max-h-72 overflow-y-auto pr-1">
           {Array.from(byDate.entries()).map(([dt, evs]) => {
             const d = diffDays(dt, today);
             return (
-              <div key={dt} className="grid grid-cols-[60px_1fr] gap-2">
-                <div className="text-right border-r-2 border-slate-100 pr-2">
-                  <div className="font-mono text-sm font-extrabold text-slate-800 leading-tight">
+              <div key={dt} className="grid grid-cols-[58px_1fr] gap-3">
+                <div className="text-right border-r border-slate-100 pr-2 pt-0.5">
+                  <div className="font-mono text-sm font-black text-slate-800 leading-none">
                     {dt.slice(5).replace('-', '/')}
                   </div>
-                  <div className="text-[10px] text-slate-500">{dowOf(dt)}</div>
-                  <div className="mt-0.5 inline-block px-1.5 rounded-full bg-indigo-100 text-indigo-700 text-[9px] font-bold">
+                  <div className="text-[10px] text-slate-500 mt-0.5">{dowOf(dt)}</div>
+                  <div className="mt-1 inline-block px-1.5 rounded-full bg-indigo-100 text-indigo-700 text-[9px] font-bold">
                     D-{d}
                   </div>
                 </div>
                 <div className="space-y-1">
                   {evs.map((e, i) => (
-                    <CompactEventRow key={i} event={e} dense />
+                    <CompactEventRow key={i} event={e} />
                   ))}
                 </div>
               </div>
@@ -482,20 +609,22 @@ function UpcomingList({ events, today, onNavigate }: { events: UnifiedEvent[]; t
   );
 }
 
-function CompactEventRow({ event, dense }: { event: UnifiedEvent; dense?: boolean }) {
-  const t = KIND_TONE[event.kind];
+function CompactEventRow({ event }: { event: UnifiedEvent }) {
+  const tone = {
+    면접: { chip: 'bg-blue-100 text-blue-700', text: 'text-blue-700', border: 'border-blue-100', bg: 'bg-blue-50/40' },
+    입사: { chip: 'bg-amber-100 text-amber-700', text: 'text-amber-700', border: 'border-amber-100', bg: 'bg-amber-50/40' },
+    퇴사: { chip: 'bg-pink-100 text-pink-700', text: 'text-pink-700', border: 'border-pink-100', bg: 'bg-pink-50/40' },
+  }[event.kind];
   const inner = (
-    <div className={`flex items-center gap-2 ${dense ? 'p-1.5' : 'p-2.5'} rounded-md border ${t.border} ${t.bg} hover:shadow-sm transition-shadow`}>
-      <span className={`chip ${t.chip} text-[9px] font-semibold py-0`}>{t.label}</span>
-      <span className={`font-mono text-[12px] font-bold ${t.text} w-11 tabular-nums shrink-0`}>{event.tm}</span>
+    <div className={`flex items-center gap-2 px-2 py-1.5 rounded-md border ${tone.border} ${tone.bg} hover:shadow-sm transition-shadow`}>
+      <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${tone.chip}`}>{event.kind}</span>
+      <span className={`font-mono text-[12px] font-bold ${tone.text} w-11 tabular-nums shrink-0`}>{event.tm}</span>
       <span className={`text-[12px] text-slate-700 flex-1 truncate ${event.done ? 'line-through opacity-60' : ''}`}>
         {event.title}
-        {event.location && <span className="ml-1.5 text-[10px] text-slate-500">📍 {event.location}</span>}
       </span>
       {event.attendees && event.attendees.length > 0 && (
         <span className="text-[10px] text-slate-500 shrink-0">👥{event.attendees.length}</span>
       )}
-      {event.source === 'calendar' && <span className="text-[10px] text-slate-400 shrink-0">📅</span>}
     </div>
   );
   if (event.htmlLink) {
@@ -508,16 +637,87 @@ function CompactEventRow({ event, dense }: { event: UnifiedEvent; dense?: boolea
   return inner;
 }
 
-// ───────────────────────── 알림 + 메일 ─────────────────────────
+// ─────────────────────── 알림 + 메일 (접힘) ───────────────────────
 
-function AlertList({ title, alerts, accent }: { title: string; alerts: MissingAlert[]; accent: 'amber' | 'emerald' }) {
-  const tone = accent === 'amber' ? 'text-amber-700' : 'text-emerald-700';
+function BottomStrip({
+  high,
+  medium,
+  missAttendees,
+  missJoin,
+  recentMail,
+  onNavigate,
+}: {
+  high: MissingAlert[];
+  medium: MissingAlert[];
+  missAttendees: number;
+  missJoin: number;
+  recentMail: { dt: string; type: string; subj: string; from: string; to: string }[];
+  onNavigate: (p: PageId) => void;
+}) {
+  const [open, setOpen] = useState(high.length > 0 || missAttendees > 0 || missJoin > 0);
+  const alertCount = high.length + medium.length + missAttendees + missJoin;
   return (
     <div className="card p-3">
-      <h3 className={`font-bold text-sm mb-2 pb-1.5 border-b border-slate-100 ${tone}`}>
-        {title} <span className="text-[11px] font-normal text-slate-400">({alerts.length})</span>
-      </h3>
-      <div className="space-y-1 max-h-[320px] overflow-y-auto pr-1">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="w-full flex items-center justify-between text-left"
+      >
+        <div className="flex items-center gap-2.5">
+          <span className="text-base">{alertCount > 0 ? '⚠️' : '✅'}</span>
+          <h3 className="font-bold text-sm text-slate-800">알림 · 메일</h3>
+          <span className="text-[11px] text-slate-500">
+            {alertCount > 0 ? `${alertCount}건 알림` : '이슈 없음'} · 최근 메일 {recentMail.length}건
+          </span>
+        </div>
+        <span className={`text-slate-400 text-xs transition-transform ${open ? 'rotate-90' : ''}`}>▶</span>
+      </button>
+      {open && (
+        <div className="mt-3 grid grid-cols-1 lg:grid-cols-2 gap-3">
+          <div className="space-y-2">
+            {high.length > 0 && (
+              <AlertList title="🚨 긴급" alerts={high} accent="rose" />
+            )}
+            {(missAttendees > 0 || missJoin > 0) && (
+              <div className="rounded-lg border border-amber-200 bg-amber-50/40 px-3 py-2 text-[11px] text-amber-900 space-y-1">
+                {missAttendees > 0 && (
+                  <button
+                    onClick={() => onNavigate('calendar')}
+                    className="block w-full text-left hover:underline"
+                  >
+                    👥 attendees 누락 면접 <b>{missAttendees}건</b> — 캘린더에서 확인 →
+                  </button>
+                )}
+                {missJoin > 0 && (
+                  <button
+                    onClick={() => onNavigate('incoming')}
+                    className="block w-full text-left hover:underline"
+                  >
+                    ⚠️ 캘린더 미등록 입사 <b>{missJoin}건</b> — 입사 페이지 확인 →
+                  </button>
+                )}
+              </div>
+            )}
+            {medium.length > 0 && <AlertList title="📋 진행" alerts={medium} accent="amber" />}
+            {alertCount === 0 && (
+              <div className="text-[11px] text-slate-400 text-center py-4">알림 없음</div>
+            )}
+          </div>
+          <RecentMail mail={recentMail} onNavigate={onNavigate} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+function AlertList({ title, alerts, accent }: { title: string; alerts: MissingAlert[]; accent: 'rose' | 'amber' }) {
+  const tone = accent === 'rose' ? 'text-rose-700' : 'text-amber-700';
+  return (
+    <div>
+      <h4 className={`font-bold text-[12px] mb-1.5 ${tone}`}>
+        {title} <span className="text-[10px] font-normal text-slate-400">({alerts.length})</span>
+      </h4>
+      <div className="space-y-1 max-h-44 overflow-y-auto pr-1">
         {alerts.map((a, i) => (
           <div key={i} className="flex gap-2 text-[12px] p-1.5 rounded-md hover:bg-slate-50">
             <span className="text-sm shrink-0">{a.icon}</span>
@@ -532,32 +732,36 @@ function AlertList({ title, alerts, accent }: { title: string; alerts: MissingAl
   );
 }
 
-function RecentMail({ mail, onNavigate }: { mail: { dt: string; type: string; subj: string; from: string; to: string }[]; onNavigate: (p: PageId) => void }) {
+function RecentMail({
+  mail,
+  onNavigate,
+}: {
+  mail: { dt: string; type: string; subj: string; from: string; to: string }[];
+  onNavigate: (p: PageId) => void;
+}) {
   return (
-    <div className="card p-3">
-      <div className="flex items-center justify-between mb-2 pb-1.5 border-b border-slate-100">
-        <h3 className="font-bold text-sm text-slate-800">✉️ 최근 메일</h3>
-        <button className="btn text-[11px] px-2 py-1" onClick={() => onNavigate('mail')}>
+    <div>
+      <div className="flex items-center justify-between mb-1.5">
+        <h4 className="font-bold text-[12px] text-slate-800">✉️ 최근 메일</h4>
+        <button className="text-[10px] text-indigo-600 hover:underline" onClick={() => onNavigate('mail')}>
           전체 →
         </button>
       </div>
-      <div className="space-y-1.5 max-h-[400px] overflow-y-auto pr-1">
-        {mail.length === 0 && <div className="text-[11px] text-slate-400 py-4 text-center">최근 메일 없음</div>}
+      <div className="space-y-1 max-h-44 overflow-y-auto pr-1">
+        {mail.length === 0 && <div className="text-[11px] text-slate-400 py-3 text-center">최근 메일 없음</div>}
         {mail.map((m, i) => (
           <a
             key={i}
             href={gmailSearchUrl({ subject: m.subj })}
             target="_blank"
             rel="noopener noreferrer"
-            className="block p-2 rounded-md bg-slate-50 hover:bg-indigo-50 hover:border-indigo-200 border border-slate-100 transition-all cursor-pointer group"
-            title="Gmail에서 검색"
+            className="block p-1.5 rounded-md bg-slate-50 hover:bg-indigo-50 border border-slate-100 hover:border-indigo-200 transition-all"
           >
             <div className="flex items-center justify-between text-[10px] text-slate-500 mb-0.5">
               <span>{m.dt}</span>
-              <span className="chip bg-violet-100 text-violet-700 text-[9px] py-0">{m.type}</span>
+              <span className="px-1 rounded bg-violet-100 text-violet-700 text-[9px] font-bold">{m.type}</span>
             </div>
-            <div className="text-[12px] font-semibold text-slate-800 truncate group-hover:text-indigo-700">{m.subj}</div>
-            <div className="text-[10px] text-slate-500 truncate">{m.from} → {m.to}</div>
+            <div className="text-[12px] font-semibold text-slate-800 truncate">{m.subj}</div>
           </a>
         ))}
       </div>
