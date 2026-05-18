@@ -81,7 +81,8 @@ function setState(patch: Partial<LiveState>) {
 let initialized = false;
 let calendarPollHandle: ReturnType<typeof setInterval> | null = null;
 let calendarFocusHandlersAttached = false;
-const CALENDAR_POLL_MS = 60_000;
+// 캘린더 폴링 — 15초 (실시간에 가깝게). focus/visibility 시에도 즉시 fire.
+const CALENDAR_POLL_MS = 15_000;
 
 // Viewer mode: polling cadence for re-fetching the live snapshot from the maintainer.
 let viewerPollHandle: ReturnType<typeof setInterval> | null = null;
@@ -143,7 +144,7 @@ function setupCalendarAutoSync() {
     });
   }, CALENDAR_POLL_MS);
   // eslint-disable-next-line no-console
-  console.info('[calendar-poll] interval armed (60s)');
+  console.info(`[calendar-poll] interval armed (${CALENDAR_POLL_MS / 1000}s)`);
 
   if (!calendarFocusHandlersAttached) {
     // 앱 활성화 시 캘린더 + 모든 시트 동시 refresh — polling 60초 기다리지 않음
