@@ -37,27 +37,27 @@ function findResumeShare(
   const nameNorm = name.replace(/[\s_\-.()\[\]·]+/g, '');
   const intvMs = Date.parse(`${interviewDt}T00:00:00+09:00`);
   if (!Number.isFinite(intvMs)) return null;
-  const WINDOW_MS = 30 * 24 * 60 * 60 * 1000;
-  const TAIL_MS = 24 * 60 * 60 * 1000;
+  // 발송일 윈도우 완화: 면접일 60일 이전 ~ 7일 후 (이력서 검토 단계 ~ 사후 평가표까지 포함)
+  const WINDOW_MS = 60 * 24 * 60 * 60 * 1000;
+  const TAIL_MS = 7 * 24 * 60 * 60 * 1000;
+  // 채용 관련 키워드 — 면접 외에 외부 전달 이력서(입사지원서/Fwd) 포함
+  const RECRUIT_KEYWORDS = /면접|이력서|입사지원|지원서|지원자|채용|서류전형|서류 전형/;
   for (const m of mails) {
-    // (e) 첨부 1개 이상 있어야 (이력서/평가표 등 — 형식은 PDF/docx/zip 무관)
     if (!m.attachments || m.attachments.length === 0) continue;
-    // (c) "면접" 키워드 — 검토용 외 메일 제외
-    const hay = `${m.subject || ''} ${m.snippet || ''}`;
-    if (!hay.includes('면접')) continue;
-    // (d) 발송일 윈도우 — 면접일 30일 이전 ~ 1일 후
     const sentMs = Date.parse(m.date);
     if (!Number.isFinite(sentMs)) continue;
     if (sentMs > intvMs + TAIL_MS) continue;
     if (sentMs < intvMs - WINDOW_MS) continue;
-    // (a) 파일명에 후보자 이름 — 가장 강한 신호
+    // (a) 파일명에 후보자 이름 — 가장 강한 신호. 키워드 필터 우회 (이력서 PDF는 파일명만으로 충분)
     let matchedFn: string | null = null;
     for (const fn of m.attachments) {
       const fnNorm = fn.replace(/[\s_\-.()\[\]·]+/g, '');
       if (fnNorm.includes(nameNorm)) { matchedFn = fn; break; }
     }
     if (matchedFn) return { mail: m, filename: matchedFn, matchKind: 'filename' };
-    // (b) 본문/제목에 후보자 이름 — 파일명에 이름 없어도 본문에 후보자 명단이 있으면 OK
+    // (b) 본문/제목에 후보자 이름 + 채용 키워드 — 다른 후보자 메일 오인 방지를 위한 이중 조건
+    const hay = `${m.subject || ''} ${m.snippet || ''}`;
+    if (!RECRUIT_KEYWORDS.test(hay)) continue;
     const hayNorm = hay.replace(/[\s_\-.()\[\]·]+/g, '');
     if (hayNorm.includes(nameNorm)) {
       return { mail: m, filename: m.attachments[0], matchKind: 'body' };
@@ -539,21 +539,36 @@ export function CalendarPage() {
   // 마운트 시 1회 + 5분마다 자동 갱신. 즉시 동기화 버튼에서도 함께 재조회됨.
   const refreshResumeShareIndex = async () => {
     try {
-      const query = '(from:hdlee@cnccosmetic.com OR from:shim@cnccosmetic.com) has:attachment newer_than:90d';
-      const r = await api.google.listGmail(query, 200);
-      if (!r.ok || !r.data) return;
-      setResumeMails(
-        r.data.map((m) => ({
-          id: m.id,
-          threadId: m.threadId,
-          subject: m.subject,
-          snippet: m.snippet,
-          date: m.date,
-          to: m.to,
-          attachments: m.attachments || [],
-          attachmentInfos: m.attachmentInfos || [],
-        }))
-      );
+      // 2개 쿼리 병합 fetch:
+      //   1) hdlee/shim 발송 — 우리 발송함의 면접 안내·이력서 전달 메일
+      //   2) hdlee/shim 수신 + 채용 키워드 — 외부에서 직접 받은 이력서/Fwd 메일 (예: 한준희 입사지원서)
+      // 두 쿼리 결과를 id로 dedup. 200건씩 = 최대 400건, 90일치.
+      const sentQuery = '(from:hdlee@cnccosmetic.com OR from:shim@cnccosmetic.com) has:attachment newer_than:90d';
+      const inboundQuery = '(to:hdlee@cnccosmetic.com OR to:shim@cnccosmetic.com) has:attachment newer_than:90d (이력서 OR 입사지원서 OR 지원자 OR 면접 OR 채용 OR 서류전형)';
+      const [sentR, inboundR] = await Promise.all([
+        api.google.listGmail(sentQuery, 200),
+        api.google.listGmail(inboundQuery, 200),
+      ]);
+      const merged = new Map<string, ResumeShareMail>();
+      const ingest = (r: typeof sentR) => {
+        if (!r.ok || !r.data) return;
+        for (const m of r.data) {
+          if (merged.has(m.id)) continue;
+          merged.set(m.id, {
+            id: m.id,
+            threadId: m.threadId,
+            subject: m.subject,
+            snippet: m.snippet,
+            date: m.date,
+            to: m.to,
+            attachments: m.attachments || [],
+            attachmentInfos: m.attachmentInfos || [],
+          });
+        }
+      };
+      ingest(sentR);
+      ingest(inboundR);
+      setResumeMails(Array.from(merged.values()));
     } catch {
       /* ignore — 일시적 네트워크 오류 */
     }
