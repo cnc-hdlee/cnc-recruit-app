@@ -2352,6 +2352,50 @@ function InterviewEditModal({
         setSubmitting(false);
         return;
       }
+      // 회의실 booking 이름 자동 동기화 — 사용자가 면접 잡기 전에 회의실을 임시 이름으로
+      // 선예약한 경우, 면접 이벤트의 새 이름을 같은 시간대/같은 회의실의 본인 booking에도 반영.
+      // 안전장치:
+      //  - id === event.id (resource attendee sync 본) → 제외, Google이 알아서 동기화함
+      //  - creatorEmail === myEmail → 본인이 만든 booking만 (타인 booking 절대 금지)
+      //  - resourceId === roomMapping.resourceEmail → 새 location에 매핑된 회의실만
+      //  - 시간 겹침 (옛/새 슬롯) → 다른 시간대 booking 보호
+      //  - 이미 new candidate name 포함 → 이미 sync됨, skip
+      //  - 다른 한글 후보자 이름 명시되어 있고 그게 옛 이름도 아님 → 다른 사람 booking, skip
+      // onSaved() 전에 await — onSaved → refreshRoomBookings 순서 보장하여 모달 닫힌 직후 갱신 표시.
+      const newName = form.candidate.trim();
+      if (newName && roomMapping) {
+        const oldName = (event.candidate || '').trim();
+        const oldStartMs = event.startISO ? Date.parse(event.startISO) : Date.parse(startISO);
+        const oldEndMs = event.endISO ? Date.parse(event.endISO) : Date.parse(endISO);
+        const newStartMs = Date.parse(startISO);
+        const newEndMs = Date.parse(endISO);
+        const bookingsToSync = roomBookings.filter((b) => {
+          if (b.id === event.id) return false;
+          if (b.resourceId !== roomMapping.resourceEmail) return false;
+          if (myEmail && b.creatorEmail && b.creatorEmail !== myEmail) return false;
+          const overlapOld = Number.isFinite(oldStartMs) && Number.isFinite(oldEndMs)
+            && b.startMs < oldEndMs && b.endMs > oldStartMs;
+          const overlapNew = b.startMs < newEndMs && b.endMs > newStartMs;
+          if (!overlapOld && !overlapNew) return false;
+          if (b.summary.includes(newName)) return false;
+          // booking summary에 한글 이름이 명시되어 있으면 그게 옛 이름과 일치해야만 안전
+          const otherNameMatch = b.summary.match(/면접\s*[-—–]?\s*([가-힣]{2,4})/);
+          if (otherNameMatch) {
+            const bookingName = otherNameMatch[1];
+            if (bookingName !== oldName && bookingName !== newName) return false;
+          }
+          return true;
+        });
+        if (bookingsToSync.length > 0) {
+          // 새 booking summary — 면접 표준 컨벤션 "○○팀 면접 - 이름"
+          const newBookingSummary = teamOrJob
+            ? `${teamOrJob} 면접 - ${newName}`
+            : `면접 - ${newName}`;
+          await Promise.allSettled(bookingsToSync.map((b) =>
+            api.google.updateCalEvent(b.resourceId, b.id, { summary: newBookingSummary }, 'none')
+          ));
+        }
+      }
       onSaved();
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
