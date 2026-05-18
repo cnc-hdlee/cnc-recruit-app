@@ -278,7 +278,13 @@ export function MeetingRooms() {
               })
               .map((e) => {
                 const sMin = isoToMinutes(e.start) ?? 0;
-                const eMin = isoToMinutes(e.end) ?? sMin + 30;
+                const rawEMin = isoToMinutes(e.end) ?? sMin + 30;
+                // 익일까지 이어지는 booking (예: 5/19 00:00 → 5/20 00:00 같은 24h 점유)은
+                // isoToMinutes가 다음 날의 00:00을 그냥 0분으로 환산하여 endMin=0 → 박스 길이 0 → 빈 칸으로 보이는 버그.
+                // start.dt < end.dt 이면 24:00 (1440분)으로 clamp하여 그리드 끝까지 막대 표시.
+                const sDt = isoToWall(e.start).dt;
+                const eDt = isoToWall(e.end).dt;
+                const eMin = eDt > sDt ? 24 * 60 : rawEMin;
                 // 진짜 예약자(person) 추출 — 회의실 캘린더 이벤트의 organizer/creator는 보통
                 //   · 회의실 자체(*@resource.calendar.google.com)
                 //   · 면접/입사 공유 캘린더(*@group.calendar.google.com)
