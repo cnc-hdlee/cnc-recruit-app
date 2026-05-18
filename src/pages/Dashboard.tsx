@@ -97,6 +97,19 @@ function timeSlot(tm: string): '오전' | '오후' | '저녁' | '종일' {
   return '저녁';
 }
 
+// 이벤트 summary에서 인원수 추출 — "입사 2명: 황영애·김민진" → 2
+// 자동 생성된 입사/퇴사 통합 이벤트는 N명을 summary에 명시함.
+// 패턴 없으면 1 (이벤트 1개 = 사람 1명 기본).
+function peopleInSummary(summary: string): number {
+  if (!summary) return 1;
+  const m = summary.match(/(\d{1,3})\s*명/);
+  if (m) {
+    const n = parseInt(m[1], 10);
+    if (Number.isFinite(n) && n >= 1 && n <= 100) return n;
+  }
+  return 1;
+}
+
 export function Dashboard({ onNavigate }: { onNavigate: (p: PageId) => void }) {
   const D = useData();
   const live = useLiveData();
@@ -190,8 +203,10 @@ export function Dashboard({ onNavigate }: { onNavigate: (p: PageId) => void }) {
       slotMap.set(slot, (slotMap.get(slot) || 0) + 1);
     }
 
-    // 면접 → 입사 전환 (이번 달 면접 수 vs 이번 달 입사 수)
-    const monthJoin = allEvents.filter((e) => e.kind === '입사' && e.dt >= monthStart && e.dt <= monthEnd).length;
+    // 면접 → 입사 전환 (이번 달 입사 사람 수 — N명 통합 이벤트 펼침)
+    const monthJoin = allEvents
+      .filter((e) => e.kind === '입사' && e.dt >= monthStart && e.dt <= monthEnd)
+      .reduce((sum, e) => sum + peopleInSummary(e.title), 0);
 
     return {
       todayCount: todayIntv.length,
@@ -479,8 +494,13 @@ function SevenDayTimeline({
           const isToday = dt === today;
           const dowTone = d.getDay() === 0 ? 'text-rose-500' : d.getDay() === 6 ? 'text-blue-500' : 'text-slate-500';
           const intv = events.filter((e) => e.kind === '면접').length;
-          const join = events.filter((e) => e.kind === '입사').length;
-          const leave = events.filter((e) => e.kind === '퇴사').length;
+          // 입사/퇴사는 N명 통합 이벤트 패턴 흔함 — summary에서 사람 수 합산
+          const join = events
+            .filter((e) => e.kind === '입사')
+            .reduce((sum, e) => sum + peopleInSummary(e.title), 0);
+          const leave = events
+            .filter((e) => e.kind === '퇴사')
+            .reduce((sum, e) => sum + peopleInSummary(e.title), 0);
           const heightPct = intv > 0 ? Math.max(15, Math.round((intv / maxIntv) * 100)) : 0;
           return (
             <div
