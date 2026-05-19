@@ -268,7 +268,7 @@ export function hasRecentlySent(log: CommsLogEntry[], stage: CommsStageId, to: s
 // ─────────────────────────────────────────────────────────────
 // 캐시 키를 v2로 분리 — 이전 헤더 기반 매칭 결과 자동 무효화
 const EMAIL_CACHE_KEY = 'candidateEmailCacheV2';
-const CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7일
+const CACHE_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30일 — 한 번 매칭한 결과는 한 달 동안 즉시 표시
 
 export interface EmailCacheEntry {
   email: string;
@@ -540,8 +540,10 @@ export interface BatchLookupResult {
   fetched: number;
 }
 
-// 후보자 간 직렬 처리 간격 — Gmail API rate limit (250 quota units/user/sec) 회피
-const BATCH_INTERVAL_MS = 500;
+// 후보자 간 직렬 처리 간격 — 3초당 1명 (1분당 20명), Gmail quota 안전한 페이스
+const BATCH_INTERVAL_MS = 3000;
+// rate limit 터지면 60초 대기 후 1회 재시도
+const RATE_LIMIT_BACKOFF_MS = 60_000;
 
 function sleep(ms: number) {
   return new Promise<void>((res) => setTimeout(res, ms));
@@ -569,30 +571,30 @@ export async function batchLookupEmails(
   }
 
   let done = 0;
-  let rateLimitHit = false;
   for (const name of todo) {
     onProgress?.(done, todo.length, name);
-    // rate limit 한 번 터지면 나머지 안 시도 (회복 시간까지 대기 안 함 — 사용자 클릭 재시도로 처리)
-    if (rateLimitHit) {
-      notFound.push({ name, reason: 'rate limit으로 skip — 잠시 후 [전체 재매칭]' });
-      done++;
-      continue;
+    let result = await lookupCandidateEmail(name);
+
+    // rate limit 터지면 60초 대기 후 1회 재시도
+    if (!result.email && /rate limit|quota/i.test(result.reason)) {
+      onProgress?.(done, todo.length, `${name} (Gmail quota 대기 60초)`);
+      await sleep(RATE_LIMIT_BACKOFF_MS);
+      result = await lookupCandidateEmail(name);
     }
-    const result = await lookupCandidateEmail(name);
+
     if (result.email) {
       resolved[name] = result.email;
       cache[name] = { email: result.email, at: now, source: 'gmail', diag: result.reason };
+      // 매칭 성공할 때마다 즉시 캐시 저장 — 도중에 종료돼도 진행분 보존
+      await saveEmailCache(cache);
     } else {
       notFound.push({ name, reason: result.reason });
-      // rate limit 에러는 캐시에 저장하지 않음 (나중에 재시도 가능하게)
-      if (/rate limit|quota/i.test(result.reason)) {
-        rateLimitHit = true;
-      } else {
+      // rate limit이 재시도 후에도 실패면 캐시 안 박음 (다음 페이지 진입 시 재시도)
+      if (!/rate limit|quota/i.test(result.reason)) {
         cache[name] = { email: '', at: now, source: 'gmail', notFound: true, diag: result.reason };
       }
     }
     done++;
-    // 다음 후보자 처리 전 delay — 1초당 2건 페이스
     if (done < todo.length) await sleep(BATCH_INTERVAL_MS);
   }
   onProgress?.(done, todo.length, '');

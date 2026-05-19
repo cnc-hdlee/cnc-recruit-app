@@ -199,31 +199,55 @@ export function CandidateCommsPage() {
     };
   }, [live.snapshots, live.calendarEvents, emailMap]);
 
-  // 페이지 마운트 시 자동 매칭은 안 함 — Gmail rate limit 보호.
-  // 사용자가 [📧 이메일 자동 매칭 시작] 버튼을 명시적으로 눌렀을 때만 실행.
-  async function startManualMatch() {
+  // 페이지 마운트 시 백그라운드 자동 매칭 — 3초 간격으로 천천히, quota 안전
+  // 한 번 매칭한 후보자는 30일 캐시 → 다음 진입 시 즉시 표시
+  useEffect(() => {
     const missing = candidates.filter((c) => !c.email).map((c) => c.name);
-    if (missing.length === 0) {
-      alert('미등록 후보자가 없습니다.');
-      return;
-    }
-    lastMatchedNames.current = missing.sort().join('|');
-    setMatchStatus((s) => ({ ...s, running: true, progress: { done: 0, total: missing.length, current: '' } }));
-    const result = await batchLookupEmails(missing, (done, total, current) => {
-      setMatchStatus((s) => ({ ...s, progress: { done, total, current } }));
-    });
-    setEmailMap((prev) => ({ ...prev, ...result.resolved }));
-    setMatchStatus({
-      running: false,
-      progress: { done: result.fetched, total: result.fetched, current: '' },
-      lastResult: {
-        resolved: Object.keys(result.resolved).length,
-        notFound: result.notFound.length,
-        cached: result.cached,
-        fetched: result.fetched,
-        notFoundDetail: result.notFound,
-      },
-    });
+    if (missing.length === 0) return;
+    const key = missing.sort().join('|');
+    if (key === lastMatchedNames.current) return; // 같은 세트 중복 실행 방지
+    lastMatchedNames.current = key;
+
+    let cancelled = false;
+    (async () => {
+      setMatchStatus((s) => ({ ...s, running: true, progress: { done: 0, total: missing.length, current: '' } }));
+      const result = await batchLookupEmails(missing, (done, total, current) => {
+        if (cancelled) return;
+        setMatchStatus((s) => ({ ...s, progress: { done, total, current } }));
+        // 진행 중에도 매칭된 이메일은 즉시 UI에 반영 (3초마다 한 명씩 채워짐)
+        loadEmailCache().then((cache) => {
+          if (cancelled) return;
+          const map: Record<string, string> = {};
+          for (const [n, e] of Object.entries(cache)) {
+            if (e.email) map[n] = e.email;
+          }
+          setEmailMap(map);
+        });
+      });
+      if (cancelled) return;
+      setEmailMap((prev) => ({ ...prev, ...result.resolved }));
+      setMatchStatus({
+        running: false,
+        progress: { done: result.fetched, total: result.fetched, current: '' },
+        lastResult: {
+          resolved: Object.keys(result.resolved).length,
+          notFound: result.notFound.length,
+          cached: result.cached,
+          fetched: result.fetched,
+          notFoundDetail: result.notFound,
+        },
+      });
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [candidates]);
+
+  async function startManualMatch() {
+    // 백그라운드 매칭이 이미 도는데 사용자가 강제로 다시 트리거하고 싶을 때
+    lastMatchedNames.current = '';
+    setEmailMap((prev) => prev); // 트리거
   }
 
   // [재매칭] 버튼 — 캐시 무시하고 전체 재조회
@@ -312,19 +336,16 @@ export function CandidateCommsPage() {
     setModalCandidate(cand);
     setOverrideVars({});
     setOverrideTo(cand.email);
-
-    // 이메일이 없으면 그 후보자만 즉시 매칭 (API 호출 1회)
+    // 백그라운드 매칭이 도는 중이면 이메일이 곧 채워질 거고,
+    // 아직 매칭 차례 안 된 후보자면 그 1명만 즉시 매칭해서 새치기
     if (!cand.email) {
       const result = await lookupCandidateEmail(cand.name);
       if (result.email) {
         setOverrideTo(result.email);
         setEmailMap((prev) => ({ ...prev, [cand.name]: result.email! }));
-        // 캐시에도 저장
         const cache = await loadEmailCache();
         cache[cand.name] = { email: result.email, at: Date.now(), source: 'gmail', diag: result.reason };
         await saveEmailCache(cache);
-      } else {
-        console.warn(`[comms] ${cand.name} 매칭 실패: ${result.reason}`);
       }
     }
   }
@@ -383,15 +404,8 @@ export function CandidateCommsPage() {
               </span>
             </span>
           ) : (
-            <span className="text-slate-500 text-xs">[매칭 시작] 버튼을 눌러주세요</span>
+            <span className="text-slate-500 text-xs">자동 매칭 대기 중</span>
           )}
-          <button
-            onClick={startManualMatch}
-            disabled={matchStatus.running}
-            className="px-3 py-1 rounded bg-accent-purple text-white text-xs font-semibold hover:bg-accent-purple/90 disabled:opacity-40"
-          >
-            📧 이메일 자동 매칭 시작
-          </button>
           {matchStatus.lastResult && matchStatus.lastResult.notFound > 0 && (
             <button
               onClick={() => setShowDiag((v) => !v)}
