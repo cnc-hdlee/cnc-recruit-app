@@ -259,24 +259,40 @@ async function fetchAttachmentBuffer(messageId, filename, attachmentId) {
 // 사용처: 후보자 이름으로 검색한 메일의 이력서를 열어 본문에서 이메일을 자동 추출.
 // 텍스트 길이 제한: 첫 50KB만 반환 (이메일 추출엔 충분, 토큰 절약).
 async function extractGmailAttachmentText(messageId, filename, attachmentId) {
-  const { buf, mimeType } = await fetchAttachmentBuffer(messageId, filename, attachmentId);
-  const lower = (filename || '').toLowerCase();
-  const mt = (mimeType || '').toLowerCase();
-  const MAX = 50 * 1024;
+  const log = (msg) => console.log(`[extractAttachment] ${filename} :: ${msg}`);
   try {
+    const { buf, mimeType } = await fetchAttachmentBuffer(messageId, filename, attachmentId);
+    log(`fetched ${buf.length} bytes, mime=${mimeType}`);
+    const lower = (filename || '').toLowerCase();
+    const mt = (mimeType || '').toLowerCase();
+    const MAX = 50 * 1024;
     if (lower.endsWith('.pdf') || mt.includes('pdf')) {
-      const pdfParse = require('pdf-parse');
-      const data = await pdfParse(buf, { max: 5 }); // 첫 5페이지만 (이력서 앞쪽에 이메일 있음)
-      return { ok: true, text: (data.text || '').slice(0, MAX), kind: 'pdf' };
+      try {
+        // pdf-parse는 index.js에서 더미 PDF를 읽는 버그가 있어 lib 파일을 직접 require
+        const pdfParse = require('pdf-parse/lib/pdf-parse.js');
+        const data = await pdfParse(buf, { max: 5 });
+        log(`pdf ok: ${(data.text || '').length} chars`);
+        return { ok: true, text: (data.text || '').slice(0, MAX), kind: 'pdf' };
+      } catch (e) {
+        log(`pdf-parse fail: ${e.message}`);
+        return { ok: false, text: '', kind: 'pdf_error', reason: `pdf-parse: ${e.message}` };
+      }
     }
     if (lower.endsWith('.docx') || mt.includes('officedocument.wordprocessingml')) {
-      const mammoth = require('mammoth');
-      const r = await mammoth.extractRawText({ buffer: buf });
-      return { ok: true, text: (r.value || '').slice(0, MAX), kind: 'docx' };
+      try {
+        const mammoth = require('mammoth');
+        const r = await mammoth.extractRawText({ buffer: buf });
+        log(`docx ok: ${(r.value || '').length} chars`);
+        return { ok: true, text: (r.value || '').slice(0, MAX), kind: 'docx' };
+      } catch (e) {
+        log(`mammoth fail: ${e.message}`);
+        return { ok: false, text: '', kind: 'docx_error', reason: `mammoth: ${e.message}` };
+      }
     }
-    // hwp/hwpx/doc/xlsx 등은 미지원 — 빈 텍스트 반환 (호출자가 다른 첨부 fallback)
-    return { ok: false, text: '', kind: 'unsupported', reason: `unsupported format: ${filename}` };
+    log(`unsupported format`);
+    return { ok: false, text: '', kind: 'unsupported', reason: `미지원 포맷: ${filename}` };
   } catch (e) {
+    log(`outer fail: ${e.message}`);
     return { ok: false, text: '', kind: 'error', reason: String(e?.message || e) };
   }
 }

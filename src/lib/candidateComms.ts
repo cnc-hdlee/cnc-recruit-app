@@ -314,17 +314,29 @@ function isInternalEmail(email: string): boolean {
   return INTERNAL_DOMAINS.some((d) => e.endsWith('@' + d));
 }
 
-// 첨부가 이력서로 신뢰할 만한지 — 엄격 모드.
-// 다음 중 하나 충족해야 통과:
-//   (a) 파일명에 후보자명 포함  OR
-//   (b) 파일명에 '이력서/resume/cv/자기소개' 키워드 포함
-// 그리고 확장자가 .pdf 또는 .docx
-function attachmentLooksLikeResume(filename: string, candidateName: string): boolean {
+// PDF/DOCX 첨부 중 명백히 이력서가 아닌 파일만 제외.
+// '평가표/사전질문지/결과보고서/회신/안내' 같은 파일명은 자동으로 거름.
+const EXCLUDE_FILENAME = /평가표|평가서|면접결과|결과보고|사전질문|회신|안내|공고|일정|회의록|템플릿|template|review/i;
+
+function attachmentLooksLikeResume(filename: string, _candidateName: string): boolean {
   const f = (filename || '').toLowerCase();
   if (!/(\.pdf$|\.docx$)/i.test(f)) return false;
-  const isResumeWord = /이력서|resume|cv|경력기술|자기소개/i.test(f);
-  const hasName = !!(candidateName && f.includes(candidateName.toLowerCase()));
-  return isResumeWord || hasName;
+  if (EXCLUDE_FILENAME.test(f)) return false;
+  return true;
+}
+
+// 이력서 텍스트에서 이메일을 가장 신뢰도 높게 추출.
+// 우선순위: 'Email/이메일/E-mail:' 라벨 뒤 이메일 > 텍스트 첫 매칭
+function pickBestEmailFromResumeText(text: string): string | null {
+  // 1순위: "이메일:" "Email:" "E-mail:" 등 라벨 뒤
+  const labelMatch = text.match(/(?:이메일|이\s*메일|메일|email|e[-\s]?mail)\s*[:：]?\s*([A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,})/i);
+  if (labelMatch) {
+    const e = labelMatch[1].toLowerCase();
+    if (!isInternalEmail(e)) return e;
+  }
+  // 2순위: 텍스트 전체에서 첫 외부 이메일
+  const all = extractEmails(text).filter((e) => !isInternalEmail(e));
+  return all.length > 0 ? all[0] : null;
 }
 
 export interface LookupDiag {
@@ -332,29 +344,34 @@ export interface LookupDiag {
   reason: string;
 }
 
-// 엄격 모드 — 첨부 PDF/DOCX 안의 이메일만 채택. 헤더 fallback 제거.
+// 이력서 첨부 PDF/DOCX 안의 이메일만 채택. 헤더 fallback 없음.
 // 매칭 못 하면 null + 진단 메시지 반환.
 export async function lookupCandidateEmail(name: string): Promise<LookupDiag> {
   if (!api?.google?.listGmail || !name) {
     return { email: null, reason: 'Gmail API 사용 불가' };
   }
   if (!api.google.extractAttachmentText) {
-    return { email: null, reason: '첨부 텍스트 추출 IPC 없음 — 앱 재시작 필요' };
+    return { email: null, reason: '첨부 텍스트 추출 IPC 없음 — 앱 완전 종료 후 재실행' };
   }
 
   const queries = [
-    `"${name}" has:attachment (이력서 OR resume OR CV)`,
+    `"${name}" has:attachment (이력서 OR resume OR CV OR pdf)`,
     `"${name}" has:attachment`,
+    `"${name}"`,
   ];
 
   let totalMsgs = 0;
-  let resumeAttachTried = 0;
+  let attachTried = 0;
+  let attachSkippedExclude = 0;
+  let attachNoText = 0;
+  let attachNoEmail = 0;
   let extractErr: string | null = null;
+  const seenMsgIds = new Set<string>();
 
   for (const q of queries) {
     let msgs;
     try {
-      const r = await api.google.listGmail(q, 10);
+      const r = await api.google.listGmail(q, 15);
       if (!r.ok || !r.data) continue;
       msgs = r.data;
     } catch (e) {
@@ -362,41 +379,48 @@ export async function lookupCandidateEmail(name: string): Promise<LookupDiag> {
       continue;
     }
 
-    totalMsgs += msgs.length;
-
     for (const msg of msgs) {
+      if (seenMsgIds.has(msg.id)) continue;
+      seenMsgIds.add(msg.id);
+      totalMsgs++;
+
       const attachInfos = msg.attachmentInfos || [];
-      // 엄격: 이력서로 신뢰되는 첨부만
-      const resumeLike = attachInfos.filter((a) => attachmentLooksLikeResume(a.filename, name));
-      for (const att of resumeLike) {
-        resumeAttachTried++;
+      // PDF/DOCX 중 명백한 비이력서만 제외
+      for (const att of attachInfos) {
+        if (!/(\.pdf$|\.docx$)/i.test(att.filename)) continue;
+        if (!attachmentLooksLikeResume(att.filename, name)) {
+          attachSkippedExclude++;
+          continue;
+        }
+        attachTried++;
         try {
           const r = await api.google.extractAttachmentText(msg.id, att.filename, att.attachmentId);
           if (!r.ok) {
-            extractErr = r.error || '추출 IPC ok=false';
+            extractErr = `${att.filename}: IPC ${r.error || 'ok=false'}`;
             continue;
           }
           if (!r.data?.ok || !r.data.text) {
-            extractErr = r.data?.reason || '텍스트 비어있음';
+            attachNoText++;
+            extractErr = `${att.filename}: ${r.data?.reason || '텍스트 추출 실패'}`;
             continue;
           }
-          const emails = extractEmails(r.data.text).filter((e) => !isInternalEmail(e));
-          if (emails.length === 0) {
-            extractErr = '첨부에 외부 이메일 없음';
+          const picked = pickBestEmailFromResumeText(r.data.text);
+          if (!picked) {
+            attachNoEmail++;
+            extractErr = `${att.filename}: 첨부에 외부 이메일 없음`;
             continue;
           }
-          // 첫 매칭 = 이력서 상단 본인 이메일 (가장 신뢰도 높음)
-          return { email: emails[0], reason: `${att.filename}에서 추출` };
+          return { email: picked, reason: `${att.filename}에서 추출` };
         } catch (e) {
-          extractErr = `추출 예외: ${String(e)}`;
+          extractErr = `${att.filename} 추출 예외: ${String(e)}`;
         }
       }
     }
   }
 
-  if (totalMsgs === 0) return { email: null, reason: '이력서 첨부 메일 검색 결과 없음' };
-  if (resumeAttachTried === 0) return { email: null, reason: `메일 ${totalMsgs}건 중 이력서로 신뢰되는 첨부 없음 (파일명에 이름 또는 '이력서/resume/cv')` };
-  return { email: null, reason: extractErr || '추출 시도 모두 실패' };
+  if (totalMsgs === 0) return { email: null, reason: 'Gmail 검색 결과 0건' };
+  const diag = `메일 ${totalMsgs}건 / PDF·DOCX 시도 ${attachTried} / 제외 ${attachSkippedExclude} / 텍스트X ${attachNoText} / 이메일X ${attachNoEmail}`;
+  return { email: null, reason: extractErr ? `${diag} · ${extractErr}` : diag };
 }
 
 // 여러 후보자에 대해 일괄 매칭 — 캐시에 있고 만료 안 됐으면 skip
@@ -420,9 +444,9 @@ export async function batchLookupEmails(
 
   for (const name of names) {
     const c = cache[name];
-    if (c && now - c.at < CACHE_TTL_MS) {
-      if (c.notFound) notFound.push({ name, reason: c.diag || '(캐시)' });
-      else if (c.email) resolved[name] = c.email;
+    // 성공 캐시만 신뢰. notFound는 매번 재시도 (사용자가 [재매칭] 누를 필요 없게)
+    if (c && c.email && !c.notFound && now - c.at < CACHE_TTL_MS) {
+      resolved[name] = c.email;
       cached++;
     } else {
       todo.push(name);

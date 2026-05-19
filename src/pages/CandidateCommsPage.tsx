@@ -572,7 +572,7 @@ function StageSection(props: {
                       {c.email ? (
                         <span className="text-slate-800">{c.email}</span>
                       ) : (
-                        <span className="text-accent-yellow font-medium">미등록 (모달에서 입력)</span>
+                        <span className="text-accent-red font-medium">Gmail 첨부에서 못 찾음</span>
                       )}
                     </td>
                     <td className="table-cell">
