@@ -315,8 +315,8 @@ function isInternalEmail(email: string): boolean {
 }
 
 // PDF/DOCX 첨부 중 명백히 이력서가 아닌 파일만 제외.
-// '평가표/사전질문지/결과보고서/회신/안내' 같은 파일명은 자동으로 거름.
-const EXCLUDE_FILENAME = /평가표|평가서|면접결과|결과보고|사전질문|회신|안내|공고|일정|회의록|템플릿|template|review/i;
+// 너무 엄격하면 '안내문_홍길동_이력서.pdf' 같은 흔한 파일명도 차단됨 → 최소한만.
+const EXCLUDE_FILENAME = /평가표|평가서|면접결과|결과보고|사전질문지|회의록|템플릿_|template_|review/i;
 
 function attachmentLooksLikeResume(filename: string, _candidateName: string): boolean {
   const f = (filename || '').toLowerCase();
