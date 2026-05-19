@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { liveByKindOrScan } from '../store/liveData';
+import { liveByKindOrScan, liveCalendarEventsNormalized, useLiveData } from '../store/liveData';
 import { useData } from '../store';
 import {
   TEMPLATES,
@@ -24,6 +24,36 @@ interface CandidateRow {
   email: string;
   interviewAt: string;
   location: string;
+  source: 'sheet' | 'calendar' | 'merged';
+  dtKey?: string; // YYYY-MM-DD HH:MM — 정렬·중복 키
+}
+
+// 캘린더 면접 summary에서 후보자 이름 추출.
+// 표준 포맷: "HH:MM / 사이트 / 이름 / 부서팀(직무)" — 메모리 feedback_interview_cal_summary_format
+function nameFromCalSummary(title: string): { name: string; team: string; job: string; site: string } {
+  const empty = { name: '', team: '', job: '', site: '' };
+  if (!title) return empty;
+  if (title.includes('/')) {
+    const parts = title.split('/').map((s) => s.trim()).filter(Boolean);
+    // 첫 토큰이 시간이면 (HH:MM) 이름은 보통 3번째. 시간이 없으면 2번째.
+    const timeIdx = parts.findIndex((p) => /^\d{1,2}:\d{2}$/.test(p));
+    const nameIdx = timeIdx >= 0 ? timeIdx + 2 : 1;
+    const candidate = parts[nameIdx] || '';
+    const koName = candidate.match(/[가-힣]{2,4}/)?.[0] || '';
+    const teamRaw = parts[nameIdx + 1] || '';
+    const team = teamRaw.replace(/\([^)]*\)/g, '').trim();
+    const jobMatch = teamRaw.match(/\(([^)]+)\)/);
+    const job = jobMatch ? jobMatch[1].trim() : '';
+    const site = timeIdx >= 0 ? parts[timeIdx + 1] || '' : parts[0] || '';
+    return { name: koName, team, job, site };
+  }
+  // dash 포맷: "○○팀 면접 - 이름"
+  const dashIdx = title.search(/[-—–]/);
+  if (dashIdx >= 0) {
+    const after = title.slice(dashIdx + 1).match(/[가-힣]{2,4}/)?.[0] || '';
+    return { ...empty, name: after };
+  }
+  return empty;
 }
 
 function pickFromRow(row: Record<string, string>, keys: string[]): string {
@@ -58,6 +88,8 @@ function todayMs() {
 export function CandidateCommsPage() {
   const D = useData();
   void D; // 향후 정합성 점검에 활용
+  const live = useLiveData();
+  void live; // 캘린더/시트 push 트리거로 리렌더 받기 위함
   const [log, setLog] = useState<CommsLogEntry[]>([]);
   const [selectedStage, setSelectedStage] = useState<CommsStageId | null>(null);
   const [pickedCandidate, setPickedCandidate] = useState<CandidateRow | null>(null);
@@ -69,45 +101,103 @@ export function CandidateCommsPage() {
   }, []);
 
   // ─────────────────────────────────────────────────────────
-  // 후보자 추출 (사무직 면접 시트)
+  // 후보자 추출 — 시트(office_interview) + 캘린더(면접 kind) 통합
+  // 이름 기준 dedup, 시트 데이터(이메일·부서·비고)는 캘린더 후보자에 보강 prefill
   // ─────────────────────────────────────────────────────────
-  const candidates = useMemo<CandidateRow[]>(() => {
+  const { candidates, sources } = useMemo(() => {
     const rows = liveByKindOrScan('office_interview');
-    return rows
-      .map((row): CandidateRow | null => {
-        const name = pickFromRow(row, ['성명', '이름']);
-        const dept = pickFromRow(row, ['지원부서', '부서']);
-        const job = pickFromRow(row, ['지원구분', '직무']);
-        const note = pickFromRow(row, ['비고', 'note']);
-        const email = pickFromRow(row, ['이메일', '메일', 'email', 'e-mail']);
-        const location = pickFromRow(row, ['장소', 'location', '면접장소']);
-        if (!name) return null;
-        const parsedDt = parseInterviewDt(note);
-        return {
-          name,
-          dept,
-          job,
-          note,
-          email,
-          interviewAt: parsedDt?.display || '',
-          location: location || '씨앤씨인터내셔널 퍼플카운티 (경기도 화성시 삼성1로 5길 39)',
-        };
-      })
-      .filter((r): r is CandidateRow => r !== null);
-  }, []);
+
+    // 1) 시트에서 후보자 추출
+    const sheetCandidates: CandidateRow[] = [];
+    for (const row of rows) {
+      const name = pickFromRow(row, ['성명', '이름']);
+      if (!name) continue;
+      const dept = pickFromRow(row, ['지원부서', '부서']);
+      const job = pickFromRow(row, ['지원구분', '직무']);
+      const note = pickFromRow(row, ['비고', 'note']);
+      const email = pickFromRow(row, ['이메일', '메일', 'email', 'e-mail']);
+      const location = pickFromRow(row, ['장소', 'location', '면접장소']);
+      const parsedDt = parseInterviewDt(note);
+      sheetCandidates.push({
+        name,
+        dept,
+        job,
+        note,
+        email,
+        interviewAt: parsedDt?.display || '',
+        location: location || '씨앤씨인터내셔널 퍼플카운티 (경기도 화성시 삼성1로 5길 39)',
+        source: 'sheet',
+        dtKey: parsedDt ? `${parsedDt.dt} ${parsedDt.tm}` : undefined,
+      });
+    }
+
+    // 2) 캘린더의 면접 이벤트에서 후보자 추출
+    const calEvents = liveCalendarEventsNormalized().filter((e) => e.kind === '면접');
+    const dayNames = ['일', '월', '화', '수', '목', '금', '토'];
+    const calCandidates: CandidateRow[] = [];
+    for (const ev of calEvents) {
+      const parsed = nameFromCalSummary(ev.title);
+      if (!parsed.name) continue;
+      // 면접일시 표시 형태로 포맷
+      let interviewAt = '';
+      if (ev.dt && ev.tm && ev.tm !== '종일') {
+        const d = new Date(`${ev.dt}T${ev.tm}:00`);
+        if (!Number.isNaN(d.getTime())) {
+          const [, mo, da] = ev.dt.split('-');
+          interviewAt = `${+mo}월 ${+da}일(${dayNames[d.getDay()]}) ${parseInt(ev.tm.split(':')[0], 10)}시 ${ev.tm.split(':')[1]}분`;
+        }
+      }
+      calCandidates.push({
+        name: parsed.name,
+        dept: parsed.team,
+        job: parsed.job,
+        note: ev.title,
+        email: '', // 캘린더 attendees엔 보통 후보자 이메일 없음
+        interviewAt,
+        location: ev.location || '씨앤씨인터내셔널 퍼플카운티 (경기도 화성시 삼성1로 5길 39)',
+        source: 'calendar',
+        dtKey: ev.dt && ev.tm !== '종일' ? `${ev.dt} ${ev.tm}` : undefined,
+      });
+    }
+
+    // 3) 이름 기준 머지 — 시트 우선(이메일 보유), 캘린더는 보강
+    const byName = new Map<string, CandidateRow>();
+    let mergedCount = 0;
+    for (const s of sheetCandidates) {
+      byName.set(s.name, { ...s });
+    }
+    for (const c of calCandidates) {
+      const existing = byName.get(c.name);
+      if (existing) {
+        // 캘린더에 면접일시가 있고 시트에는 없으면 보강
+        if (!existing.interviewAt && c.interviewAt) existing.interviewAt = c.interviewAt;
+        if (!existing.dept && c.dept) existing.dept = c.dept;
+        if (!existing.job && c.job) existing.job = c.job;
+        if (!existing.dtKey && c.dtKey) existing.dtKey = c.dtKey;
+        existing.source = 'merged';
+        mergedCount++;
+      } else {
+        byName.set(c.name, c);
+      }
+    }
+
+    const list = Array.from(byName.values()).sort((a, b) => (a.dtKey || '').localeCompare(b.dtKey || ''));
+    return {
+      candidates: list,
+      sources: { sheet: sheetCandidates.length, calendar: calCandidates.length, merged: mergedCount, total: list.length },
+    };
+  }, [live.snapshots, live.calendarEvents]);
 
   // 1차 면접 안내 자동 큐 — 미래 면접 + 차단 키워드 없는 사람 + 이미 안 보낸 사람
   const interviewQueue = useMemo(() => {
     const cutoff = todayMs();
     return candidates.filter((c) => {
-      if (!c.interviewAt) return false;
-      const dt = parseInterviewDt(c.note);
-      if (!dt) return false;
-      const d = new Date(`${dt.dt}T${dt.tm}:00`);
+      if (!c.dtKey) return false;
+      const [datePart, timePart] = c.dtKey.split(' ');
+      const d = new Date(`${datePart}T${timePart}:00`);
       if (Number.isNaN(d.getTime()) || d.getTime() < cutoff) return false;
       const block = isBlockedCandidate({ name: c.name, dept: c.dept, note: c.note });
       if (block.blocked) return false;
-      // 이미 안내 발송한 사람은 제외 (이메일 있을 때만 판별 가능)
       if (c.email && hasRecentlySent(log, 'interview_1st', c.email, 30)) return false;
       return true;
     });
@@ -197,6 +287,23 @@ export function CandidateCommsPage() {
         <Stat label="처우협의 (수기·잠금)" value={'🔒'} color="text-accent-yellow" />
       </div>
 
+      {/* 출처별 카운트 — 빈 큐 진단용 */}
+      <div className="card p-3 text-xs text-slate-400 flex flex-wrap items-center gap-3">
+        <span className="font-semibold text-slate-300">📍 후보자 출처</span>
+        <span>시트(office_interview) <span className="font-mono text-slate-200">{sources.sheet}</span></span>
+        <span>·</span>
+        <span>캘린더(면접) <span className="font-mono text-slate-200">{sources.calendar}</span></span>
+        <span>·</span>
+        <span>이름 매칭 보강 <span className="font-mono text-slate-200">{sources.merged}</span></span>
+        <span>·</span>
+        <span>통합 리스트 <span className="font-mono text-accent-purple">{sources.total}</span></span>
+        {sources.total === 0 && (
+          <span className="ml-auto text-accent-yellow">
+            ⚠ 시트 매핑 또는 캘린더 동기화를 확인해주세요 (설정 → 시트 매핑 / 면접 캘린더 폴링)
+          </span>
+        )}
+      </div>
+
       <div className="card p-4">
         <div className="flex items-center justify-between mb-3">
           <h3 className="font-semibold">📨 자동 발송 단계 (HITL 1-클릭)</h3>
@@ -245,13 +352,28 @@ export function CandidateCommsPage() {
                 <tbody>
                   {interviewQueue.map((c, i) => (
                     <tr key={i} className="hover:bg-bg-hover/30">
-                      <td className="table-cell font-medium">{c.name}</td>
+                      <td className="table-cell font-medium">
+                        {c.name}
+                        <span
+                          className={`ml-2 chip text-[9px] ${
+                            c.source === 'merged'
+                              ? 'bg-accent-green/15 text-accent-green'
+                              : c.source === 'sheet'
+                              ? 'bg-accent-blue/15 text-accent-blue'
+                              : 'bg-accent-purple/15 text-accent-purple'
+                          }`}
+                        >
+                          {c.source === 'merged' ? '시트+캘' : c.source === 'sheet' ? '시트' : '캘린더'}
+                        </span>
+                      </td>
                       <td className="table-cell text-xs">
                         {c.dept}
                         {c.job ? ` / ${c.job}` : ''}
                       </td>
                       <td className="table-cell text-xs font-mono">{c.interviewAt}</td>
-                      <td className="table-cell text-xs text-slate-400">{c.email || '미등록'}</td>
+                      <td className="table-cell text-xs text-slate-400">
+                        {c.email || <span className="text-accent-yellow">미등록 (수동 입력)</span>}
+                      </td>
                       <td className="table-cell">
                         <button
                           onClick={() => {
@@ -599,6 +721,7 @@ function OfferForm(props: { onSend: (vars: Record<string, string>, cand: Candida
               note: '',
               interviewAt: '',
               location: '',
+              source: 'sheet',
             };
             props.onSend({ ...vars, name, to: email }, candStub);
             props.onClose();
