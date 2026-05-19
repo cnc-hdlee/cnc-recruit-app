@@ -264,9 +264,10 @@ export function hasRecentlySent(log: CommsLogEntry[], stage: CommsStageId, to: s
 }
 
 // ─────────────────────────────────────────────────────────────
-// Gmail 자동 이메일 매칭 — 이름으로 Gmail 검색해 후보자 이메일 추출
+// Gmail 자동 이메일 매칭 — 이력서 첨부 파일에서 후보자 이메일 추출
 // ─────────────────────────────────────────────────────────────
-const EMAIL_CACHE_KEY = 'candidateEmailCache';
+// 캐시 키를 v2로 분리 — 이전 헤더 기반 매칭 결과 자동 무효화
+const EMAIL_CACHE_KEY = 'candidateEmailCacheV2';
 const CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7일
 
 export interface EmailCacheEntry {
@@ -274,6 +275,8 @@ export interface EmailCacheEntry {
   at: number; // epoch ms
   source: 'gmail' | 'sheet' | 'manual';
   notFound?: boolean;
+  // 디버그용 — 왜 못 찾았는지/어떤 첨부에서 찾았는지
+  diag?: string;
 }
 
 export type EmailCache = Record<string, EmailCacheEntry>;
@@ -311,29 +314,42 @@ function isInternalEmail(email: string): boolean {
   return INTERNAL_DOMAINS.some((d) => e.endsWith('@' + d));
 }
 
-// 이력서 첨부 파일명에 후보자 이름이 들어있는지 (정확도 ↑)
+// 첨부가 이력서로 신뢰할 만한지 — 엄격 모드.
+// 다음 중 하나 충족해야 통과:
+//   (a) 파일명에 후보자명 포함  OR
+//   (b) 파일명에 '이력서/resume/cv/자기소개' 키워드 포함
+// 그리고 확장자가 .pdf 또는 .docx
 function attachmentLooksLikeResume(filename: string, candidateName: string): boolean {
   const f = (filename || '').toLowerCase();
   if (!/(\.pdf$|\.docx$)/i.test(f)) return false;
   const isResumeWord = /이력서|resume|cv|경력기술|자기소개/i.test(f);
-  const hasName = candidateName && f.includes(candidateName.toLowerCase());
-  return isResumeWord || !!hasName;
+  const hasName = !!(candidateName && f.includes(candidateName.toLowerCase()));
+  return isResumeWord || hasName;
 }
 
-// 단일 후보자에 대해 Gmail 검색 → 이력서 첨부 텍스트에서 이메일 추출 → 안 되면 헤더 fallback
-export async function lookupCandidateEmail(name: string): Promise<string | null> {
-  if (!api?.google?.listGmail || !name) return null;
+export interface LookupDiag {
+  email: string | null;
+  reason: string;
+}
 
-  // 1차: 이력서 첨부 메일을 우선 검색
+// 엄격 모드 — 첨부 PDF/DOCX 안의 이메일만 채택. 헤더 fallback 제거.
+// 매칭 못 하면 null + 진단 메시지 반환.
+export async function lookupCandidateEmail(name: string): Promise<LookupDiag> {
+  if (!api?.google?.listGmail || !name) {
+    return { email: null, reason: 'Gmail API 사용 불가' };
+  }
+  if (!api.google.extractAttachmentText) {
+    return { email: null, reason: '첨부 텍스트 추출 IPC 없음 — 앱 재시작 필요' };
+  }
+
   const queries = [
     `"${name}" has:attachment (이력서 OR resume OR CV)`,
     `"${name}" has:attachment`,
-    `"${name}" (이력서 OR resume OR 면접 OR 지원)`,
-    `"${name}"`,
   ];
 
-  // 메일 헤더 빈도 tally (fallback)
-  const headerTally: Record<string, number> = {};
+  let totalMsgs = 0;
+  let resumeAttachTried = 0;
+  let extractErr: string | null = null;
 
   for (const q of queries) {
     let msgs;
@@ -341,52 +357,52 @@ export async function lookupCandidateEmail(name: string): Promise<string | null>
       const r = await api.google.listGmail(q, 10);
       if (!r.ok || !r.data) continue;
       msgs = r.data;
-    } catch {
+    } catch (e) {
+      extractErr = `Gmail 검색 실패: ${String(e)}`;
       continue;
     }
 
+    totalMsgs += msgs.length;
+
     for (const msg of msgs) {
-      // 헤더 이메일 누적 (fallback용)
-      for (const e of [...extractEmails(msg.from), ...extractEmails(msg.to)]) {
-        if (!isInternalEmail(e)) headerTally[e] = (headerTally[e] || 0) + 1;
-      }
-
-      // 이력서로 보이는 첨부 우선 추출
       const attachInfos = msg.attachmentInfos || [];
+      // 엄격: 이력서로 신뢰되는 첨부만
       const resumeLike = attachInfos.filter((a) => attachmentLooksLikeResume(a.filename, name));
-      const otherDocs = attachInfos.filter(
-        (a) => !resumeLike.includes(a) && /(\.pdf$|\.docx$)/i.test(a.filename)
-      );
-      const tryOrder = [...resumeLike, ...otherDocs];
-
-      for (const att of tryOrder) {
-        if (!api.google.extractAttachmentText) break;
+      for (const att of resumeLike) {
+        resumeAttachTried++;
         try {
           const r = await api.google.extractAttachmentText(msg.id, att.filename, att.attachmentId);
-          if (!r.ok || !r.data?.ok || !r.data.text) continue;
-          // 텍스트에서 이메일 추출, cnccosmetic 제외
+          if (!r.ok) {
+            extractErr = r.error || '추출 IPC ok=false';
+            continue;
+          }
+          if (!r.data?.ok || !r.data.text) {
+            extractErr = r.data?.reason || '텍스트 비어있음';
+            continue;
+          }
           const emails = extractEmails(r.data.text).filter((e) => !isInternalEmail(e));
-          if (emails.length === 0) continue;
-          // 이력서 첨부면 첫 매칭(상단에 보통 본인 이메일) — 가장 신뢰도 높음
-          return emails[0];
-        } catch {
-          // continue
+          if (emails.length === 0) {
+            extractErr = '첨부에 외부 이메일 없음';
+            continue;
+          }
+          // 첫 매칭 = 이력서 상단 본인 이메일 (가장 신뢰도 높음)
+          return { email: emails[0], reason: `${att.filename}에서 추출` };
+        } catch (e) {
+          extractErr = `추출 예외: ${String(e)}`;
         }
       }
     }
-
-    // 검색 결과는 있는데 첨부에서 못 찾았으면 다음 쿼리 시도. 첨부 못 찾고 헤더 fallback만 있으면 일단 keep.
   }
 
-  // 첨부에서 못 찾았으면 헤더 빈도 fallback
-  const ranked = Object.entries(headerTally).sort((a, b) => b[1] - a[1]);
-  return ranked.length > 0 ? ranked[0][0] : null;
+  if (totalMsgs === 0) return { email: null, reason: '이력서 첨부 메일 검색 결과 없음' };
+  if (resumeAttachTried === 0) return { email: null, reason: `메일 ${totalMsgs}건 중 이력서로 신뢰되는 첨부 없음 (파일명에 이름 또는 '이력서/resume/cv')` };
+  return { email: null, reason: extractErr || '추출 시도 모두 실패' };
 }
 
 // 여러 후보자에 대해 일괄 매칭 — 캐시에 있고 만료 안 됐으면 skip
 export interface BatchLookupResult {
   resolved: Record<string, string>;
-  notFound: string[];
+  notFound: { name: string; reason: string }[];
   cached: number;
   fetched: number;
 }
@@ -398,15 +414,14 @@ export async function batchLookupEmails(
   const cache = await loadEmailCache();
   const now = Date.now();
   const resolved: Record<string, string> = {};
-  const notFound: string[] = [];
+  const notFound: { name: string; reason: string }[] = [];
   const todo: string[] = [];
   let cached = 0;
 
-  // 1) 캐시 확인
   for (const name of names) {
     const c = cache[name];
     if (c && now - c.at < CACHE_TTL_MS) {
-      if (c.notFound) notFound.push(name);
+      if (c.notFound) notFound.push({ name, reason: c.diag || '(캐시)' });
       else if (c.email) resolved[name] = c.email;
       cached++;
     } else {
@@ -414,17 +429,16 @@ export async function batchLookupEmails(
     }
   }
 
-  // 2) 캐시에 없는 후보자만 Gmail 검색 (직렬 — 토큰 한도/쿼터 안전)
   let done = 0;
   for (const name of todo) {
     onProgress?.(done, todo.length, name);
-    const email = await lookupCandidateEmail(name);
-    if (email) {
-      resolved[name] = email;
-      cache[name] = { email, at: now, source: 'gmail' };
+    const result = await lookupCandidateEmail(name);
+    if (result.email) {
+      resolved[name] = result.email;
+      cache[name] = { email: result.email, at: now, source: 'gmail', diag: result.reason };
     } else {
-      notFound.push(name);
-      cache[name] = { email: '', at: now, source: 'gmail', notFound: true };
+      notFound.push({ name, reason: result.reason });
+      cache[name] = { email: '', at: now, source: 'gmail', notFound: true, diag: result.reason };
     }
     done++;
   }

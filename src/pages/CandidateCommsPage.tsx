@@ -97,8 +97,9 @@ export function CandidateCommsPage() {
   const [matchStatus, setMatchStatus] = useState<{
     running: boolean;
     progress: { done: number; total: number; current: string };
-    lastResult: { resolved: number; notFound: number; cached: number; fetched: number } | null;
+    lastResult: { resolved: number; notFound: number; cached: number; fetched: number; notFoundDetail: { name: string; reason: string }[] } | null;
   }>({ running: false, progress: { done: 0, total: 0, current: '' }, lastResult: null });
+  const [showDiag, setShowDiag] = useState(false);
   const lastMatchedNames = useRef<string>('');
 
   useEffect(() => {
@@ -215,6 +216,7 @@ export function CandidateCommsPage() {
           notFound: result.notFound.length,
           cached: result.cached,
           fetched: result.fetched,
+          notFoundDetail: result.notFound,
         },
       });
     })();
@@ -368,6 +370,14 @@ export function CandidateCommsPage() {
           ) : (
             <span className="text-slate-500 text-xs">미등록 후보자 검색 대기</span>
           )}
+          {matchStatus.lastResult && matchStatus.lastResult.notFound > 0 && (
+            <button
+              onClick={() => setShowDiag((v) => !v)}
+              className="px-2 py-1 rounded bg-accent-yellow/20 text-slate-900 text-xs font-semibold hover:bg-accent-yellow/30"
+            >
+              {showDiag ? '진단 숨기기' : '미발견 사유 보기'}
+            </button>
+          )}
           <button
             onClick={reMatchAll}
             disabled={matchStatus.running}
@@ -376,6 +386,23 @@ export function CandidateCommsPage() {
             ↻ 전체 재매칭
           </button>
         </div>
+        {showDiag && matchStatus.lastResult && matchStatus.lastResult.notFoundDetail.length > 0 && (
+          <div className="pt-2 border-t border-bg-line">
+            <div className="text-xs font-semibold text-slate-800 mb-1">📋 미발견 후보자별 사유</div>
+            <div className="max-h-[200px] overflow-auto rounded border border-slate-300 bg-slate-50 text-xs">
+              <table className="w-full">
+                <tbody>
+                  {matchStatus.lastResult.notFoundDetail.map((d) => (
+                    <tr key={d.name} className="border-b border-slate-200 last:border-b-0">
+                      <td className="px-2 py-1 font-semibold text-slate-900 whitespace-nowrap">{d.name}</td>
+                      <td className="px-2 py-1 text-slate-700">{d.reason}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* 단계 1: 1차 면접 안내 */}
