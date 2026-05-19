@@ -110,7 +110,9 @@ export function CandidateCommsPage() {
     ocrReady: boolean;
     checked: boolean;
   }>({ ipcReady: false, ocrReady: false, checked: false });
+  const [forceReload, setForceReload] = useState(0);
   const lastMatchedNames = useRef<string>('');
+  void forceReload;
 
   // 페이지 진입 시 시스템 상태 즉시 확인 — IPC + OCR 사용 가능 여부
   useEffect(() => {
@@ -392,22 +394,30 @@ export function CandidateCommsPage() {
             </div>
             <div className="text-sm text-slate-700 mt-1">
               {systemStatus.ipcReady ? (
-                matchStatus.running ? (
-                  <span className="text-blue-700 font-medium">
-                    🔍 백그라운드 매칭 진행 중: {matchStatus.progress.done}/{matchStatus.progress.total}
-                    {matchStatus.progress.current && ` (${matchStatus.progress.current})`}
+                <span>
+                  <span className="text-slate-700">
+                    시트 후보자 <strong>{candidates.filter(c => c.source !== 'calendar').length}</strong>명 ·
+                    이메일 등록 <strong className="text-green-700">{candidates.filter(c => c.email).length}</strong>명 ·
+                    미등록 <strong className="text-red-700">{candidates.filter(c => !c.email && c.source !== 'calendar').length}</strong>명
                   </span>
-                ) : matchStatus.lastResult ? (
-                  <span>
-                    이번 세션 매칭: <strong>{matchStatus.lastResult.resolved}명 성공</strong>
-                    {matchStatus.lastResult.notFound > 0 && (
-                      <span className="text-red-700 ml-2">{matchStatus.lastResult.notFound}명 실패</span>
-                    )}
-                    <span className="text-slate-500 ml-2">(캐시 {matchStatus.lastResult.cached}, 신규 {matchStatus.lastResult.fetched})</span>
-                  </span>
-                ) : (
-                  <span className="text-slate-600">자동 매칭 시작 대기 — 미등록 후보자가 있으면 자동 시작</span>
-                )
+                  <br />
+                  {matchStatus.running ? (
+                    <span className="text-blue-700 font-medium">
+                      🔍 백그라운드 매칭 진행 중: {matchStatus.progress.done}/{matchStatus.progress.total}
+                      {matchStatus.progress.current && ` (${matchStatus.progress.current})`}
+                    </span>
+                  ) : matchStatus.lastResult ? (
+                    <span>
+                      <strong className="text-green-700">{matchStatus.lastResult.resolved}명 성공</strong>
+                      {matchStatus.lastResult.notFound > 0 && (
+                        <span className="text-red-700 ml-2">{matchStatus.lastResult.notFound}명 실패</span>
+                      )}
+                      <span className="text-slate-500 ml-2">(캐시 {matchStatus.lastResult.cached}, 신규 {matchStatus.lastResult.fetched})</span>
+                    </span>
+                  ) : (
+                    <span className="text-amber-700">⏸ 매칭 시작 대기 중 — [↻ 매칭 다시 시작] 눌러주세요</span>
+                  )}
+                </span>
               ) : (
                 <span className="text-red-700">
                   작업관리자 (Ctrl+Shift+Esc) → "Electron" 모두 종료 → LAUNCH.vbs 다시 실행
@@ -417,10 +427,18 @@ export function CandidateCommsPage() {
           </div>
           {systemStatus.ipcReady && (
             <button
-              onClick={() => {
-                lastMatchedNames.current = '';
-                // 캐시 강제 무효화 후 재트리거
+              onClick={async () => {
+                // 캐시 진짜로 비우기 (manual 입력은 보존)
+                const cache = await loadEmailCache();
+                const preserved: typeof cache = {};
+                for (const [k, v] of Object.entries(cache)) {
+                  if (v.source === 'manual') preserved[k] = v;
+                }
+                await saveEmailCache(preserved);
                 setEmailMap({});
+                lastMatchedNames.current = '';
+                setMatchStatus((s) => ({ ...s, lastResult: null }));
+                setForceReload((n) => n + 1);
               }}
               disabled={matchStatus.running}
               className="px-3 py-2 rounded bg-accent-purple text-white text-sm font-semibold hover:bg-accent-purple/90 disabled:opacity-40"
