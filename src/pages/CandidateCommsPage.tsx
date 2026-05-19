@@ -76,7 +76,17 @@ function todayMs() {
 // 후보자의 현재 단계를 시트/캘린더 데이터로 분류
 type Stage = 'interview_pending' | 'cpi' | 'rejected' | 'unknown';
 
+// 과거 자료 컷오프 — 면접일이 N일 이전이면 unknown 처리해서 UI/매칭 모두 제외
+const PAST_CUTOFF_DAYS = 30;
+
 function classifyStage(c: Candidate): Stage {
+  // 면접일 정보가 없거나 너무 과거면 unknown (UI/매칭 양쪽에서 제외)
+  const cutoffMs = Date.now() - PAST_CUTOFF_DAYS * 24 * 60 * 60 * 1000;
+  if (c.interviewIso) {
+    const t = new Date(c.interviewIso).getTime();
+    if (!Number.isNaN(t) && t < cutoffMs) return 'unknown';
+  }
+
   const text = `${c.resultStatus} ${c.note}`.toLowerCase();
   if (/불합격|탈락|드랍|drop|reject/i.test(text)) return 'rejected';
   if (/1차\s*합격|1차\s*통과|cpi|인성검사/i.test(text)) return 'cpi';
@@ -220,15 +230,17 @@ export function CandidateCommsPage() {
 
   // 페이지 마운트 시 백그라운드 자동 매칭 — 3초 간격으로 천천히, quota 안전.
   // ⚠ candidatesRaw에만 의존 — emailMap 변경이 cleanup 트리거하지 않게.
-  // 그래서 매칭 중 setEmailMap 자유롭게 호출 가능, useEffect는 cancel 안 됨.
+  // 매칭 대상: 면접 대상자 (1차 면접 안내 / CPI / 불합격)만 — quota 절약
   useEffect(() => {
-    // 캐시 + 시트 이메일 채워진 후보자는 제외. emailMap은 ref로 stale 안전하게 접근.
     loadEmailCache().then((cache) => {
       const missing = candidatesRaw
         .filter((c) => {
-          if (c.email) return false; // 시트에 이미 있음
-          if (cache[c.name]?.email) return false; // 캐시에 있음
-          return c.source === 'sheet' || c.source === 'merged';
+          if (c.email) return false;
+          if (cache[c.name]?.email) return false;
+          if (c.source !== 'sheet' && c.source !== 'merged') return false;
+          // 면접 대상자만 — classifyStage가 interview_pending/cpi/rejected 인 사람
+          const stage = classifyStage(c);
+          return stage === 'interview_pending' || stage === 'cpi' || stage === 'rejected';
         })
         .map((c) => c.name);
       if (missing.length === 0) return;
