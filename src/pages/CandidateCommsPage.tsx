@@ -211,13 +211,16 @@ export function CandidateCommsPage() {
     };
   }, [live.snapshots, live.calendarEvents, emailMap]);
 
-  // 페이지 마운트 시 백그라운드 자동 매칭 — 3초 간격으로 천천히, quota 안전
-  // 한 번 매칭한 후보자는 30일 캐시 → 다음 진입 시 즉시 표시
+  // 페이지 마운트 시 백그라운드 자동 매칭 — 3초 간격으로 천천히, quota 안전.
+  // 매칭 대상: 시트(office_interview)에 등록된 진행 중 후보자만.
+  // 캘린더에만 있는 ad-hoc 후보자는 제외 (quota 낭비 방지)
   useEffect(() => {
-    const missing = candidates.filter((c) => !c.email).map((c) => c.name);
+    const missing = candidates
+      .filter((c) => !c.email && (c.source === 'sheet' || c.source === 'merged'))
+      .map((c) => c.name);
     if (missing.length === 0) return;
     const key = missing.sort().join('|');
-    if (key === lastMatchedNames.current) return; // 같은 세트 중복 실행 방지
+    if (key === lastMatchedNames.current) return;
     lastMatchedNames.current = key;
 
     let cancelled = false;
