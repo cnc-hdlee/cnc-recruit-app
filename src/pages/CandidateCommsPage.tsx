@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { liveByKindOrScan, liveCalendarEventsNormalized, useLiveData } from '../store/liveData';
+import { api } from '../lib/api';
 import { parseInterviewTitle } from './CalendarPage';
 import {
   TEMPLATES,
@@ -104,7 +105,18 @@ export function CandidateCommsPage() {
   }>({ running: false, progress: { done: 0, total: 0, current: '' }, lastResult: null });
   const [showDiag, setShowDiag] = useState(false);
   const [diagModal, setDiagModal] = useState<{ name: string; running: boolean; result: DiagResult | null } | null>(null);
+  const [systemStatus, setSystemStatus] = useState<{
+    ipcReady: boolean;
+    ocrReady: boolean;
+    checked: boolean;
+  }>({ ipcReady: false, ocrReady: false, checked: false });
   const lastMatchedNames = useRef<string>('');
+
+  // 페이지 진입 시 시스템 상태 즉시 확인 — IPC + OCR 사용 가능 여부
+  useEffect(() => {
+    const ipcReady = !!api?.google?.extractAttachmentText;
+    setSystemStatus({ ipcReady, ocrReady: ipcReady, checked: true });
+  }, []);
 
   async function runDiagnose(name: string) {
     setDiagModal({ name, running: true, result: null });
@@ -361,6 +373,61 @@ export function CandidateCommsPage() {
   // ─────────────────────────────────────────────────────────
   return (
     <div className="space-y-5 text-slate-900">
+      {/* ★ 시스템 상태 — 페이지 맨 위 큰 배너 */}
+      <div className={`card p-4 border-2 ${systemStatus.ipcReady ? 'border-green-500 bg-green-50' : 'border-red-500 bg-red-50'}`}>
+        <div className="flex items-center gap-3">
+          <div className="text-3xl">
+            {!systemStatus.checked ? '⏳' : systemStatus.ipcReady ? '✅' : '❌'}
+          </div>
+          <div className="flex-1">
+            <div className="text-base font-bold text-slate-900">
+              {!systemStatus.checked
+                ? '시스템 확인 중...'
+                : systemStatus.ipcReady
+                ? 'OCR 사용 가능 — 이미지 PDF 이력서도 읽을 수 있습니다'
+                : '❌ 앱이 옛 코드로 돌고 있습니다 — 완전 종료 후 재실행 필요'}
+            </div>
+            <div className="text-sm text-slate-700 mt-1">
+              {systemStatus.ipcReady ? (
+                matchStatus.running ? (
+                  <span className="text-blue-700 font-medium">
+                    🔍 백그라운드 매칭 진행 중: {matchStatus.progress.done}/{matchStatus.progress.total}
+                    {matchStatus.progress.current && ` (${matchStatus.progress.current})`}
+                  </span>
+                ) : matchStatus.lastResult ? (
+                  <span>
+                    이번 세션 매칭: <strong>{matchStatus.lastResult.resolved}명 성공</strong>
+                    {matchStatus.lastResult.notFound > 0 && (
+                      <span className="text-red-700 ml-2">{matchStatus.lastResult.notFound}명 실패</span>
+                    )}
+                    <span className="text-slate-500 ml-2">(캐시 {matchStatus.lastResult.cached}, 신규 {matchStatus.lastResult.fetched})</span>
+                  </span>
+                ) : (
+                  <span className="text-slate-600">자동 매칭 시작 대기 — 미등록 후보자가 있으면 자동 시작</span>
+                )
+              ) : (
+                <span className="text-red-700">
+                  작업관리자 (Ctrl+Shift+Esc) → "Electron" 모두 종료 → LAUNCH.vbs 다시 실행
+                </span>
+              )}
+            </div>
+          </div>
+          {systemStatus.ipcReady && (
+            <button
+              onClick={() => {
+                lastMatchedNames.current = '';
+                // 캐시 강제 무효화 후 재트리거
+                setEmailMap({});
+              }}
+              disabled={matchStatus.running}
+              className="px-3 py-2 rounded bg-accent-purple text-white text-sm font-semibold hover:bg-accent-purple/90 disabled:opacity-40"
+            >
+              ↻ 매칭 다시 시작
+            </button>
+          )}
+        </div>
+      </div>
+
       {/* 상단 통계 */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <Stat label="1차 면접 안내 대상" value={grouped.interview_pending.length} color="text-accent-purple" />
