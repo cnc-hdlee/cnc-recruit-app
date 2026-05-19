@@ -122,7 +122,6 @@ export function CandidateCommsPage() {
   }>({ ipcReady: false, ocrReady: false, checked: false });
   const [forceReload, setForceReload] = useState(0);
   const lastMatchedNames = useRef<string>('');
-  void forceReload;
 
   // 페이지 진입 시 시스템 상태 즉시 확인 — IPC + OCR 사용 가능 여부
   useEffect(() => {
@@ -275,7 +274,7 @@ export function CandidateCommsPage() {
         });
       })();
     });
-  }, [candidatesRaw]);
+  }, [candidatesRaw, forceReload]);
 
   async function startManualMatch() {
     // 백그라운드 매칭이 이미 도는데 사용자가 강제로 다시 트리거하고 싶을 때
