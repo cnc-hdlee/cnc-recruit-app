@@ -138,9 +138,11 @@ export function CandidateCommsPage() {
   }, []);
 
   // ─────────────────────────────────────────────────────────
-  // 후보자 추출 — 시트 + 캘린더 통합, 이름 기준 머지
+  // 후보자 raw — 시트 + 캘린더 통합, 이름 기준 머지.
+  // ⚠ emailMap 의존 안 함 — emailMap 변경이 candidates 재계산 트리거하면
+  //   useEffect 무한 cancel 발생 (매칭이 영원히 끝나지 않음)
   // ─────────────────────────────────────────────────────────
-  const { candidates, sources } = useMemo(() => {
+  const { candidatesRaw, sources } = useMemo(() => {
     const sheetRows = liveByKindOrScan('office_interview');
     const sheetCands: Candidate[] = [];
     for (const row of sheetRows) {
@@ -199,67 +201,69 @@ export function CandidateCommsPage() {
       }
     }
 
-    // Gmail 자동 매칭된 이메일 적용 (시트에 이메일이 있으면 시트 우선)
-    for (const c of byName.values()) {
-      if (!c.email && emailMap[c.name]) c.email = emailMap[c.name];
-    }
-
     const list = Array.from(byName.values()).sort((a, b) =>
       (a.interviewIso || '').localeCompare(b.interviewIso || '')
     );
     return {
-      candidates: list,
+      candidatesRaw: list,
       sources: { sheet: sheetCands.length, calendar: calCands.length, merged: mergedCount, total: list.length },
     };
-  }, [live.snapshots, live.calendarEvents, emailMap]);
+  }, [live.snapshots, live.calendarEvents]);
+
+  // 표시용 candidates — emailMap 적용. emailMap 변경되어도 useEffect는 재트리거 안 됨.
+  const candidates = useMemo(() => {
+    return candidatesRaw.map((c) => ({
+      ...c,
+      email: c.email || emailMap[c.name] || '',
+    }));
+  }, [candidatesRaw, emailMap]);
 
   // 페이지 마운트 시 백그라운드 자동 매칭 — 3초 간격으로 천천히, quota 안전.
-  // 매칭 대상: 시트(office_interview)에 등록된 진행 중 후보자만.
-  // 캘린더에만 있는 ad-hoc 후보자는 제외 (quota 낭비 방지)
+  // ⚠ candidatesRaw에만 의존 — emailMap 변경이 cleanup 트리거하지 않게.
+  // 그래서 매칭 중 setEmailMap 자유롭게 호출 가능, useEffect는 cancel 안 됨.
   useEffect(() => {
-    const missing = candidates
-      .filter((c) => !c.email && (c.source === 'sheet' || c.source === 'merged'))
-      .map((c) => c.name);
-    if (missing.length === 0) return;
-    const key = missing.sort().join('|');
-    if (key === lastMatchedNames.current) return;
-    lastMatchedNames.current = key;
+    // 캐시 + 시트 이메일 채워진 후보자는 제외. emailMap은 ref로 stale 안전하게 접근.
+    loadEmailCache().then((cache) => {
+      const missing = candidatesRaw
+        .filter((c) => {
+          if (c.email) return false; // 시트에 이미 있음
+          if (cache[c.name]?.email) return false; // 캐시에 있음
+          return c.source === 'sheet' || c.source === 'merged';
+        })
+        .map((c) => c.name);
+      if (missing.length === 0) return;
+      const key = missing.sort().join('|');
+      if (key === lastMatchedNames.current) return;
+      lastMatchedNames.current = key;
 
-    let cancelled = false;
-    (async () => {
-      setMatchStatus((s) => ({ ...s, running: true, progress: { done: 0, total: missing.length, current: '' } }));
-      const result = await batchLookupEmails(missing, (done, total, current) => {
-        if (cancelled) return;
-        setMatchStatus((s) => ({ ...s, progress: { done, total, current } }));
-        // 진행 중에도 매칭된 이메일은 즉시 UI에 반영 (3초마다 한 명씩 채워짐)
-        loadEmailCache().then((cache) => {
-          if (cancelled) return;
-          const map: Record<string, string> = {};
-          for (const [n, e] of Object.entries(cache)) {
-            if (e.email) map[n] = e.email;
-          }
-          setEmailMap(map);
+      (async () => {
+        setMatchStatus((s) => ({ ...s, running: true, progress: { done: 0, total: missing.length, current: '' } }));
+        const result = await batchLookupEmails(missing, (done, total, current) => {
+          setMatchStatus((s) => ({ ...s, progress: { done, total, current } }));
+          // 진행 중에도 매칭된 이메일은 즉시 UI에 반영
+          loadEmailCache().then((c2) => {
+            const map: Record<string, string> = {};
+            for (const [n, e] of Object.entries(c2)) {
+              if (e.email) map[n] = e.email;
+            }
+            setEmailMap(map);
+          });
         });
-      });
-      if (cancelled) return;
-      setEmailMap((prev) => ({ ...prev, ...result.resolved }));
-      setMatchStatus({
-        running: false,
-        progress: { done: result.fetched, total: result.fetched, current: '' },
-        lastResult: {
-          resolved: Object.keys(result.resolved).length,
-          notFound: result.notFound.length,
-          cached: result.cached,
-          fetched: result.fetched,
-          notFoundDetail: result.notFound,
-        },
-      });
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [candidates]);
+        setEmailMap((prev) => ({ ...prev, ...result.resolved }));
+        setMatchStatus({
+          running: false,
+          progress: { done: result.fetched, total: result.fetched, current: '' },
+          lastResult: {
+            resolved: Object.keys(result.resolved).length,
+            notFound: result.notFound.length,
+            cached: result.cached,
+            fetched: result.fetched,
+            notFoundDetail: result.notFound,
+          },
+        });
+      })();
+    });
+  }, [candidatesRaw]);
 
   async function startManualMatch() {
     // 백그라운드 매칭이 이미 도는데 사용자가 강제로 다시 트리거하고 싶을 때
