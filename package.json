@@ -1,6 +1,6 @@
 {
   "name": "cnc-recruit-app",
-  "version": "2.0.40",
+  "version": "2.0.41",
   "description": "CNC 채용 커맨드센터 — React + Electron",
   "type": "module",
   "main": "electron/main.cjs",
