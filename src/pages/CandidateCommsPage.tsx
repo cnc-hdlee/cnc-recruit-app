@@ -792,16 +792,74 @@ function OfferForm(props: { onSend: (vars: Record<string, string>, cand: Candida
   );
 }
 
+function diagToPlainText(name: string, r: DiagResult | null): string {
+  if (!r) return `진단 진행 중 (${name})`;
+  const lines: string[] = [];
+  lines.push(`=== PDF 매칭 진단: ${name} ===`);
+  lines.push(`IPC 사용 가능: ${r.ipcAvailable ? '예' : '아니오 (main 안 돌고 있음)'}`);
+  lines.push(`검색 쿼리: ${r.query}`);
+  lines.push(`검색 결과: ${r.searchOk ? `${r.messages.length}건` : `실패 (${r.searchError})`}`);
+  lines.push(`최종 이메일: ${r.finalEmail || `못 찾음 — ${r.finalReason}`}`);
+  lines.push('');
+  r.messages.forEach((m, i) => {
+    lines.push(`--- 메일 #${i + 1} ---`);
+    lines.push(`날짜: ${m.date}`);
+    lines.push(`from: ${m.from}`);
+    lines.push(`subject: ${m.subject}`);
+    if (m.attachments.length === 0) {
+      lines.push('첨부: 없음');
+    } else {
+      m.attachments.forEach((a, j) => {
+        lines.push(`첨부 ${j + 1}: ${a.filename} (${Math.round(a.size / 1024)}KB, ${a.mimeType})`);
+        if (a.excluded) lines.push('  → 제외 (PDF/DOCX 아니거나 비이력서 키워드)');
+        else if (a.extractOk === false) lines.push(`  → 추출 실패: ${a.extractReason}`);
+        else if (a.extractOk === true) {
+          lines.push(`  → 텍스트 ${a.textChars}자 추출`);
+          lines.push(`  → 외부 이메일 발견: ${(a.emailsFound || []).join(', ') || '(없음)'}`);
+          if (a.pickedEmail) lines.push(`  → 채택: ${a.pickedEmail}`);
+          if (a.textHead) lines.push(`  → 텍스트 앞부분: ${a.textHead.replace(/\s+/g, ' ').slice(0, 200)}`);
+        }
+      });
+    }
+    lines.push('');
+  });
+  return lines.join('\n');
+}
+
 function DiagModal({ data, onClose }: { data: { name: string; running: boolean; result: DiagResult | null }; onClose: () => void }) {
   const r = data.result;
+  const [copied, setCopied] = useState(false);
+  const plain = diagToPlainText(data.name, r);
   return (
     <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4" onClick={onClose}>
       <div className="bg-white text-slate-900 rounded-xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
-        <div className="px-5 py-4 border-b border-bg-line flex items-center justify-between">
+        <div className="px-5 py-4 border-b border-bg-line flex items-center justify-between gap-2">
           <div>
             <div className="text-xs text-slate-600">PDF 매칭 진단</div>
             <div className="text-lg font-semibold">{data.name}</div>
           </div>
+          <button
+            onClick={async () => {
+              try {
+                await navigator.clipboard.writeText(plain);
+                setCopied(true);
+                setTimeout(() => setCopied(false), 2000);
+              } catch {
+                // fallback — textarea select
+                const ta = document.createElement('textarea');
+                ta.value = plain;
+                document.body.appendChild(ta);
+                ta.select();
+                document.execCommand('copy');
+                document.body.removeChild(ta);
+                setCopied(true);
+                setTimeout(() => setCopied(false), 2000);
+              }
+            }}
+            className="px-3 py-2 rounded bg-accent-purple text-white text-sm font-semibold hover:bg-accent-purple/90"
+          >
+            {copied ? '✅ 복사 완료' : '📋 진단 결과 전체 복사'}
+          </button>
           <button onClick={onClose} className="w-9 h-9 rounded grid place-items-center text-slate-600 hover:bg-slate-100">✕</button>
         </div>
         <div className="flex-1 overflow-y-auto px-5 py-4 space-y-3 text-sm">
