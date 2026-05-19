@@ -18,6 +18,7 @@ import {
   loadEmailCache,
   saveEmailCache,
   diagnoseCandidate,
+  lookupCandidateEmail,
   type DiagResult,
 } from '../lib/candidateComms';
 
@@ -306,11 +307,26 @@ export function CandidateCommsPage() {
     setOverrideTo('');
   }
 
-  function openModal(stage: CommsStageId, cand: Candidate) {
+  async function openModal(stage: CommsStageId, cand: Candidate) {
     setModalStage(stage);
     setModalCandidate(cand);
     setOverrideVars({});
     setOverrideTo(cand.email);
+
+    // 이메일이 없으면 그 후보자만 즉시 매칭 (API 호출 1회)
+    if (!cand.email) {
+      const result = await lookupCandidateEmail(cand.name);
+      if (result.email) {
+        setOverrideTo(result.email);
+        setEmailMap((prev) => ({ ...prev, [cand.name]: result.email! }));
+        // 캐시에도 저장
+        const cache = await loadEmailCache();
+        cache[cand.name] = { email: result.email, at: Date.now(), source: 'gmail', diag: result.reason };
+        await saveEmailCache(cache);
+      } else {
+        console.warn(`[comms] ${cand.name} 매칭 실패: ${result.reason}`);
+      }
+    }
   }
 
   // 최근 24시간 발송
