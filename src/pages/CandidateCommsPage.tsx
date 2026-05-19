@@ -17,6 +17,8 @@ import {
   batchLookupEmails,
   loadEmailCache,
   saveEmailCache,
+  diagnoseCandidate,
+  type DiagResult,
 } from '../lib/candidateComms';
 
 interface Candidate {
@@ -100,7 +102,14 @@ export function CandidateCommsPage() {
     lastResult: { resolved: number; notFound: number; cached: number; fetched: number; notFoundDetail: { name: string; reason: string }[] } | null;
   }>({ running: false, progress: { done: 0, total: 0, current: '' }, lastResult: null });
   const [showDiag, setShowDiag] = useState(false);
+  const [diagModal, setDiagModal] = useState<{ name: string; running: boolean; result: DiagResult | null } | null>(null);
   const lastMatchedNames = useRef<string>('');
+
+  async function runDiagnose(name: string) {
+    setDiagModal({ name, running: true, result: null });
+    const result = await diagnoseCandidate(name);
+    setDiagModal({ name, running: false, result });
+  }
 
   useEffect(() => {
     loadLog().then(setLog);
@@ -379,6 +388,19 @@ export function CandidateCommsPage() {
             </button>
           )}
           <button
+            onClick={() => {
+              const first = candidates.find((c) => !c.email);
+              if (!first) {
+                alert('진단할 미등록 후보자가 없어요. 모두 이메일 매칭됨.');
+                return;
+              }
+              runDiagnose(first.name);
+            }}
+            className="px-3 py-1 rounded bg-accent-blue/20 text-slate-900 text-xs font-semibold hover:bg-accent-blue/30"
+          >
+            🔬 1명 진단 (정확히 어디서 막히는지)
+          </button>
+          <button
             onClick={reMatchAll}
             disabled={matchStatus.running}
             className="ml-auto px-3 py-1 rounded bg-slate-200 text-slate-900 text-xs font-semibold hover:bg-slate-300 disabled:opacity-40"
@@ -498,6 +520,11 @@ export function CandidateCommsPage() {
           </table>
         </div>
       </div>
+
+      {/* 진단 모달 */}
+      {diagModal && (
+        <DiagModal data={diagModal} onClose={() => setDiagModal(null)} />
+      )}
 
       {/* 미리보기 모달 */}
       {modalCandidate && modalStage && (
@@ -761,6 +788,85 @@ function OfferForm(props: { onSend: (vars: Record<string, string>, cand: Candida
           🔒 처우 안내 Gmail 발송 (2단계 확인)
         </button>
       </div>
+    </div>
+  );
+}
+
+function DiagModal({ data, onClose }: { data: { name: string; running: boolean; result: DiagResult | null }; onClose: () => void }) {
+  const r = data.result;
+  return (
+    <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-white text-slate-900 rounded-xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
+        <div className="px-5 py-4 border-b border-bg-line flex items-center justify-between">
+          <div>
+            <div className="text-xs text-slate-600">PDF 매칭 진단</div>
+            <div className="text-lg font-semibold">{data.name}</div>
+          </div>
+          <button onClick={onClose} className="w-9 h-9 rounded grid place-items-center text-slate-600 hover:bg-slate-100">✕</button>
+        </div>
+        <div className="flex-1 overflow-y-auto px-5 py-4 space-y-3 text-sm">
+          {data.running && <div className="text-slate-700">🔍 진단 중...</div>}
+          {r && (
+            <>
+              <div className="grid grid-cols-2 gap-2">
+                <DiagRow label="IPC 사용 가능 (main 재시작 여부)" value={r.ipcAvailable ? '✅ 예' : '❌ 아니오 — 앱 완전 종료 후 재실행 필요'} bad={!r.ipcAvailable} />
+                <DiagRow label="Gmail 검색 쿼리" value={r.query} />
+                <DiagRow label="검색 결과" value={r.searchOk ? `✅ ${r.messages.length}건` : `❌ 실패: ${r.searchError}`} bad={!r.searchOk} />
+                <DiagRow label="최종 추출 이메일" value={r.finalEmail || `❌ ${r.finalReason}`} good={!!r.finalEmail} bad={!r.finalEmail} />
+              </div>
+              {r.messages.length > 0 && (
+                <div>
+                  <div className="font-semibold mb-1">📧 검색된 메일 / 첨부 분석</div>
+                  <div className="space-y-2">
+                    {r.messages.map((m, i) => (
+                      <div key={m.id} className="border border-slate-300 rounded p-2 bg-slate-50">
+                        <div className="text-xs text-slate-700 mb-1">
+                          #{i + 1} · {m.date.slice(0, 16)} · from: <span className="font-mono">{m.from}</span>
+                        </div>
+                        <div className="text-sm font-medium mb-2">{m.subject}</div>
+                        {m.attachments.length === 0 ? (
+                          <div className="text-xs text-slate-500">첨부 없음</div>
+                        ) : (
+                          <div className="space-y-1">
+                            {m.attachments.map((a, j) => (
+                              <div key={j} className={`text-xs p-2 rounded ${a.excluded ? 'bg-slate-100 text-slate-500' : a.pickedEmail ? 'bg-green-100' : 'bg-yellow-50'}`}>
+                                <div className="font-mono">{a.filename} ({Math.round(a.size / 1024)}KB · {a.mimeType})</div>
+                                {a.excluded && <div>⏭ 제외됨 (PDF/DOCX 아니거나 비이력서 키워드)</div>}
+                                {!a.excluded && a.extractOk === false && (
+                                  <div className="text-red-700">❌ 추출 실패: {a.extractReason}</div>
+                                )}
+                                {!a.excluded && a.extractOk === true && (
+                                  <>
+                                    <div>📄 텍스트 {a.textChars}자 추출됨</div>
+                                    <div className="font-mono text-[10px] mt-1 max-h-[80px] overflow-auto bg-white p-1 rounded">{a.textHead}</div>
+                                    <div className="mt-1">
+                                      외부 이메일 {a.emailsFound?.length || 0}개 발견: <span className="font-mono">{(a.emailsFound || []).join(', ') || '(없음)'}</span>
+                                    </div>
+                                    {a.pickedEmail && <div className="text-green-700 font-semibold">✅ 채택: {a.pickedEmail}</div>}
+                                  </>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function DiagRow({ label, value, good, bad }: { label: string; value: string; good?: boolean; bad?: boolean }) {
+  return (
+    <div className="p-2 rounded border border-slate-200 bg-slate-50">
+      <div className="text-xs text-slate-600">{label}</div>
+      <div className={`text-sm font-medium ${good ? 'text-green-700' : bad ? 'text-red-700' : 'text-slate-900'}`}>{value}</div>
     </div>
   );
 }

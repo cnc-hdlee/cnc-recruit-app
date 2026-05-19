@@ -423,6 +423,118 @@ export async function lookupCandidateEmail(name: string): Promise<LookupDiag> {
   return { email: null, reason: extractErr ? `${diag} · ${extractErr}` : diag };
 }
 
+// ─────────────────────────────────────────────────────────────
+// 진단용 — 한 명 검색해서 모든 단계 결과 통째로 반환
+// ─────────────────────────────────────────────────────────────
+export interface DiagAttachment {
+  filename: string;
+  size: number;
+  mimeType: string;
+  excluded: boolean;
+  extractOk?: boolean;
+  extractReason?: string;
+  textChars?: number;
+  textHead?: string;
+  emailsFound?: string[];
+  pickedEmail?: string | null;
+}
+export interface DiagMessage {
+  id: string;
+  from: string;
+  to: string;
+  subject: string;
+  date: string;
+  attachments: DiagAttachment[];
+}
+export interface DiagResult {
+  ipcAvailable: boolean;
+  query: string;
+  searchOk: boolean;
+  searchError?: string;
+  messages: DiagMessage[];
+  finalEmail: string | null;
+  finalReason: string;
+}
+
+export async function diagnoseCandidate(name: string): Promise<DiagResult> {
+  const out: DiagResult = {
+    ipcAvailable: !!api?.google?.extractAttachmentText,
+    query: `"${name}" has:attachment`,
+    searchOk: false,
+    messages: [],
+    finalEmail: null,
+    finalReason: '',
+  };
+  if (!api?.google?.listGmail) {
+    out.finalReason = 'Gmail API 없음';
+    return out;
+  }
+  try {
+    const r = await api.google.listGmail(out.query, 10);
+    if (!r.ok || !r.data) {
+      out.searchError = r.error || 'ok=false';
+      out.finalReason = `검색 실패: ${out.searchError}`;
+      return out;
+    }
+    out.searchOk = true;
+    for (const m of r.data) {
+      const diagAtts: DiagAttachment[] = [];
+      const infos = m.attachmentInfos || [];
+      for (const a of infos) {
+        const isPdfOrDocx = /(\.pdf$|\.docx$)/i.test(a.filename);
+        const excluded = !isPdfOrDocx || !attachmentLooksLikeResume(a.filename, name);
+        const da: DiagAttachment = {
+          filename: a.filename,
+          size: a.size,
+          mimeType: a.mimeType,
+          excluded,
+        };
+        if (!excluded && api.google.extractAttachmentText) {
+          try {
+            const ex = await api.google.extractAttachmentText(m.id, a.filename, a.attachmentId);
+            if (!ex.ok) {
+              da.extractOk = false;
+              da.extractReason = ex.error || 'IPC ok=false';
+            } else if (!ex.data?.ok) {
+              da.extractOk = false;
+              da.extractReason = ex.data?.reason || '추출 실패';
+            } else {
+              da.extractOk = true;
+              da.textChars = ex.data.text.length;
+              da.textHead = ex.data.text.slice(0, 400);
+              const emails = extractEmails(ex.data.text).filter((e) => !isInternalEmail(e));
+              da.emailsFound = emails;
+              da.pickedEmail = pickBestEmailFromResumeText(ex.data.text);
+              if (!out.finalEmail && da.pickedEmail) {
+                out.finalEmail = da.pickedEmail;
+                out.finalReason = `${a.filename}에서 추출`;
+              }
+            }
+          } catch (e) {
+            da.extractOk = false;
+            da.extractReason = `예외: ${String(e)}`;
+          }
+        }
+        diagAtts.push(da);
+      }
+      out.messages.push({
+        id: m.id,
+        from: m.from,
+        to: m.to,
+        subject: m.subject,
+        date: m.date,
+        attachments: diagAtts,
+      });
+    }
+    if (!out.finalEmail && out.messages.length === 0) out.finalReason = 'Gmail 검색 결과 0건';
+    else if (!out.finalEmail) out.finalReason = '모든 첨부 시도 후 매칭 실패';
+  } catch (e) {
+    out.searchError = String(e);
+    out.finalReason = `예외: ${out.searchError}`;
+  }
+  return out;
+}
+
 // 여러 후보자에 대해 일괄 매칭 — 캐시에 있고 만료 안 됐으면 skip
 export interface BatchLookupResult {
   resolved: Record<string, string>;
