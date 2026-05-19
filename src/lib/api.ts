@@ -177,7 +177,6 @@ interface ElectronAPI {
     // App is strictly read-only on Google Sheets — no write methods exposed.
     listGmail(q: string, max: number): Promise<Result<GmailMsg[]>>;
     openAttachment(messageId: string, filename: string, attachmentId?: string): Promise<Result<{ path: string }>>;
-    extractAttachmentText(messageId: string, filename: string, attachmentId?: string): Promise<Result<{ ok: boolean; text: string; kind: string; reason?: string }>>;
     listCalendar(min: string, max: string, id?: string): Promise<Result<GCalEvent[]>>;
     listCalendars(): Promise<Result<GCalListItem[]>>;
     listCalendarsFull(): Promise<Result<GCalListEntry[]>>;

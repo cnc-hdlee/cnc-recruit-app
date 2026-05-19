@@ -312,7 +312,7 @@ const TEAM_KEYWORDS = /팀$|본부$|실$|센터$|매니저|기획|개발|디자�
 // 후보자 이름이 절대 될 수 없는 단어 (장소/시설명) — 한글 2-4자라도 이름 매칭에서 제외
 const NOT_NAME_KEYWORDS = /^(구내식당|식당|카페|로비|라운지|휴게실|강당|세미나실|회의실|미팅룸|대회의|소회의|본사|퍼플|그린|수원|판교|강남|온라인|위워크|VIP룸|VIP|회의|미팅|면접|일정|장소)/;
 
-export function parseInterviewTitle(title: string): {
+function parseInterviewTitle(title: string): {
   candidate: string;
   site: string;
   team: string;

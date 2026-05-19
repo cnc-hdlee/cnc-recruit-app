@@ -230,110 +230,6 @@ async function listGmail(query, max = 30) {
 
 // Gmail 첨부 다운로드 → 임시 폴더에 저장 → 시스템 기본 앱으로 open.
 // 사용처: 이력서 메일 박스 옆 PDF 버튼 클릭 → 바로 PDF Reader로 열림.
-// 첨부 buffer만 받아옴 — 파일로 저장/오픈 없이 메모리에서 처리.
-async function fetchAttachmentBuffer(messageId, filename, attachmentId) {
-  const auth = buildClient();
-  const gmail = google.gmail({ version: 'v1', auth });
-  let attId = attachmentId;
-  let mimeType = '';
-  if (!attId) {
-    const det = await gmail.users.messages.get({ userId: 'me', id: messageId, format: 'full' });
-    const infos = [];
-    collectAttachmentNames(det.data.payload, infos);
-    const hit = infos.find((x) => x.filename === filename);
-    if (!hit) throw new Error(`첨부 "${filename}"을 찾을 수 없습니다.`);
-    attId = hit.attachmentId;
-    mimeType = hit.mimeType;
-  }
-  const att = await gmail.users.messages.attachments.get({
-    userId: 'me',
-    messageId,
-    id: attId,
-  });
-  const b64 = (att.data.data || '').replace(/-/g, '+').replace(/_/g, '/');
-  const buf = Buffer.from(b64, 'base64');
-  return { buf, mimeType };
-}
-
-// 이력서 첨부에서 텍스트 추출 — PDF + DOCX 지원.
-// 사용처: 후보자 이름으로 검색한 메일의 이력서를 열어 본문에서 이메일을 자동 추출.
-// 텍스트 길이 제한: 첫 50KB만 반환 (이메일 추출엔 충분, 토큰 절약).
-// 텍스트가 너무 짧으면 이미지 PDF로 판정 → OCR fallback.
-// 임계값: 50자 (이력서는 보통 수백~수천 자, 50자 이하면 메타데이터만 뽑힌 것)
-const OCR_FALLBACK_THRESHOLD = 50;
-
-async function extractGmailAttachmentText(messageId, filename, attachmentId) {
-  const log = (msg) => console.log(`[extractAttachment] ${filename} :: ${msg}`);
-  try {
-    const { buf, mimeType } = await fetchAttachmentBuffer(messageId, filename, attachmentId);
-    log(`fetched ${buf.length} bytes, mime=${mimeType}`);
-    const lower = (filename || '').toLowerCase();
-    const mt = (mimeType || '').toLowerCase();
-    const MAX = 50 * 1024;
-
-    if (lower.endsWith('.pdf') || mt.includes('pdf')) {
-      let pdfText = '';
-      let pdfParseErr = null;
-      try {
-        const pdfParse = require('pdf-parse/lib/pdf-parse.js');
-        const data = await pdfParse(buf, { max: 5 });
-        pdfText = (data.text || '').trim();
-        log(`pdf-parse ok: ${pdfText.length} chars`);
-      } catch (e) {
-        pdfParseErr = e.message;
-        log(`pdf-parse fail: ${e.message}`);
-      }
-
-      // 텍스트가 충분히 추출됐으면 그대로 반환
-      if (pdfText.length >= OCR_FALLBACK_THRESHOLD) {
-        return { ok: true, text: pdfText.slice(0, MAX), kind: 'pdf' };
-      }
-
-      // 짧거나 빈 텍스트 → 이미지 PDF로 판정, OCR fallback
-      log(`OCR fallback triggered (pdf-parse text=${pdfText.length} chars, threshold=${OCR_FALLBACK_THRESHOLD})`);
-      try {
-        const ocr = require('./ocr.cjs');
-        const ocrText = await ocr.ocrPdfBuffer(buf, { maxPages: 2, scale: 2.0 });
-        log(`OCR done: ${ocrText.length} chars`);
-        if (ocrText.trim().length === 0) {
-          return {
-            ok: false,
-            text: '',
-            kind: 'ocr_empty',
-            reason: `OCR도 빈 텍스트 (pdf-parse=${pdfText.length}자${pdfParseErr ? `, err=${pdfParseErr}` : ''})`,
-          };
-        }
-        return { ok: true, text: ocrText.slice(0, MAX), kind: 'pdf_ocr' };
-      } catch (e) {
-        log(`OCR fail: ${e.message}`);
-        return {
-          ok: false,
-          text: '',
-          kind: 'ocr_error',
-          reason: `OCR 실패: ${e.message}${pdfParseErr ? ` (pdf-parse: ${pdfParseErr})` : ''}`,
-        };
-      }
-    }
-
-    if (lower.endsWith('.docx') || mt.includes('officedocument.wordprocessingml')) {
-      try {
-        const mammoth = require('mammoth');
-        const r = await mammoth.extractRawText({ buffer: buf });
-        log(`docx ok: ${(r.value || '').length} chars`);
-        return { ok: true, text: (r.value || '').slice(0, MAX), kind: 'docx' };
-      } catch (e) {
-        log(`mammoth fail: ${e.message}`);
-        return { ok: false, text: '', kind: 'docx_error', reason: `mammoth: ${e.message}` };
-      }
-    }
-    log(`unsupported format`);
-    return { ok: false, text: '', kind: 'unsupported', reason: `미지원 포맷: ${filename}` };
-  } catch (e) {
-    log(`outer fail: ${e.message}`);
-    return { ok: false, text: '', kind: 'error', reason: String(e?.message || e) };
-  }
-}
-
 async function openGmailAttachment(messageId, filename, attachmentId) {
   const auth = buildClient();
   const gmail = google.gmail({ version: 'v1', auth });
@@ -555,7 +451,6 @@ module.exports = {
   readSheetRange,
   listGmail,
   openGmailAttachment,
-  extractGmailAttachmentText,
   // Calendar: read + WRITE (user explicitly authorized)
   listCalendar,
   listCalendars,
