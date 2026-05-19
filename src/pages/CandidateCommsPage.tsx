@@ -198,42 +198,32 @@ export function CandidateCommsPage() {
     };
   }, [live.snapshots, live.calendarEvents, emailMap]);
 
-  // ─────────────────────────────────────────────────────────
-  // Gmail 자동 매칭 — candidates 바뀔 때마다 미등록자만 일괄 lookup
-  // ─────────────────────────────────────────────────────────
-  useEffect(() => {
+  // 페이지 마운트 시 자동 매칭은 안 함 — Gmail rate limit 보호.
+  // 사용자가 [📧 이메일 자동 매칭 시작] 버튼을 명시적으로 눌렀을 때만 실행.
+  async function startManualMatch() {
     const missing = candidates.filter((c) => !c.email).map((c) => c.name);
-    if (missing.length === 0) return;
-    const key = missing.sort().join('|');
-    if (key === lastMatchedNames.current) return; // 같은 세트 재요청 방지
-    lastMatchedNames.current = key;
-
-    let cancelled = false;
-    (async () => {
-      setMatchStatus((s) => ({ ...s, running: true, progress: { done: 0, total: missing.length, current: '' } }));
-      const result = await batchLookupEmails(missing, (done, total, current) => {
-        if (cancelled) return;
-        setMatchStatus((s) => ({ ...s, progress: { done, total, current } }));
-      });
-      if (cancelled) return;
-      setEmailMap((prev) => ({ ...prev, ...result.resolved }));
-      setMatchStatus({
-        running: false,
-        progress: { done: result.fetched, total: result.fetched, current: '' },
-        lastResult: {
-          resolved: Object.keys(result.resolved).length,
-          notFound: result.notFound.length,
-          cached: result.cached,
-          fetched: result.fetched,
-          notFoundDetail: result.notFound,
-        },
-      });
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [candidates]);
+    if (missing.length === 0) {
+      alert('미등록 후보자가 없습니다.');
+      return;
+    }
+    lastMatchedNames.current = missing.sort().join('|');
+    setMatchStatus((s) => ({ ...s, running: true, progress: { done: 0, total: missing.length, current: '' } }));
+    const result = await batchLookupEmails(missing, (done, total, current) => {
+      setMatchStatus((s) => ({ ...s, progress: { done, total, current } }));
+    });
+    setEmailMap((prev) => ({ ...prev, ...result.resolved }));
+    setMatchStatus({
+      running: false,
+      progress: { done: result.fetched, total: result.fetched, current: '' },
+      lastResult: {
+        resolved: Object.keys(result.resolved).length,
+        notFound: result.notFound.length,
+        cached: result.cached,
+        fetched: result.fetched,
+        notFoundDetail: result.notFound,
+      },
+    });
+  }
 
   // [재매칭] 버튼 — 캐시 무시하고 전체 재조회
   async function reMatchAll() {
@@ -377,8 +367,15 @@ export function CandidateCommsPage() {
               </span>
             </span>
           ) : (
-            <span className="text-slate-500 text-xs">미등록 후보자 검색 대기</span>
+            <span className="text-slate-500 text-xs">[매칭 시작] 버튼을 눌러주세요</span>
           )}
+          <button
+            onClick={startManualMatch}
+            disabled={matchStatus.running}
+            className="px-3 py-1 rounded bg-accent-purple text-white text-xs font-semibold hover:bg-accent-purple/90 disabled:opacity-40"
+          >
+            📧 이메일 자동 매칭 시작
+          </button>
           {matchStatus.lastResult && matchStatus.lastResult.notFound > 0 && (
             <button
               onClick={() => setShowDiag((v) => !v)}
