@@ -20,6 +20,7 @@ const NAV: NavItem[] = [
   { id: 'jobcenters', icon: '🏢', label: '일자리센터' },
   { id: 'lookup', icon: '🔍', label: '후보자 검색' },
   { id: 'mail', icon: '✉️', label: '메일 / 커뮤니케이션' },
+  { id: 'comms', icon: '📨', label: '후보자 안내 메일' },
   { id: 'education', icon: '📚', label: '채용 교육 / 세미나' },
   { id: 'settings', icon: '⚙️', label: '설정 / 연동' },
   { id: 'usage', icon: '📖', label: '사용법 (필독)' },
