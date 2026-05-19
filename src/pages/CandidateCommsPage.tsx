@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { liveByKindOrScan, liveCalendarEventsNormalized, useLiveData } from '../store/liveData';
 import { parseInterviewTitle } from './CalendarPage';
 import {
@@ -14,6 +14,9 @@ import {
   appendLog,
   loadLog,
   hasRecentlySent,
+  batchLookupEmails,
+  loadEmailCache,
+  saveEmailCache,
 } from '../lib/candidateComms';
 
 interface Candidate {
@@ -89,9 +92,24 @@ export function CandidateCommsPage() {
   const [overrideVars, setOverrideVars] = useState<Record<string, string>>({});
   const [overrideTo, setOverrideTo] = useState('');
   const [offerOpen, setOfferOpen] = useState(false);
+  // Gmail 자동 매칭 — 이름→이메일 map
+  const [emailMap, setEmailMap] = useState<Record<string, string>>({});
+  const [matchStatus, setMatchStatus] = useState<{
+    running: boolean;
+    progress: { done: number; total: number; current: string };
+    lastResult: { resolved: number; notFound: number; cached: number; fetched: number } | null;
+  }>({ running: false, progress: { done: 0, total: 0, current: '' }, lastResult: null });
+  const lastMatchedNames = useRef<string>('');
 
   useEffect(() => {
     loadLog().then(setLog);
+    loadEmailCache().then((cache) => {
+      const map: Record<string, string> = {};
+      for (const [name, entry] of Object.entries(cache)) {
+        if (entry.email) map[name] = entry.email;
+      }
+      setEmailMap(map);
+    });
   }, []);
 
   // ─────────────────────────────────────────────────────────
@@ -156,6 +174,11 @@ export function CandidateCommsPage() {
       }
     }
 
+    // Gmail 자동 매칭된 이메일 적용 (시트에 이메일이 있으면 시트 우선)
+    for (const c of byName.values()) {
+      if (!c.email && emailMap[c.name]) c.email = emailMap[c.name];
+    }
+
     const list = Array.from(byName.values()).sort((a, b) =>
       (a.interviewIso || '').localeCompare(b.interviewIso || '')
     );
@@ -163,7 +186,60 @@ export function CandidateCommsPage() {
       candidates: list,
       sources: { sheet: sheetCands.length, calendar: calCands.length, merged: mergedCount, total: list.length },
     };
-  }, [live.snapshots, live.calendarEvents]);
+  }, [live.snapshots, live.calendarEvents, emailMap]);
+
+  // ─────────────────────────────────────────────────────────
+  // Gmail 자동 매칭 — candidates 바뀔 때마다 미등록자만 일괄 lookup
+  // ─────────────────────────────────────────────────────────
+  useEffect(() => {
+    const missing = candidates.filter((c) => !c.email).map((c) => c.name);
+    if (missing.length === 0) return;
+    const key = missing.sort().join('|');
+    if (key === lastMatchedNames.current) return; // 같은 세트 재요청 방지
+    lastMatchedNames.current = key;
+
+    let cancelled = false;
+    (async () => {
+      setMatchStatus((s) => ({ ...s, running: true, progress: { done: 0, total: missing.length, current: '' } }));
+      const result = await batchLookupEmails(missing, (done, total, current) => {
+        if (cancelled) return;
+        setMatchStatus((s) => ({ ...s, progress: { done, total, current } }));
+      });
+      if (cancelled) return;
+      setEmailMap((prev) => ({ ...prev, ...result.resolved }));
+      setMatchStatus({
+        running: false,
+        progress: { done: result.fetched, total: result.fetched, current: '' },
+        lastResult: {
+          resolved: Object.keys(result.resolved).length,
+          notFound: result.notFound.length,
+          cached: result.cached,
+          fetched: result.fetched,
+        },
+      });
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [candidates]);
+
+  // [재매칭] 버튼 — 캐시 무시하고 전체 재조회
+  async function reMatchAll() {
+    const cache = await loadEmailCache();
+    // 캐시 전체 비우기 (단, source='manual'은 보존 — 사용자가 수동 입력한 것)
+    const preserved: typeof cache = {};
+    for (const [k, v] of Object.entries(cache)) {
+      if (v.source === 'manual') preserved[k] = v;
+    }
+    await saveEmailCache(preserved);
+    setEmailMap(() => {
+      const m: Record<string, string> = {};
+      for (const [k, v] of Object.entries(preserved)) if (v.email) m[k] = v.email;
+      return m;
+    });
+    lastMatchedNames.current = '';
+  }
 
   // 단계별 후보자 분류 (차단 키워드 자동 제외)
   const grouped = useMemo(() => {
@@ -255,21 +331,51 @@ export function CandidateCommsPage() {
         <Stat label="오늘 발송" value={sentToday} color="text-accent-green" />
       </div>
 
-      {/* 출처 카운트 */}
-      <div className="card p-3 text-sm text-slate-700 flex flex-wrap items-center gap-x-3 gap-y-1">
-        <span className="font-semibold">📍 후보자 출처</span>
-        <span>시트 <span className="font-mono font-semibold">{sources.sheet}</span></span>
-        <span>·</span>
-        <span>캘린더 <span className="font-mono font-semibold">{sources.calendar}</span></span>
-        <span>·</span>
-        <span>이름 매칭 <span className="font-mono font-semibold">{sources.merged}</span></span>
-        <span>·</span>
-        <span>통합 <span className="font-mono font-semibold text-accent-purple">{sources.total}</span></span>
-        {sources.total === 0 && (
-          <span className="ml-auto text-accent-red font-semibold">
-            ⚠ 시트 매핑 또는 캘린더 동기화를 확인해주세요
-          </span>
-        )}
+      {/* 출처 카운트 + Gmail 자동 매칭 상태 */}
+      <div className="card p-3 space-y-2">
+        <div className="text-sm text-slate-700 flex flex-wrap items-center gap-x-3 gap-y-1">
+          <span className="font-semibold">📍 후보자 출처</span>
+          <span>시트 <span className="font-mono font-semibold">{sources.sheet}</span></span>
+          <span>·</span>
+          <span>캘린더 <span className="font-mono font-semibold">{sources.calendar}</span></span>
+          <span>·</span>
+          <span>이름 매칭 <span className="font-mono font-semibold">{sources.merged}</span></span>
+          <span>·</span>
+          <span>통합 <span className="font-mono font-semibold text-accent-purple">{sources.total}</span></span>
+          {sources.total === 0 && (
+            <span className="ml-auto text-accent-red font-semibold">
+              ⚠ 시트 매핑 또는 캘린더 동기화를 확인해주세요
+            </span>
+          )}
+        </div>
+        <div className="text-sm text-slate-700 flex flex-wrap items-center gap-x-3 gap-y-1 pt-2 border-t border-bg-line">
+          <span className="font-semibold">📧 Gmail 자동 이메일 매칭</span>
+          {matchStatus.running ? (
+            <span className="text-accent-blue font-medium">
+              🔍 검색 중 {matchStatus.progress.done}/{matchStatus.progress.total}
+              {matchStatus.progress.current && <span className="text-slate-600 ml-1">({matchStatus.progress.current})</span>}
+            </span>
+          ) : matchStatus.lastResult ? (
+            <span>
+              <span className="text-accent-green font-semibold">✓ {matchStatus.lastResult.resolved}명 자동 추출</span>
+              {matchStatus.lastResult.notFound > 0 && (
+                <span className="text-accent-yellow font-medium ml-2">⚠ {matchStatus.lastResult.notFound}명 미발견</span>
+              )}
+              <span className="text-slate-500 text-xs ml-2">
+                (캐시 {matchStatus.lastResult.cached} · 신규 검색 {matchStatus.lastResult.fetched})
+              </span>
+            </span>
+          ) : (
+            <span className="text-slate-500 text-xs">미등록 후보자 검색 대기</span>
+          )}
+          <button
+            onClick={reMatchAll}
+            disabled={matchStatus.running}
+            className="ml-auto px-3 py-1 rounded bg-slate-200 text-slate-900 text-xs font-semibold hover:bg-slate-300 disabled:opacity-40"
+          >
+            ↻ 전체 재매칭
+          </button>
+        </div>
       </div>
 
       {/* 단계 1: 1차 면접 안내 */}
@@ -326,19 +432,7 @@ export function CandidateCommsPage() {
         {offerOpen && <OfferForm onSend={(vars, cand, to) => sendNow('offer', cand, vars, to)} />}
       </div>
 
-      {/* 미분류 후보자 — 진단용 */}
-      {grouped.unknown.length > 0 && (
-        <StageSection
-          title={`❓ 미분류 후보자 (${grouped.unknown.length}명)`}
-          subtitle="시트 결과/비고에 단계 키워드가 없거나 면접 일정이 과거인 후보자"
-          accent="border-slate-300 bg-slate-50"
-          candidates={grouped.unknown}
-          log={log}
-          stage="interview_1st"
-          onSend={(c) => openModal('interview_1st', c)}
-          dimmed
-        />
-      )}
+      {/* 미분류 후보자 섹션은 사용자 요청으로 제거 — 오늘 이후 진행 중 후보자만 표시 */}
 
       {/* 발송 로그 */}
       <div className="card p-4">

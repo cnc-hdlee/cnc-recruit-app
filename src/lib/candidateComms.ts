@@ -262,3 +262,132 @@ export function hasRecentlySent(log: CommsLogEntry[], stage: CommsStageId, to: s
   const cutoff = Date.now() - withinDays * 24 * 60 * 60 * 1000;
   return log.find((e) => e.stage === stage && e.to.toLowerCase() === to.toLowerCase() && e.at > cutoff) || null;
 }
+
+// ─────────────────────────────────────────────────────────────
+// Gmail 자동 이메일 매칭 — 이름으로 Gmail 검색해 후보자 이메일 추출
+// ─────────────────────────────────────────────────────────────
+const EMAIL_CACHE_KEY = 'candidateEmailCache';
+const CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7일
+
+export interface EmailCacheEntry {
+  email: string;
+  at: number; // epoch ms
+  source: 'gmail' | 'sheet' | 'manual';
+  notFound?: boolean;
+}
+
+export type EmailCache = Record<string, EmailCacheEntry>;
+
+export async function loadEmailCache(): Promise<EmailCache> {
+  if (!api?.cfg) return {};
+  try {
+    const r = await api.cfg.get<EmailCache>(EMAIL_CACHE_KEY);
+    return r.ok && r.data ? r.data : {};
+  } catch {
+    return {};
+  }
+}
+
+export async function saveEmailCache(cache: EmailCache): Promise<void> {
+  if (!api?.cfg) return;
+  try {
+    await api.cfg.set(EMAIL_CACHE_KEY, cache);
+  } catch {
+    // non-fatal
+  }
+}
+
+// 메일 헤더 문자열에서 모든 email 주소 추출 ("홍길동 <foo@bar.com>" → ["foo@bar.com"])
+function extractEmails(headerText: string): string[] {
+  if (!headerText) return [];
+  const matches = headerText.match(/[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}/g);
+  return matches ? Array.from(new Set(matches.map((m) => m.toLowerCase()))) : [];
+}
+
+const INTERNAL_DOMAINS = ['cnccosmetic.com', 'cnc.co.kr'];
+
+function isInternalEmail(email: string): boolean {
+  const e = email.toLowerCase();
+  return INTERNAL_DOMAINS.some((d) => e.endsWith('@' + d));
+}
+
+// 단일 후보자에 대해 Gmail 검색 → 가장 가능성 높은 외부 이메일 1개 추출
+export async function lookupCandidateEmail(name: string): Promise<string | null> {
+  if (!api?.google?.listGmail || !name) return null;
+  // 후보자 이름 + 이력서/면접 키워드 — 동명이인 위험 감소
+  const queries = [
+    `"${name}" (이력서 OR resume OR 면접 OR 지원)`,
+    `"${name}" has:attachment`,
+    `"${name}"`,
+  ];
+  const tally: Record<string, number> = {};
+  for (const q of queries) {
+    try {
+      const r = await api.google.listGmail(q, 10);
+      if (!r.ok || !r.data) continue;
+      for (const msg of r.data) {
+        const emails = [...extractEmails(msg.from), ...extractEmails(msg.to)];
+        for (const e of emails) {
+          if (isInternalEmail(e)) continue;
+          tally[e] = (tally[e] || 0) + 1;
+        }
+      }
+      if (Object.keys(tally).length > 0) break; // 첫 쿼리에서 결과 나오면 충분
+    } catch {
+      // continue to next query
+    }
+  }
+  const ranked = Object.entries(tally).sort((a, b) => b[1] - a[1]);
+  return ranked.length > 0 ? ranked[0][0] : null;
+}
+
+// 여러 후보자에 대해 일괄 매칭 — 캐시에 있고 만료 안 됐으면 skip
+export interface BatchLookupResult {
+  resolved: Record<string, string>;
+  notFound: string[];
+  cached: number;
+  fetched: number;
+}
+
+export async function batchLookupEmails(
+  names: string[],
+  onProgress?: (done: number, total: number, currentName: string) => void
+): Promise<BatchLookupResult> {
+  const cache = await loadEmailCache();
+  const now = Date.now();
+  const resolved: Record<string, string> = {};
+  const notFound: string[] = [];
+  const todo: string[] = [];
+  let cached = 0;
+
+  // 1) 캐시 확인
+  for (const name of names) {
+    const c = cache[name];
+    if (c && now - c.at < CACHE_TTL_MS) {
+      if (c.notFound) notFound.push(name);
+      else if (c.email) resolved[name] = c.email;
+      cached++;
+    } else {
+      todo.push(name);
+    }
+  }
+
+  // 2) 캐시에 없는 후보자만 Gmail 검색 (직렬 — 토큰 한도/쿼터 안전)
+  let done = 0;
+  for (const name of todo) {
+    onProgress?.(done, todo.length, name);
+    const email = await lookupCandidateEmail(name);
+    if (email) {
+      resolved[name] = email;
+      cache[name] = { email, at: now, source: 'gmail' };
+    } else {
+      notFound.push(name);
+      cache[name] = { email: '', at: now, source: 'gmail', notFound: true };
+    }
+    done++;
+  }
+  onProgress?.(done, todo.length, '');
+
+  await saveEmailCache(cache);
+  return { resolved, notFound, cached, fetched: todo.length };
+}
