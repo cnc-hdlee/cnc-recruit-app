@@ -230,6 +230,57 @@ async function listGmail(query, max = 30) {
 
 // Gmail 첨부 다운로드 → 임시 폴더에 저장 → 시스템 기본 앱으로 open.
 // 사용처: 이력서 메일 박스 옆 PDF 버튼 클릭 → 바로 PDF Reader로 열림.
+// 첨부 buffer만 받아옴 — 파일로 저장/오픈 없이 메모리에서 처리.
+async function fetchAttachmentBuffer(messageId, filename, attachmentId) {
+  const auth = buildClient();
+  const gmail = google.gmail({ version: 'v1', auth });
+  let attId = attachmentId;
+  let mimeType = '';
+  if (!attId) {
+    const det = await gmail.users.messages.get({ userId: 'me', id: messageId, format: 'full' });
+    const infos = [];
+    collectAttachmentNames(det.data.payload, infos);
+    const hit = infos.find((x) => x.filename === filename);
+    if (!hit) throw new Error(`첨부 "${filename}"을 찾을 수 없습니다.`);
+    attId = hit.attachmentId;
+    mimeType = hit.mimeType;
+  }
+  const att = await gmail.users.messages.attachments.get({
+    userId: 'me',
+    messageId,
+    id: attId,
+  });
+  const b64 = (att.data.data || '').replace(/-/g, '+').replace(/_/g, '/');
+  const buf = Buffer.from(b64, 'base64');
+  return { buf, mimeType };
+}
+
+// 이력서 첨부에서 텍스트 추출 — PDF + DOCX 지원.
+// 사용처: 후보자 이름으로 검색한 메일의 이력서를 열어 본문에서 이메일을 자동 추출.
+// 텍스트 길이 제한: 첫 50KB만 반환 (이메일 추출엔 충분, 토큰 절약).
+async function extractGmailAttachmentText(messageId, filename, attachmentId) {
+  const { buf, mimeType } = await fetchAttachmentBuffer(messageId, filename, attachmentId);
+  const lower = (filename || '').toLowerCase();
+  const mt = (mimeType || '').toLowerCase();
+  const MAX = 50 * 1024;
+  try {
+    if (lower.endsWith('.pdf') || mt.includes('pdf')) {
+      const pdfParse = require('pdf-parse');
+      const data = await pdfParse(buf, { max: 5 }); // 첫 5페이지만 (이력서 앞쪽에 이메일 있음)
+      return { ok: true, text: (data.text || '').slice(0, MAX), kind: 'pdf' };
+    }
+    if (lower.endsWith('.docx') || mt.includes('officedocument.wordprocessingml')) {
+      const mammoth = require('mammoth');
+      const r = await mammoth.extractRawText({ buffer: buf });
+      return { ok: true, text: (r.value || '').slice(0, MAX), kind: 'docx' };
+    }
+    // hwp/hwpx/doc/xlsx 등은 미지원 — 빈 텍스트 반환 (호출자가 다른 첨부 fallback)
+    return { ok: false, text: '', kind: 'unsupported', reason: `unsupported format: ${filename}` };
+  } catch (e) {
+    return { ok: false, text: '', kind: 'error', reason: String(e?.message || e) };
+  }
+}
+
 async function openGmailAttachment(messageId, filename, attachmentId) {
   const auth = buildClient();
   const gmail = google.gmail({ version: 'v1', auth });
@@ -451,6 +502,7 @@ module.exports = {
   readSheetRange,
   listGmail,
   openGmailAttachment,
+  extractGmailAttachmentText,
   // Calendar: read + WRITE (user explicitly authorized)
   listCalendar,
   listCalendars,

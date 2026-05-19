@@ -311,33 +311,75 @@ function isInternalEmail(email: string): boolean {
   return INTERNAL_DOMAINS.some((d) => e.endsWith('@' + d));
 }
 
-// 단일 후보자에 대해 Gmail 검색 → 가장 가능성 높은 외부 이메일 1개 추출
+// 이력서 첨부 파일명에 후보자 이름이 들어있는지 (정확도 ↑)
+function attachmentLooksLikeResume(filename: string, candidateName: string): boolean {
+  const f = (filename || '').toLowerCase();
+  if (!/(\.pdf$|\.docx$)/i.test(f)) return false;
+  const isResumeWord = /이력서|resume|cv|경력기술|자기소개/i.test(f);
+  const hasName = candidateName && f.includes(candidateName.toLowerCase());
+  return isResumeWord || !!hasName;
+}
+
+// 단일 후보자에 대해 Gmail 검색 → 이력서 첨부 텍스트에서 이메일 추출 → 안 되면 헤더 fallback
 export async function lookupCandidateEmail(name: string): Promise<string | null> {
   if (!api?.google?.listGmail || !name) return null;
-  // 후보자 이름 + 이력서/면접 키워드 — 동명이인 위험 감소
+
+  // 1차: 이력서 첨부 메일을 우선 검색
   const queries = [
-    `"${name}" (이력서 OR resume OR 면접 OR 지원)`,
+    `"${name}" has:attachment (이력서 OR resume OR CV)`,
     `"${name}" has:attachment`,
+    `"${name}" (이력서 OR resume OR 면접 OR 지원)`,
     `"${name}"`,
   ];
-  const tally: Record<string, number> = {};
+
+  // 메일 헤더 빈도 tally (fallback)
+  const headerTally: Record<string, number> = {};
+
   for (const q of queries) {
+    let msgs;
     try {
       const r = await api.google.listGmail(q, 10);
       if (!r.ok || !r.data) continue;
-      for (const msg of r.data) {
-        const emails = [...extractEmails(msg.from), ...extractEmails(msg.to)];
-        for (const e of emails) {
-          if (isInternalEmail(e)) continue;
-          tally[e] = (tally[e] || 0) + 1;
+      msgs = r.data;
+    } catch {
+      continue;
+    }
+
+    for (const msg of msgs) {
+      // 헤더 이메일 누적 (fallback용)
+      for (const e of [...extractEmails(msg.from), ...extractEmails(msg.to)]) {
+        if (!isInternalEmail(e)) headerTally[e] = (headerTally[e] || 0) + 1;
+      }
+
+      // 이력서로 보이는 첨부 우선 추출
+      const attachInfos = msg.attachmentInfos || [];
+      const resumeLike = attachInfos.filter((a) => attachmentLooksLikeResume(a.filename, name));
+      const otherDocs = attachInfos.filter(
+        (a) => !resumeLike.includes(a) && /(\.pdf$|\.docx$)/i.test(a.filename)
+      );
+      const tryOrder = [...resumeLike, ...otherDocs];
+
+      for (const att of tryOrder) {
+        if (!api.google.extractAttachmentText) break;
+        try {
+          const r = await api.google.extractAttachmentText(msg.id, att.filename, att.attachmentId);
+          if (!r.ok || !r.data?.ok || !r.data.text) continue;
+          // 텍스트에서 이메일 추출, cnccosmetic 제외
+          const emails = extractEmails(r.data.text).filter((e) => !isInternalEmail(e));
+          if (emails.length === 0) continue;
+          // 이력서 첨부면 첫 매칭(상단에 보통 본인 이메일) — 가장 신뢰도 높음
+          return emails[0];
+        } catch {
+          // continue
         }
       }
-      if (Object.keys(tally).length > 0) break; // 첫 쿼리에서 결과 나오면 충분
-    } catch {
-      // continue to next query
     }
+
+    // 검색 결과는 있는데 첨부에서 못 찾았으면 다음 쿼리 시도. 첨부 못 찾고 헤더 fallback만 있으면 일단 keep.
   }
-  const ranked = Object.entries(tally).sort((a, b) => b[1] - a[1]);
+
+  // 첨부에서 못 찾았으면 헤더 빈도 fallback
+  const ranked = Object.entries(headerTally).sort((a, b) => b[1] - a[1]);
   return ranked.length > 0 ? ranked[0][0] : null;
 }
 

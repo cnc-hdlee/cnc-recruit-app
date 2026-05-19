@@ -44,6 +44,8 @@ function register() {
   safeHandle('g:listGmail', async (q, max) => google.listGmail(q, max));
   safeHandle('g:openAttachment', async (messageId, filename, attachmentId) =>
     google.openGmailAttachment(messageId, filename, attachmentId));
+  safeHandle('g:extractAttachmentText', async (messageId, filename, attachmentId) =>
+    google.extractGmailAttachmentText(messageId, filename, attachmentId));
   safeHandle('g:listCalendar', async (min, max, id) => google.listCalendar(min, max, id));
   safeHandle('g:listCalendars', async () => google.listCalendars());
   safeHandle('g:listCalendarsFull', async () => google.listCalendarsFull());
