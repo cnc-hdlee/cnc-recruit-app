@@ -306,7 +306,7 @@ function diffDays(a: string, b: string): number {
 // 표준 포맷: "퍼플 / 이형도 / 인사팀 / 10:00 / 미팅룸 1번"
 //   tokens: [site, candidate, team, time, room]
 // 과거 포맷도 위치 무관 토큰 분류로 자동 인식.
-const SITE_KEYWORDS = ['퍼플', '그린', '수원', '위워크', '온라인', '본사', '판교', '강남'];
+const SITE_KEYWORDS = ['퍼플', '그린', '수원', '오산', '위워크', '온라인', '본사', '판교', '강남'];
 const ROOM_KEYWORDS = /회의실|미팅룸|VIP|대회의|소회의|Meet|Zoom|구글|줌|구내식당|식당|카페|로비|라운지|휴게실|강당|세미나실/i;
 const TEAM_KEYWORDS = /팀$|본부$|실$|센터$|매니저|기획|개발|디자이너|마케터|연구원|PM|MD|엔지니어|직무|채용/;
 // 후보자 이름이 절대 될 수 없는 단어 (장소/시설명) — 한글 2-4자라도 이름 매칭에서 제외

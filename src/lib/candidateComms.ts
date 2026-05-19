@@ -354,11 +354,8 @@ export async function lookupCandidateEmail(name: string): Promise<LookupDiag> {
     return { email: null, reason: '첨부 텍스트 추출 IPC 없음 — 앱 완전 종료 후 재실행' };
   }
 
-  const queries = [
-    `"${name}" has:attachment (이력서 OR resume OR CV OR pdf)`,
-    `"${name}" has:attachment`,
-    `"${name}"`,
-  ];
+  // 쿼리 1개로 축소 — 후보자명 + has:attachment 만 (rate limit 보호)
+  const queries = [`"${name}" has:attachment`];
 
   let totalMsgs = 0;
   let attachTried = 0;
@@ -543,6 +540,13 @@ export interface BatchLookupResult {
   fetched: number;
 }
 
+// 후보자 간 직렬 처리 간격 — Gmail API rate limit (250 quota units/user/sec) 회피
+const BATCH_INTERVAL_MS = 500;
+
+function sleep(ms: number) {
+  return new Promise<void>((res) => setTimeout(res, ms));
+}
+
 export async function batchLookupEmails(
   names: string[],
   onProgress?: (done: number, total: number, currentName: string) => void
@@ -556,7 +560,6 @@ export async function batchLookupEmails(
 
   for (const name of names) {
     const c = cache[name];
-    // 성공 캐시만 신뢰. notFound는 매번 재시도 (사용자가 [재매칭] 누를 필요 없게)
     if (c && c.email && !c.notFound && now - c.at < CACHE_TTL_MS) {
       resolved[name] = c.email;
       cached++;
@@ -566,17 +569,31 @@ export async function batchLookupEmails(
   }
 
   let done = 0;
+  let rateLimitHit = false;
   for (const name of todo) {
     onProgress?.(done, todo.length, name);
+    // rate limit 한 번 터지면 나머지 안 시도 (회복 시간까지 대기 안 함 — 사용자 클릭 재시도로 처리)
+    if (rateLimitHit) {
+      notFound.push({ name, reason: 'rate limit으로 skip — 잠시 후 [전체 재매칭]' });
+      done++;
+      continue;
+    }
     const result = await lookupCandidateEmail(name);
     if (result.email) {
       resolved[name] = result.email;
       cache[name] = { email: result.email, at: now, source: 'gmail', diag: result.reason };
     } else {
       notFound.push({ name, reason: result.reason });
-      cache[name] = { email: '', at: now, source: 'gmail', notFound: true, diag: result.reason };
+      // rate limit 에러는 캐시에 저장하지 않음 (나중에 재시도 가능하게)
+      if (/rate limit|quota/i.test(result.reason)) {
+        rateLimitHit = true;
+      } else {
+        cache[name] = { email: '', at: now, source: 'gmail', notFound: true, diag: result.reason };
+      }
     }
     done++;
+    // 다음 후보자 처리 전 delay — 1초당 2건 페이스
+    if (done < todo.length) await sleep(BATCH_INTERVAL_MS);
   }
   onProgress?.(done, todo.length, '');
 
