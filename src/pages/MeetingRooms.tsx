@@ -1014,9 +1014,11 @@ function NewBookingModal({
   const [end, setEnd] = useState(minsToHHMM(snapToSlot(initialEndMin)));
   const [title, setTitle] = useState('');
   const [note, setNote] = useState('');
-  // 면접 캘린더 동시 등록 — 제목에 "면접" 들어가면 자동으로 체크
+  // 면접 캘린더 동시 등록 — 제목에 "면접" 들어가면 자동으로 체크.
+  // "면접" 없으면 체크박스 강제 OFF + disabled (면접 캘에 비-면접 이벤트 오염 금지 — 산업안전/일자리센터/대기실 사고 재발 방지).
+  const titleHasInterview = /면접/.test(title);
   const [alsoInterview, setAlsoInterview] = useState(false);
-  useEffect(() => { setAlsoInterview(/면접/.test(title)); }, [title]);
+  useEffect(() => { setAlsoInterview(titleHasInterview); }, [titleHasInterview]);
   const [submitting, setSubmitting] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const titleRef = useRef<HTMLInputElement | null>(null);
@@ -1152,20 +1154,31 @@ function NewBookingModal({
           <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={2} className="w-full px-3 py-2 rounded-md border border-slate-300 bg-white text-slate-900 placeholder-slate-400 text-sm resize-none" />
         </div>
 
-        {/* 면접 캘린더 동시 등록 — 제목에 "면접" 들어가면 자동 체크 */}
-        <label className={`flex items-center gap-2 p-2 rounded-md border cursor-pointer ${
-          alsoInterview ? 'bg-purple-50 border-purple-300' : 'bg-slate-50 border-slate-200'
-        }`}>
+        {/* 면접 캘린더 동시 등록 — 제목에 "면접" 단어 있을 때만 가능 (오염 방지).
+            제목에 "면접" 없으면 disabled 처리되어 강제 OFF — 산업안전/일자리센터/대기실 같은 비-면접
+            이벤트가 면접 캘에 잘못 등록되지 않도록 한다. */}
+        <label
+          className={`flex items-center gap-2 p-2 rounded-md border ${
+            !titleHasInterview
+              ? 'bg-slate-100 border-slate-200 cursor-not-allowed opacity-60'
+              : alsoInterview
+              ? 'bg-purple-50 border-purple-300 cursor-pointer'
+              : 'bg-slate-50 border-slate-200 cursor-pointer'
+          }`}
+        >
           <input
             type="checkbox"
             checked={alsoInterview}
             onChange={(e) => setAlsoInterview(e.target.checked)}
+            disabled={!titleHasInterview}
             className="w-4 h-4"
           />
           <span className="text-xs font-semibold text-slate-800">
             🟣 면접 캘린더에도 함께 등록 (보라색)
           </span>
-          {alsoInterview && (
+          {!titleHasInterview ? (
+            <span className="ml-auto text-[10px] text-slate-500">제목에 "면접" 들어가야 활성화</span>
+          ) : (
             <span className="ml-auto text-[10px] text-purple-600 font-bold">자동 감지됨</span>
           )}
         </label>
