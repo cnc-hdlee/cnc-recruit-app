@@ -243,7 +243,7 @@ function FunnelRow({
   const conversion = prevCount !== null && prevCount > 0 ? Math.round((count / prevCount) * 100) : null;
   return (
     <div className="grid grid-cols-[120px_1fr_80px] items-center gap-2 text-xs">
-      <div className="text-right text-slate-700 truncate" title={label}>{label}</div>
+      <div className="text-right text-slate-900 truncate" title={label}>{label}</div>
       <div className="relative h-8 flex items-center">
         <div
           className="h-full bg-gradient-to-r from-indigo-500 to-violet-500 rounded-md flex items-center px-2 text-white text-[11px] font-bold shadow-sm transition-all"
@@ -264,13 +264,13 @@ function FunnelRow({
       </div>
       <div className="text-right">
         {isFirst ? (
-          <span className="text-slate-400 text-[10px]">시작</span>
+          <span className="text-slate-700 text-[10px]">시작</span>
         ) : conversion !== null ? (
           <span className={`text-[11px] font-bold ${conversion >= 80 ? 'text-emerald-700' : conversion >= 50 ? 'text-amber-700' : 'text-rose-700'}`}>
             {conversion}%
           </span>
         ) : (
-          <span className="text-slate-400">—</span>
+          <span className="text-slate-700">—</span>
         )}
       </div>
     </div>
@@ -282,7 +282,7 @@ function Section({ title, desc, children, accent }: { title: string; desc?: stri
     <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
       <div className="flex items-baseline gap-2 mb-3 pb-2 border-b border-slate-100">
         <h3 className={`text-sm font-bold ${accent || 'text-slate-900'}`}>{title}</h3>
-        {desc && <span className="text-[11px] text-slate-500">{desc}</span>}
+        {desc && <span className="text-[11px] text-slate-800">{desc}</span>}
       </div>
       {children}
     </div>
@@ -311,7 +311,7 @@ const TONE_BG: Record<string, string> = {
   emerald: 'bg-emerald-100 text-emerald-800',
   sky: 'bg-sky-100 text-sky-800',
   indigo: 'bg-indigo-100 text-indigo-800',
-  slate: 'bg-slate-100 text-slate-700',
+  slate: 'bg-slate-100 text-slate-900',
 };
 
 // ===== 메인 =====
@@ -470,7 +470,7 @@ export function InterviewInsights() {
               </div>
             </div>
           ) : (
-            <div className="py-8 text-center text-slate-400 text-xs">사무직 시트 데이터 없음</div>
+            <div className="py-8 text-center text-slate-700 text-xs">사무직 시트 데이터 없음</div>
           )}
         </Section>
 
@@ -478,7 +478,7 @@ export function InterviewInsights() {
         <Section title="③ 채널별 서류 취합 루트" desc="현장직 채널별 분포 + 단계별 통과율" accent="text-emerald-900">
           <div className="overflow-x-auto -mx-1">
             <table className="w-full text-[11px]">
-              <thead className="bg-slate-50 text-slate-700">
+              <thead className="bg-slate-50 text-slate-900">
                 <tr>
                   <th className="text-left px-2 py-1.5 font-bold">채널</th>
                   <th className="text-right px-1 py-1.5">서류</th>
@@ -496,7 +496,7 @@ export function InterviewInsights() {
                   return (
                     <tr key={c.channel} className="border-t border-slate-100 hover:bg-slate-50">
                       <td className="px-2 py-1.5 text-slate-800 truncate max-w-[110px]" title={c.channel}>{c.channel}</td>
-                      <td className="px-1 py-1.5 text-right text-slate-700">{c.total}</td>
+                      <td className="px-1 py-1.5 text-right text-slate-900">{c.total}</td>
                       <td className="px-1 py-1.5 text-right text-indigo-700">{c.interviewed}</td>
                       <td className="px-1 py-1.5 text-right font-semibold">{pct(c.interviewed, c.total)}</td>
                       <td className="px-1 py-1.5 text-right text-emerald-700 font-semibold">{c.passed}</td>
@@ -507,12 +507,12 @@ export function InterviewInsights() {
                   );
                 })}
                 {byChannel.length === 0 && (
-                  <tr><td colSpan={8} className="px-2 py-4 text-center text-slate-400">현장직 시트 데이터 없음</td></tr>
+                  <tr><td colSpan={8} className="px-2 py-4 text-center text-slate-700">현장직 시트 데이터 없음</td></tr>
                 )}
               </tbody>
             </table>
           </div>
-          <div className="mt-2 text-[10px] text-slate-500">
+          <div className="mt-2 text-[10px] text-slate-800">
             ✓ 합격 · ⛔ 불합격(탈락) · 🚪 노쇼·이탈 · 서류% = 면접/서류 · 면접% = 합격/(합격+불합격)
           </div>
         </Section>
@@ -523,7 +523,7 @@ export function InterviewInsights() {
         {byRank.length > 0 ? (
           <div className="overflow-x-auto">
             <table className="w-full text-xs">
-              <thead className="bg-slate-50 text-slate-700">
+              <thead className="bg-slate-50 text-slate-900">
                 <tr>
                   <th className="text-left px-2 py-1.5 font-bold">전형 (직급)</th>
                   <th className="text-right px-2 py-1.5">채용 품의</th>
@@ -541,7 +541,7 @@ export function InterviewInsights() {
                       <td className="px-2 py-1.5 font-semibold text-slate-800">{r.rank}</td>
                       <td className="px-2 py-1.5 text-right">{r.total}</td>
                       <td className="px-2 py-1.5 text-right text-emerald-700 font-semibold">{r.hired}</td>
-                      <td className="px-2 py-1.5 text-right text-slate-500">{r.inProgress}</td>
+                      <td className="px-2 py-1.5 text-right text-slate-800">{r.inProgress}</td>
                       <td className="px-2 py-1.5">
                         <div className="flex items-center gap-2">
                           <div className="flex-1 h-3 bg-slate-100 rounded-sm overflow-hidden">
@@ -557,9 +557,9 @@ export function InterviewInsights() {
             </table>
           </div>
         ) : (
-          <div className="py-8 text-center text-slate-400 text-xs">정규직 채용 현황 시트 데이터 없음</div>
+          <div className="py-8 text-center text-slate-700 text-xs">정규직 채용 현황 시트 데이터 없음</div>
         )}
-        <div className="mt-2 text-[10px] text-slate-500">
+        <div className="mt-2 text-[10px] text-slate-800">
           ※ 전형별 = office_pipeline 시트의 직급 column 기준. 입사 완료 = 상태에 "입사안내 완료" 표기 또는 입사예정자 이름 + 결재중 아닌 경우.
         </div>
       </Section>
@@ -568,7 +568,7 @@ export function InterviewInsights() {
       <Section title="⑤ 탈락·이탈 사유 분석" desc="사무직 vs 현장직 사유별 카운트 비교" accent="text-rose-900">
         <div className="overflow-x-auto">
           <table className="w-full text-xs">
-            <thead className="bg-slate-50 text-slate-700">
+            <thead className="bg-slate-50 text-slate-900">
               <tr>
                 <th className="text-left px-2 py-1.5 font-bold">사유</th>
                 <th className="text-right px-2 py-1.5">사무직</th>
@@ -604,7 +604,7 @@ export function InterviewInsights() {
             </tbody>
           </table>
         </div>
-        <div className="mt-2 text-[10px] text-slate-500">
+        <div className="mt-2 text-[10px] text-slate-800">
           ※ ⛔ 탈락 = 회사 사유로 불합격 / 🚪 이탈 = 본인 사유 (노쇼·연락두절·면접포기·입사취소 등)
         </div>
       </Section>
@@ -616,7 +616,7 @@ export function InterviewInsights() {
         pipelineRows={officePipelineRows}
       />
 
-      <div className="text-[10px] text-slate-400 text-center pt-2">
+      <div className="text-[10px] text-slate-700 text-center pt-2">
         데이터 소스: 시트 office_interview · field_pipeline · office_pipeline | 60초 자동 갱신
       </div>
     </div>
@@ -689,12 +689,12 @@ function VerifyView({
     <Section
       title="⑥ 행단위 검증뷰"
       desc={open ? '닫으려면 헤더 클릭' : '각 후보자가 어떻게 분류됐는지 확인하려면 클릭하여 펼치기'}
-      accent="text-slate-700"
+      accent="text-slate-900"
     >
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="w-full -mt-2 mb-2 py-1.5 text-xs font-semibold rounded-md bg-slate-100 text-slate-700 hover:bg-slate-200 transition"
+        className="w-full -mt-2 mb-2 py-1.5 text-xs font-semibold rounded-md bg-slate-100 text-slate-900 hover:bg-slate-200 transition"
       >
         {open ? '▲ 검증뷰 닫기' : '▼ 검증뷰 열기 (분류 정확도 확인)'}
       </button>
@@ -704,19 +704,19 @@ function VerifyView({
           <div className="flex items-center gap-2 flex-wrap">
             <button
               onClick={() => setTab('office')}
-              className={`px-2.5 py-1 rounded-full text-xs font-semibold border ${tab === 'office' ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-600 border-slate-200'}`}
+              className={`px-2.5 py-1 rounded-full text-xs font-semibold border ${tab === 'office' ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-900 border-slate-200'}`}
             >
               사무직 ({officeRowsClassified.length})
             </button>
             <button
               onClick={() => setTab('field')}
-              className={`px-2.5 py-1 rounded-full text-xs font-semibold border ${tab === 'field' ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-600 border-slate-200'}`}
+              className={`px-2.5 py-1 rounded-full text-xs font-semibold border ${tab === 'field' ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-900 border-slate-200'}`}
             >
               현장직 ({fieldRowsClassified.length})
             </button>
             <button
               onClick={() => setTab('pipeline')}
-              className={`px-2.5 py-1 rounded-full text-xs font-semibold border ${tab === 'pipeline' ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-600 border-slate-200'}`}
+              className={`px-2.5 py-1 rounded-full text-xs font-semibold border ${tab === 'pipeline' ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-900 border-slate-200'}`}
             >
               채용 품의 ({pipelineRowsClassified.length})
             </button>
@@ -733,7 +733,7 @@ function VerifyView({
           {tab === 'office' && (
             <div className="overflow-x-auto max-h-[420px] overflow-y-auto border border-slate-200 rounded-md">
               <table className="w-full text-[11px]">
-                <thead className="bg-slate-50 text-slate-700 sticky top-0">
+                <thead className="bg-slate-50 text-slate-900 sticky top-0">
                   <tr>
                     <th className="text-left px-2 py-1.5 font-bold">이름</th>
                     <th className="text-left px-2 py-1.5 font-bold">부서</th>
@@ -748,9 +748,9 @@ function VerifyView({
                     .map((r, i) => (
                       <tr key={i} className="border-t border-slate-100 hover:bg-slate-50">
                         <td className="px-2 py-1.5 font-semibold text-slate-800">{r.name}</td>
-                        <td className="px-2 py-1.5 text-slate-700">{r.dept}</td>
-                        <td className="px-2 py-1.5 text-slate-600">{r.job}</td>
-                        <td className="px-2 py-1.5 text-slate-600 max-w-[280px] truncate" title={r.note}>{r.note || <span className="text-slate-400">(비어있음)</span>}</td>
+                        <td className="px-2 py-1.5 text-slate-900">{r.dept}</td>
+                        <td className="px-2 py-1.5 text-slate-900">{r.job}</td>
+                        <td className="px-2 py-1.5 text-slate-900 max-w-[280px] truncate" title={r.note}>{r.note || <span className="text-slate-700">(비어있음)</span>}</td>
                         <td className="px-2 py-1.5">
                           <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-bold ${TONE_BG[r.cls.tone]}`}>
                             {r.cls.label}
@@ -767,7 +767,7 @@ function VerifyView({
           {tab === 'field' && (
             <div className="overflow-x-auto max-h-[420px] overflow-y-auto border border-slate-200 rounded-md">
               <table className="w-full text-[11px]">
-                <thead className="bg-slate-50 text-slate-700 sticky top-0">
+                <thead className="bg-slate-50 text-slate-900 sticky top-0">
                   <tr>
                     <th className="text-left px-2 py-1.5 font-bold">채널</th>
                     <th className="text-left px-2 py-1.5 font-bold">이름</th>
@@ -782,10 +782,10 @@ function VerifyView({
                     .slice(0, 500)
                     .map((r, i) => (
                       <tr key={i} className="border-t border-slate-100 hover:bg-slate-50">
-                        <td className="px-2 py-1.5 text-slate-700 max-w-[100px] truncate" title={r.channel}>{r.channel}</td>
+                        <td className="px-2 py-1.5 text-slate-900 max-w-[100px] truncate" title={r.channel}>{r.channel}</td>
                         <td className="px-2 py-1.5 font-semibold text-slate-800">{r.name}</td>
-                        <td className="px-2 py-1.5 text-slate-600">{r.itvDt || <span className="text-slate-400">—</span>}</td>
-                        <td className="px-2 py-1.5 text-slate-600 max-w-[280px] truncate" title={r.note}>{r.note || <span className="text-slate-400">(비어있음)</span>}</td>
+                        <td className="px-2 py-1.5 text-slate-900">{r.itvDt || <span className="text-slate-700">—</span>}</td>
+                        <td className="px-2 py-1.5 text-slate-900 max-w-[280px] truncate" title={r.note}>{r.note || <span className="text-slate-700">(비어있음)</span>}</td>
                         <td className="px-2 py-1.5">
                           <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-bold ${TONE_BG[r.cls.tone]}`}>
                             {r.cls.label}
@@ -796,7 +796,7 @@ function VerifyView({
                 </tbody>
               </table>
               {fieldRowsClassified.length > 500 && (
-                <div className="px-2 py-1 text-[10px] text-slate-500 bg-slate-50 border-t border-slate-200">
+                <div className="px-2 py-1 text-[10px] text-slate-800 bg-slate-50 border-t border-slate-200">
                   ※ 500행 초과 — 검색어로 필터링 권장
                 </div>
               )}
@@ -807,7 +807,7 @@ function VerifyView({
           {tab === 'pipeline' && (
             <div className="overflow-x-auto max-h-[420px] overflow-y-auto border border-slate-200 rounded-md">
               <table className="w-full text-[11px]">
-                <thead className="bg-slate-50 text-slate-700 sticky top-0">
+                <thead className="bg-slate-50 text-slate-900 sticky top-0">
                   <tr>
                     <th className="text-left px-2 py-1.5 font-bold">부서</th>
                     <th className="text-left px-2 py-1.5 font-bold">직급(원본)</th>
@@ -822,11 +822,11 @@ function VerifyView({
                     .filter((r) => filterMatch(`${r.dept} ${r.rank} ${r.status} ${r.hired}`))
                     .map((r, i) => (
                       <tr key={i} className="border-t border-slate-100 hover:bg-slate-50">
-                        <td className="px-2 py-1.5 text-slate-700 max-w-[120px] truncate">{r.dept}</td>
-                        <td className="px-2 py-1.5 text-slate-600">{r.rankRaw}</td>
-                        <td className="px-2 py-1.5 text-slate-700 font-semibold">{r.rank}</td>
-                        <td className="px-2 py-1.5 text-slate-600">{r.status || <span className="text-slate-400">(빈칸)</span>}</td>
-                        <td className="px-2 py-1.5 text-slate-700">{r.hired || <span className="text-slate-400">—</span>}</td>
+                        <td className="px-2 py-1.5 text-slate-900 max-w-[120px] truncate">{r.dept}</td>
+                        <td className="px-2 py-1.5 text-slate-900">{r.rankRaw}</td>
+                        <td className="px-2 py-1.5 text-slate-900 font-semibold">{r.rank}</td>
+                        <td className="px-2 py-1.5 text-slate-900">{r.status || <span className="text-slate-700">(빈칸)</span>}</td>
+                        <td className="px-2 py-1.5 text-slate-900">{r.hired || <span className="text-slate-700">—</span>}</td>
                         <td className="px-2 py-1.5">
                           <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-bold ${r.isHired ? TONE_BG.emerald : TONE_BG.slate}`}>
                             {r.isHired ? '✓ 입사완료' : '· 진행중'}
@@ -839,7 +839,7 @@ function VerifyView({
             </div>
           )}
 
-          <div className="text-[10px] text-slate-500 leading-relaxed">
+          <div className="text-[10px] text-slate-800 leading-relaxed">
             ※ 이 뷰의 분류는 KPI/funnel/테이블에서 쓰는 것과 <b>같은 함수</b>로 계산됩니다. 분류가 잘못된 행 발견 시 알려주시면 regex 보정.
           </div>
         </div>

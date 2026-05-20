@@ -7,7 +7,7 @@ import { api } from '../lib/api';
 import { rowsToObjects, suggestKind, type SheetMappings, type TabKind, type TabMappingEntry } from '../lib/sheetMapping';
 import { IS_VIEWER, SNAPSHOT_URL } from '../lib/mode';
 import { isSnapshot, type Snapshot, type SnapshotCalendarEvent } from '../lib/snapshot';
-import { READ_CALENDAR_IDS } from '../lib/sharedCalendars';
+import { READ_CALENDAR_IDS, SHARED_CAL } from '../lib/sharedCalendars';
 
 interface SheetSnapshot {
   title: string;
@@ -469,11 +469,25 @@ export interface NormalizedCalEvent {
   raw: SnapshotCalendarEvent;
 }
 
-function classifyEventKind(summary: string, colorId: string | null): NormalizedCalEvent['kind'] {
-  const s = (summary || '').toLowerCase();
-  // colorId=5 (banana 노란색) = 입사 컨벤션
+// 면접/입사/퇴사 분류 — CalendarPage의 isInterviewKind와 동일 로직 유지 (대시보드·인사이트 카운트 일치).
+// 사용자 명시 (2026-05-20): 대시보드 "이번 달 면접 수"는 면접 캘린더 페이지 카드에 뜨는 사람과 동일해야 함.
+function classifyEventKind(summary: string, colorId: string | null, calendarId: string | null = null): NormalizedCalEvent['kind'] {
+  // 면접 취소/포기/보류는 면접에서 제외 — CalendarPage isInterviewKind 룰과 일치
+  if (/면접포기|면접\s*취소|\(취소\)|취소됨|\(보류\)|면접\s*보류/i.test(summary)) {
+    return '기타';
+  }
+  // 면접 캘린더(SHARED_CAL.interview) + colorId='3'(보라) 명시 등록 = 무조건 면접
+  // (장성민 같은 직무명만 쓴 케이스 — 제목에 "면접" 단어 없어도 통과)
+  if (calendarId === SHARED_CAL.interview && colorId === '3') return '면접';
+  // 입사 (colorId=5 노란색 또는 제목에 입사)
   if (colorId === '5' || /입사/.test(summary)) return '입사';
   if (/퇴사|퇴직/.test(summary)) return '퇴사';
+  // 일반 회의/미팅은 제외 (단, "면접" 단어 함께면 통과)
+  if (/(회의(?!실)|미팅(?!룸)|meeting|\bsync\b|1on1|1:1)/i.test(summary) && !/면접|interview/i.test(summary)) {
+    return '기타';
+  }
+  // "HH:MM /" 슬래시 포맷 또는 "면접" 키워드
+  const s = (summary || '').toLowerCase();
   if (/면접|interview/i.test(s) || /\d{1,2}:\d{2}\s*\//.test(summary)) return '면접';
   return '기타';
 }
@@ -508,7 +522,7 @@ export function liveCalendarEventsNormalized(): NormalizedCalEvent[] {
       dt,
       tm,
       title: e.summary,
-      kind: classifyEventKind(e.summary, e.colorId),
+      kind: classifyEventKind(e.summary, e.colorId, e.calendarId),
       location: e.location,
       attendees: (e.attendees || []).map((a) => a.email).filter((x): x is string => !!x),
       htmlLink: e.htmlLink,
