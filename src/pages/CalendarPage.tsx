@@ -402,16 +402,24 @@ function parseInterviewTitle(title: string): {
 // to-do/업무 액션 동사 — "OOO 발송", "OOO 확인", "그리팅 시안 확인", "채용품의 상신" 등을 면접에서 제외
 const TODO_ACTION_KEYWORDS = /(안내|발송|확인|준비|작성|기안|상신|회신|보고|공유|체크|정리|등록|기입|결재|점검|결제|구매|받기|챙기기|제출|신청|수령|반납|발급|취소|기획|품의|시안|크리닝|스크리닝|마감|개시|마감|기록|통보|업데이트)/;
 
-function isInterviewKind(summary: string, colorId: string | null): boolean {
-  // 입사(colorId 5)·퇴사·휴가·행사 명시적으로 제외
-  if (colorId === '5') return false; // 노란색 = 입사
-  if (/입사|퇴사|퇴직|휴가|연차|반차|생일|워크샵|워크샾|행사|회식|점심|런치|MT\b|OT\b|교육|세미나|컨퍼런스|타운홀|townhall|holiday|off\b|박람회|일자리센터/i.test(summary)) {
-    return false;
-  }
+function isInterviewKind(summary: string, colorId: string | null, calendarId: string | null = null): boolean {
   // 면접 취소/포기/보류 키워드 — 카드에서 제외 (이력에서 사라짐).
   //   예: "(면접포기)수원/16:20/정예원/Base Lab"
   // 불참/노쇼는 제외하지 않고 줄긋기로만 표시 — 이력 보존 (누가 안 왔는지 기록 가치 있음).
+  // 명시적 취소는 다른 어떤 규칙보다 우선 — 사용자가 끄겠다고 한 건 면접 캘 보라색이어도 차단.
   if (/면접포기|면접\s*취소|\(취소\)|취소됨|\(보류\)|면접\s*보류/i.test(summary)) {
+    return false;
+  }
+  // 면접 캘린더(SHARED_CAL.interview) + colorId='3'(보라) 명시 등록 = 사용자 의도 신뢰.
+  // 회의실 예약 페이지에서 "면접 캘린더에도 함께 등록" 체크박스로 보내진 건 등
+  // 제목이 "면접" 키워드/슬래시 포맷 안 맞아도(예: "포장2팀 ERP파트 - 장성민") 카드로 표시.
+  // 다른 분류 키워드(교육/일자리센터/입사 등)보다 우선 — 사용자가 면접 캘에 의도적으로 올린 것이므로.
+  if (calendarId === SHARED_CAL.interview && colorId === '3') {
+    return true;
+  }
+  // 입사(colorId 5)·퇴사·휴가·행사 명시적으로 제외
+  if (colorId === '5') return false; // 노란색 = 입사
+  if (/입사|퇴사|퇴직|휴가|연차|반차|생일|워크샵|워크샾|행사|회식|점심|런치|MT\b|OT\b|교육|세미나|컨퍼런스|타운홀|townhall|holiday|off\b|박람회|일자리센터/i.test(summary)) {
     return false;
   }
   // 일반 회의/미팅 제외 (단, "면접" 단어가 함께 있거나 회의실/미팅룸 같은 장소명은 통과)
@@ -666,7 +674,7 @@ export function CalendarPage() {
   useEffect(() => {
     if (!myEmail || roomBookings.length === 0 || roomsMeta.length === 0) return;
     const calendarInterviews = liveCalendarEventsNormalized()
-      .filter((e) => isInterviewKind(e.title, e.raw.colorId));
+      .filter((e) => isInterviewKind(e.title, e.raw.colorId, e.raw.calendarId));
     if (calendarInterviews.length === 0) return;
     void (async () => {
       const adjusted = new Set<string>();
@@ -755,7 +763,7 @@ export function CalendarPage() {
   useEffect(() => {
     if (!myEmail || roomBookings.length === 0 || roomsMeta.length === 0) return;
     const interviews = liveCalendarEventsNormalized()
-      .filter((e) => isInterviewKind(e.title, e.raw.colorId))
+      .filter((e) => isInterviewKind(e.title, e.raw.colorId, e.raw.calendarId))
       .filter((e) => e.raw.calendarId === SHARED_CAL.interview);
     if (interviews.length === 0) return;
     void (async () => {
@@ -954,7 +962,7 @@ export function CalendarPage() {
     setCleaningUp(true);
     try {
       const interviews = liveCalendarEventsNormalized().filter((e) =>
-        isInterviewKind(e.title, e.raw.colorId)
+        isInterviewKind(e.title, e.raw.colorId, e.raw.calendarId)
       );
       // 매우 엄격한 매칭: dt + tm(HH:MM 정확) + 이름 12자
       // 이름 못 뽑은 이벤트, 종일 이벤트는 제외 (false positive 방지)
@@ -1130,7 +1138,7 @@ export function CalendarPage() {
       };
     }
     const fromCalendar: InterviewEvent[] = liveCalendarEventsNormalized()
-      .filter((e) => isInterviewKind(e.title, e.raw.colorId))
+      .filter((e) => isInterviewKind(e.title, e.raw.colorId, e.raw.calendarId))
       // primary 캘린더에 자동 sync된 회의실 예약 사본만 면접 카드에서 제외.
       // 면접 캘린더(c_d2a3...)에 사용자가 의도적으로 회의실을 attendee로 추가한 경우는
       // 그대로 표시 (회의실 예약 매칭 배지로 시각화).
@@ -1193,7 +1201,7 @@ export function CalendarPage() {
       if (e.raw.calendarId !== SHARED_CAL.interview) return false;
       if (e.raw.colorId !== '3') return false;
       // 분류기 통과 = 정상 카드 → 미아 아님
-      if (isInterviewKind(e.title, e.raw.colorId)) return false;
+      if (isInterviewKind(e.title, e.raw.colorId, e.raw.calendarId)) return false;
       // 의심 summary: 4자 미만이거나 테스트/임시 키워드
       const t = (e.title || '').trim();
       const isSuspicious = t.length < 4 || SUSPICIOUS.test(t);
@@ -1258,7 +1266,7 @@ export function CalendarPage() {
     // 캘린더에 이미 있는 키 set
     const calendarKeys = new Set<string>();
     for (const e of liveCalendarEventsNormalized()) {
-      if (!isInterviewKind(e.title, e.raw.colorId)) continue;
+      if (!isInterviewKind(e.title, e.raw.colorId, e.raw.calendarId)) continue;
       const p = parseInterviewTitle(e.title);
       const k = dismissKey(e.dt, e.tm, p.candidate || e.title);
       calendarKeys.add(k);
