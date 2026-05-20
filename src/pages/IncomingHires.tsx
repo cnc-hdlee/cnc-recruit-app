@@ -595,31 +595,61 @@ export function IncomingHires() {
         all.push(...rowsToObjects(rows, 0));
       }
     }
-    // 너무 오래된 입사자는 제외 — 2026-04-01 이후만
+    // 너무 오래된 입사자는 제외 — 2026-04-01 이후만.
+    // 오늘 날짜는 "지난 입사"가 아님 — 오늘 입사자는 정규직DB에 이미 옮겨졌어도
+    // upcoming/today 그룹에 속해야 함 (사용자가 오늘 입사가 "지난 입사 포함"에 들어가있다고 항의).
     const PAST_CUTOFF = '2026-04-01';
-    const parsed = parseHireRows(all).filter((r) => r.date >= PAST_CUTOFF);
+    const parsed = parseHireRows(all).filter((r) => r.date >= PAST_CUTOFF && r.date < today);
     if (typeof window !== 'undefined') {
       (window as Window & { __incomingDebug?: unknown }).__incomingDebug = {
         pastSheetTabs: hitTabs,
         pastRowsRaw: all.length,
         pastRowsAfterCutoff: parsed.length,
         cutoff: PAST_CUTOFF,
+        todayCutoff: today,
       };
     }
     return parsed;
-  }, [live.snapshots, live.hasLive]);
+  }, [live.snapshots, live.hasLive, today]);
 
-  // allRows + pastRows 병합 (이름+입사일 중복 제거 — 사용자가 같은 데이터를 양쪽 시트에 둔 경우 방어)
-  const combinedAll = useMemo<HireRow[]>(() => {
+  // 정규직DB/도급직DB/재직자 시트에 들어가있지만 입사일이 오늘 이상인 사람 — 입사 발표 후
+  // 시트는 이미 옮겨졌지만 아직 "지난 입사"가 아닌 케이스. allRows에 합쳐 upcoming으로 표시.
+  const todayPlusFromPastSheets = useMemo<HireRow[]>(() => {
+    if (!live.hasLive) return [];
+    const all: Record<string, string>[] = [];
+    for (const snap of Object.values(live.snapshots)) {
+      for (const [tabName, rows] of Object.entries(snap.tabs)) {
+        const norm = tabName.replace(/\s+/g, '');
+        const isPastSheet =
+          /^정규직DB$/.test(norm) ||
+          /^도급직DB$/.test(norm) ||
+          norm.includes('재직') ||
+          (norm.includes('입사자') && !norm.includes('예정'));
+        if (!isPastSheet) continue;
+        all.push(...rowsToObjects(rows, 0));
+      }
+    }
+    return parseHireRows(all).filter((r) => r.date >= today);
+  }, [live.snapshots, live.hasLive, today]);
+
+  // upcomingAll = 입사예정 시트(allRows) + 오늘 이후 정규직/도급직DB 행 (이름+입사일 중복 제거)
+  const upcomingAll = useMemo<HireRow[]>(() => {
     const seen = new Set(allRows.map((r) => `${r.name}|${r.date}`));
-    const extra = pastRows.filter((r) => !seen.has(`${r.name}|${r.date}`));
+    const extra = todayPlusFromPastSheets.filter((r) => !seen.has(`${r.name}|${r.date}`));
     return [...allRows, ...extra];
-  }, [allRows, pastRows]);
+  }, [allRows, todayPlusFromPastSheets]);
+
+  // upcomingAll + pastRows 병합 (이름+입사일 중복 제거)
+  const combinedAll = useMemo<HireRow[]>(() => {
+    const seen = new Set(upcomingAll.map((r) => `${r.name}|${r.date}`));
+    const extra = pastRows.filter((r) => !seen.has(`${r.name}|${r.date}`));
+    return [...upcomingAll, ...extra];
+  }, [upcomingAll, pastRows]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    // showPast=true 시에만 pastRows 포함. 평소엔 가벼운 incoming만 사용.
-    const source = showPast ? combinedAll : allRows;
+    // showPast=true 시에만 pastRows 포함. 평소엔 upcomingAll(오늘 포함)만 사용.
+    const source = showPast ? combinedAll : upcomingAll;
     return source.filter((r) => {
       if (!showPast && r.date < today) return false;
       if (siteFilter !== '전체' && classifySite(r.site) !== siteFilter) return false;
@@ -630,7 +660,7 @@ export function IncomingHires() {
       }
       return true;
     });
-  }, [allRows, combinedAll, showPast, siteFilter, approvalFilter, query, today]);
+  }, [upcomingAll, combinedAll, showPast, siteFilter, approvalFilter, query, today]);
 
   const grouped = useMemo(() => {
     const map = new Map<string, HireRow[]>();
@@ -642,7 +672,7 @@ export function IncomingHires() {
   }, [filtered]);
 
   const summary = useMemo(() => {
-    const upcoming = allRows.filter((r) => r.date >= today);
+    const upcoming = upcomingAll.filter((r) => r.date >= today);
     // 입사안내 발송 = Gmail 발송 기록 OR 시트 "입사안내" 컬럼 O 표시
     const isAnnounced = (r: HireRow) =>
       (mailMap.get(r.name)?.length || 0) > 0 ||
@@ -662,7 +692,7 @@ export function IncomingHires() {
         gray: upcoming.filter((r) => classifySite(r.site) === 'gray').length,
       },
     };
-  }, [allRows, today, mailMap, sheetMarks]);
+  }, [upcomingAll, today, mailMap, sheetMarks]);
 
   if (!live.hasLive) {
     return (
