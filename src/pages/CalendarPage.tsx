@@ -880,14 +880,35 @@ export function CalendarPage() {
 
     const key = dismissKey(event.dt, event.tm, event.candidate || event.title);
 
-    // 1) 회의실 booking 먼저 삭제 시도 — 본인 booking은 OK, 다른 사람 만든 건 권한 부족 가능.
+    // 1) 회의실 booking 삭제 시도.
+    //    핵심: 본인이 만든 booking은 primary가 master고 리소스 캘은 그림자.
+    //    리소스 캘에서만 지우면 primary master 살아있어서 회의실 점유 계속됨 (5/21 문나은/신지호 사고).
+    //    → 본인 owner면 primary 우선 삭제, 그 후 리소스 캘도 정리.
+    //    → 다른 사람 owner면 primary 권한 없으니 리소스 캘에서만 시도 (회의실 attendee decline 효과).
     const bookingFails: { booking: typeof matchedBookings[number]; error: string }[] = [];
     for (const b of matchedBookings) {
+      const isSelfOwner = !!(b.creatorEmail && myEmail && b.creatorEmail.toLowerCase() === myEmail.toLowerCase());
+      let primaryOk = false;
+      let resourceOk = false;
+      let lastErr = '';
+      if (isSelfOwner) {
+        try {
+          const r = await api.google.deleteCalEvent('primary', b.id, 'all');
+          primaryOk = r.ok;
+          if (!r.ok) lastErr = (r as { error?: string }).error || 'primary delete failed';
+        } catch (e) {
+          lastErr = e instanceof Error ? e.message : String(e);
+        }
+      }
       try {
         const r = await api.google.deleteCalEvent(b.resourceId, b.id, 'all');
-        if (!r.ok) bookingFails.push({ booking: b, error: (r as { error?: string }).error || 'unknown' });
+        resourceOk = r.ok;
+        if (!r.ok && !primaryOk) lastErr = (r as { error?: string }).error || lastErr || 'resource delete failed';
       } catch (e) {
-        bookingFails.push({ booking: b, error: e instanceof Error ? e.message : String(e) });
+        if (!primaryOk) lastErr = e instanceof Error ? e.message : String(e);
+      }
+      if (!primaryOk && !resourceOk) {
+        bookingFails.push({ booking: b, error: lastErr || 'unknown' });
       }
     }
 
