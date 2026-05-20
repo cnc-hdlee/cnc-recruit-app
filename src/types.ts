@@ -86,4 +86,4 @@ export interface DataShape {
   [k: string]: unknown;
 }
 
-export type PageId = 'dashboard' | 'headcount' | 'incoming' | 'calendar' | 'rooms' | 'jobcenters' | 'lookup' | 'mail' | 'comms' | 'education' | 'settings' | 'usage';
+export type PageId = 'dashboard' | 'headcount' | 'incoming' | 'calendar' | 'insights' | 'rooms' | 'jobcenters' | 'lookup' | 'mail' | 'comms' | 'education' | 'settings' | 'usage';

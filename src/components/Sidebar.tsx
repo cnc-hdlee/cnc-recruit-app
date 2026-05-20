@@ -9,13 +9,28 @@ interface NavItem {
   label: string;
   badgeKey?: 'todayIntv' | 'incoming';
   maintainerOnly?: boolean;
+  // 서브 카테고리 — 부모 또는 자식이 active일 때 들여쓰기로 표시
+  subItems?: SubNavItem[];
+}
+interface SubNavItem {
+  id: PageId;
+  icon: string;
+  label: string;
 }
 
 const NAV: NavItem[] = [
   { id: 'dashboard', icon: '🏠', label: '대시보드' },
   { id: 'headcount', icon: '👥', label: '인원현황' },
   { id: 'incoming', icon: '🎉', label: '입사예정자', badgeKey: 'incoming' },
-  { id: 'calendar', icon: '📅', label: '면접 캘린더', badgeKey: 'todayIntv' },
+  {
+    id: 'calendar',
+    icon: '📅',
+    label: '면접 캘린더',
+    badgeKey: 'todayIntv',
+    subItems: [
+      { id: 'insights', icon: '📊', label: '면접 인사이트' },
+    ],
+  },
   { id: 'rooms', icon: '🚪', label: '회의실 예약' },
   { id: 'jobcenters', icon: '🏢', label: '일자리센터' },
   { id: 'lookup', icon: '🔍', label: '후보자 검색' },
@@ -84,31 +99,56 @@ export function Sidebar({ active, onChange, isOpen = false, onClose }: SidebarPr
         {NAV.filter((item) => !item.maintainerOnly || !IS_VIEWER).map((item) => {
           const isActive = item.id === active;
           const badge = item.badgeKey ? counts[item.badgeKey] : 0;
+          // sub-item이 active이거나 본인이 active이면 sub-item 펼침
+          const hasActiveSub = item.subItems?.some((s) => s.id === active);
+          const showSubs = (isActive || hasActiveSub) && item.subItems && item.subItems.length > 0;
           return (
-            <button
-              key={item.id}
-              onClick={() => onChange(item.id)}
-              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-all ${
-                isActive
-                  ? 'bg-white/12 text-white border-l-[3px] font-semibold'
-                  : 'text-[#dfd7f9]/85 hover:bg-white/6 border-l-[3px] border-transparent'
-              }`}
-              style={isActive ? { borderLeftColor: '#cac3e4' } : undefined}
-            >
-              <span className="text-base">{item.icon}</span>
-              <span className="flex-1 text-left">{item.label}</span>
-              {badge > 0 && (
-                <span
-                  className={`chip ${
-                    item.badgeKey === 'todayIntv'
-                      ? 'bg-blue-400/90 text-white'
-                      : 'bg-amber-400/90 text-white'
-                  }`}
-                >
-                  {badge}
-                </span>
+            <div key={item.id}>
+              <button
+                onClick={() => onChange(item.id)}
+                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-all ${
+                  isActive
+                    ? 'bg-white/12 text-white border-l-[3px] font-semibold'
+                    : 'text-[#dfd7f9]/85 hover:bg-white/6 border-l-[3px] border-transparent'
+                }`}
+                style={isActive ? { borderLeftColor: '#cac3e4' } : undefined}
+              >
+                <span className="text-base">{item.icon}</span>
+                <span className="flex-1 text-left">{item.label}</span>
+                {badge > 0 && (
+                  <span
+                    className={`chip ${
+                      item.badgeKey === 'todayIntv'
+                        ? 'bg-blue-400/90 text-white'
+                        : 'bg-amber-400/90 text-white'
+                    }`}
+                  >
+                    {badge}
+                  </span>
+                )}
+              </button>
+              {showSubs && (
+                <div className="ml-5 mt-0.5 mb-0.5 pl-2 border-l border-white/15 space-y-0.5">
+                  {item.subItems!.map((sub) => {
+                    const subActive = sub.id === active;
+                    return (
+                      <button
+                        key={sub.id}
+                        onClick={() => onChange(sub.id)}
+                        className={`w-full flex items-center gap-2 px-2.5 py-1.5 rounded-md text-[12px] transition-all ${
+                          subActive
+                            ? 'bg-white/10 text-white font-semibold'
+                            : 'text-[#cbc1ed]/75 hover:bg-white/5'
+                        }`}
+                      >
+                        <span className="text-[13px]">{sub.icon}</span>
+                        <span className="flex-1 text-left">{sub.label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
               )}
-            </button>
+            </div>
           );
         })}
       </nav>

@@ -141,6 +141,7 @@ export function inferStageId(pipeline: PipelineDef, raw: string): string {
   if (s.includes('현업')) return findStage(pipeline, 'biz_review');
   if (s.includes('사전질문')) return findStage(pipeline, 'pre_q');
   if (s.includes('CPI') || lower.includes('cpi')) return findStage(pipeline, 'cpi');
+  if (s.includes('레퍼런스') || s.includes('reference')) return findStage(pipeline, 'biz_review');
   if (s.includes('처우')) return findStage(pipeline, 'comp');
   if (s.includes('품의')) return findStage(pipeline, 'apr_draft');
   if (s === '결재완료' || s === '결재 완료') return findStage(pipeline, 'apr_done');
