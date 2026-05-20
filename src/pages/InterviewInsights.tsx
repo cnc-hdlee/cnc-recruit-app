@@ -12,7 +12,7 @@
 //   - 이탈률 = (노쇼·연락두절·면접포기·입사취소) / 전체
 //   - 탈락률 = 불합격 / 전체
 //   - 전형별 합격률 = office_pipeline 직급별 "입사안내 완료" / 전체 채용 품의
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useLiveData, liveByKindOrScan } from '../store/liveData';
 import { OFFICE_JUNIOR, inferStageId } from '../lib/pipelines';
 
@@ -288,6 +288,31 @@ function Section({ title, desc, children, accent }: { title: string; desc?: stri
     </div>
   );
 }
+
+// 행 단위 분류 함수 — 검증뷰에서 같은 로직 사용
+function classifyOfficeRow(note: string): { label: string; tone: string } {
+  if (DROP_REGEX.test(note)) return { label: '🚪 이탈', tone: 'amber' };
+  if (REJECT_REGEX.test(note)) return { label: '⛔ 탈락', tone: 'rose' };
+  if (POST_PASS_OFFICE.test(note)) return { label: '✓ 면접후 합격단계', tone: 'emerald' };
+  if (POST_PENDING.test(note)) return { label: '⏳ 면접결과 대기', tone: 'sky' };
+  if (SCHEDULED.test(note)) return { label: '📅 면접 예정', tone: 'indigo' };
+  return { label: '· 기타/이력서검토', tone: 'slate' };
+}
+function classifyFieldRow(note: string, hasItvDate: boolean): { label: string; tone: string } {
+  if (DROP_REGEX.test(note)) return { label: '🚪 이탈', tone: 'amber' };
+  if (REJECT_REGEX.test(note)) return { label: '⛔ 탈락', tone: 'rose' };
+  if (FIELD_PASS.test(note)) return { label: '✓ 합격', tone: 'emerald' };
+  if (hasItvDate) return { label: '📅 면접 도달', tone: 'indigo' };
+  return { label: '· 서류 단계', tone: 'slate' };
+}
+const TONE_BG: Record<string, string> = {
+  amber: 'bg-amber-100 text-amber-800',
+  rose: 'bg-rose-100 text-rose-800',
+  emerald: 'bg-emerald-100 text-emerald-800',
+  sky: 'bg-sky-100 text-sky-800',
+  indigo: 'bg-indigo-100 text-indigo-800',
+  slate: 'bg-slate-100 text-slate-700',
+};
 
 // ===== 메인 =====
 
@@ -584,9 +609,241 @@ export function InterviewInsights() {
         </div>
       </Section>
 
+      {/* ⑥ 행단위 검증뷰 — 각 후보자가 어느 분류로 떨어졌는지 1:1 확인 */}
+      <VerifyView
+        officeRows={officeIntvRows}
+        fieldRows={fieldPipelineRows}
+        pipelineRows={officePipelineRows}
+      />
+
       <div className="text-[10px] text-slate-400 text-center pt-2">
         데이터 소스: 시트 office_interview · field_pipeline · office_pipeline | 60초 자동 갱신
       </div>
     </div>
+  );
+}
+
+// ===== ⑥ 검증뷰 (collapsible) =====
+
+function VerifyView({
+  officeRows, fieldRows, pipelineRows,
+}: {
+  officeRows: Record<string, string>[];
+  fieldRows: Record<string, string>[];
+  pipelineRows: Record<string, string>[];
+}) {
+  const [open, setOpen] = useState(false);
+  const [tab, setTab] = useState<'office' | 'field' | 'pipeline'>('office');
+  const [filter, setFilter] = useState('');
+
+  // 사무직 분류 결과
+  const officeRowsClassified = useMemo(() => {
+    return officeRows
+      .map((r) => {
+        const name = pickCol(r, ['성명', '이름']);
+        if (!name) return null;
+        const dept = pickCol(r, ['지원부서', '부서']);
+        const job = pickCol(r, ['지원구분', '직무']);
+        const note = pickCol(r, ['비고', '상태']);
+        const cls = classifyOfficeRow(note);
+        return { name, dept, job, note, cls };
+      })
+      .filter((x): x is NonNullable<typeof x> => !!x);
+  }, [officeRows]);
+
+  // 현장직 분류 결과
+  const fieldRowsClassified = useMemo(() => {
+    return fieldRows
+      .map((r) => {
+        const name = pickCol(r, ['이름', '성명']);
+        if (!name) return null;
+        const channel = pickCol(r, ['경로', '채널']);
+        const job = pickCol(r, ['직무']);
+        const itvDt = pickCol(r, ['면접일자', '면접일']);
+        const note = pickCol(r, ['코멘트', '비고']);
+        const cls = classifyFieldRow(note, !!itvDt);
+        return { name, channel, job, itvDt, note, cls };
+      })
+      .filter((x): x is NonNullable<typeof x> => !!x);
+  }, [fieldRows]);
+
+  // 채용 품의 분류 결과
+  const pipelineRowsClassified = useMemo(() => {
+    return pipelineRows
+      .map((r) => {
+        const dept = pickCol(r, ['부서']);
+        const rankRaw = pickCol(r, ['직급', '레벨']);
+        if (!rankRaw) return null;
+        const rank = normalizeRank(rankRaw);
+        const status = pickCol(r, ['상태']);
+        const hired = pickCol(r, ['입사예정자']);
+        const isHired = /입사안내\s*완료|입사\s*완료/.test(status) || (hired && !/결재중|결재\s*중/.test(status));
+        return { dept, rank, rankRaw, status, hired, isHired: !!isHired };
+      })
+      .filter((x): x is NonNullable<typeof x> => !!x);
+  }, [pipelineRows]);
+
+  const filterMatch = (text: string) => !filter || text.toLowerCase().includes(filter.toLowerCase());
+
+  return (
+    <Section
+      title="⑥ 행단위 검증뷰"
+      desc={open ? '닫으려면 헤더 클릭' : '각 후보자가 어떻게 분류됐는지 확인하려면 클릭하여 펼치기'}
+      accent="text-slate-700"
+    >
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="w-full -mt-2 mb-2 py-1.5 text-xs font-semibold rounded-md bg-slate-100 text-slate-700 hover:bg-slate-200 transition"
+      >
+        {open ? '▲ 검증뷰 닫기' : '▼ 검증뷰 열기 (분류 정확도 확인)'}
+      </button>
+      {open && (
+        <div className="space-y-2">
+          {/* 탭 + 검색 */}
+          <div className="flex items-center gap-2 flex-wrap">
+            <button
+              onClick={() => setTab('office')}
+              className={`px-2.5 py-1 rounded-full text-xs font-semibold border ${tab === 'office' ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-600 border-slate-200'}`}
+            >
+              사무직 ({officeRowsClassified.length})
+            </button>
+            <button
+              onClick={() => setTab('field')}
+              className={`px-2.5 py-1 rounded-full text-xs font-semibold border ${tab === 'field' ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-600 border-slate-200'}`}
+            >
+              현장직 ({fieldRowsClassified.length})
+            </button>
+            <button
+              onClick={() => setTab('pipeline')}
+              className={`px-2.5 py-1 rounded-full text-xs font-semibold border ${tab === 'pipeline' ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-600 border-slate-200'}`}
+            >
+              채용 품의 ({pipelineRowsClassified.length})
+            </button>
+            <input
+              type="text"
+              value={filter}
+              onChange={(e) => setFilter(e.target.value)}
+              placeholder="이름/팀/비고 검색..."
+              className="ml-auto px-3 py-1 rounded-full text-xs bg-white border border-slate-200 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 focus:outline-none w-44 text-slate-800"
+            />
+          </div>
+
+          {/* 사무직 테이블 */}
+          {tab === 'office' && (
+            <div className="overflow-x-auto max-h-[420px] overflow-y-auto border border-slate-200 rounded-md">
+              <table className="w-full text-[11px]">
+                <thead className="bg-slate-50 text-slate-700 sticky top-0">
+                  <tr>
+                    <th className="text-left px-2 py-1.5 font-bold">이름</th>
+                    <th className="text-left px-2 py-1.5 font-bold">부서</th>
+                    <th className="text-left px-2 py-1.5 font-bold">지원구분</th>
+                    <th className="text-left px-2 py-1.5 font-bold">비고 (원본 텍스트)</th>
+                    <th className="text-left px-2 py-1.5 font-bold">분류 결과</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {officeRowsClassified
+                    .filter((r) => filterMatch(`${r.name} ${r.dept} ${r.note}`))
+                    .map((r, i) => (
+                      <tr key={i} className="border-t border-slate-100 hover:bg-slate-50">
+                        <td className="px-2 py-1.5 font-semibold text-slate-800">{r.name}</td>
+                        <td className="px-2 py-1.5 text-slate-700">{r.dept}</td>
+                        <td className="px-2 py-1.5 text-slate-600">{r.job}</td>
+                        <td className="px-2 py-1.5 text-slate-600 max-w-[280px] truncate" title={r.note}>{r.note || <span className="text-slate-400">(비어있음)</span>}</td>
+                        <td className="px-2 py-1.5">
+                          <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-bold ${TONE_BG[r.cls.tone]}`}>
+                            {r.cls.label}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {/* 현장직 테이블 */}
+          {tab === 'field' && (
+            <div className="overflow-x-auto max-h-[420px] overflow-y-auto border border-slate-200 rounded-md">
+              <table className="w-full text-[11px]">
+                <thead className="bg-slate-50 text-slate-700 sticky top-0">
+                  <tr>
+                    <th className="text-left px-2 py-1.5 font-bold">채널</th>
+                    <th className="text-left px-2 py-1.5 font-bold">이름</th>
+                    <th className="text-left px-2 py-1.5 font-bold">면접일자</th>
+                    <th className="text-left px-2 py-1.5 font-bold">코멘트 (원본)</th>
+                    <th className="text-left px-2 py-1.5 font-bold">분류 결과</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {fieldRowsClassified
+                    .filter((r) => filterMatch(`${r.name} ${r.channel} ${r.note}`))
+                    .slice(0, 500)
+                    .map((r, i) => (
+                      <tr key={i} className="border-t border-slate-100 hover:bg-slate-50">
+                        <td className="px-2 py-1.5 text-slate-700 max-w-[100px] truncate" title={r.channel}>{r.channel}</td>
+                        <td className="px-2 py-1.5 font-semibold text-slate-800">{r.name}</td>
+                        <td className="px-2 py-1.5 text-slate-600">{r.itvDt || <span className="text-slate-400">—</span>}</td>
+                        <td className="px-2 py-1.5 text-slate-600 max-w-[280px] truncate" title={r.note}>{r.note || <span className="text-slate-400">(비어있음)</span>}</td>
+                        <td className="px-2 py-1.5">
+                          <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-bold ${TONE_BG[r.cls.tone]}`}>
+                            {r.cls.label}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                </tbody>
+              </table>
+              {fieldRowsClassified.length > 500 && (
+                <div className="px-2 py-1 text-[10px] text-slate-500 bg-slate-50 border-t border-slate-200">
+                  ※ 500행 초과 — 검색어로 필터링 권장
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* 채용 품의 테이블 */}
+          {tab === 'pipeline' && (
+            <div className="overflow-x-auto max-h-[420px] overflow-y-auto border border-slate-200 rounded-md">
+              <table className="w-full text-[11px]">
+                <thead className="bg-slate-50 text-slate-700 sticky top-0">
+                  <tr>
+                    <th className="text-left px-2 py-1.5 font-bold">부서</th>
+                    <th className="text-left px-2 py-1.5 font-bold">직급(원본)</th>
+                    <th className="text-left px-2 py-1.5 font-bold">정규화 직급</th>
+                    <th className="text-left px-2 py-1.5 font-bold">상태</th>
+                    <th className="text-left px-2 py-1.5 font-bold">입사예정자</th>
+                    <th className="text-left px-2 py-1.5 font-bold">분류</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {pipelineRowsClassified
+                    .filter((r) => filterMatch(`${r.dept} ${r.rank} ${r.status} ${r.hired}`))
+                    .map((r, i) => (
+                      <tr key={i} className="border-t border-slate-100 hover:bg-slate-50">
+                        <td className="px-2 py-1.5 text-slate-700 max-w-[120px] truncate">{r.dept}</td>
+                        <td className="px-2 py-1.5 text-slate-600">{r.rankRaw}</td>
+                        <td className="px-2 py-1.5 text-slate-700 font-semibold">{r.rank}</td>
+                        <td className="px-2 py-1.5 text-slate-600">{r.status || <span className="text-slate-400">(빈칸)</span>}</td>
+                        <td className="px-2 py-1.5 text-slate-700">{r.hired || <span className="text-slate-400">—</span>}</td>
+                        <td className="px-2 py-1.5">
+                          <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-bold ${r.isHired ? TONE_BG.emerald : TONE_BG.slate}`}>
+                            {r.isHired ? '✓ 입사완료' : '· 진행중'}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          <div className="text-[10px] text-slate-500 leading-relaxed">
+            ※ 이 뷰의 분류는 KPI/funnel/테이블에서 쓰는 것과 <b>같은 함수</b>로 계산됩니다. 분류가 잘못된 행 발견 시 알려주시면 regex 보정.
+          </div>
+        </div>
+      )}
+    </Section>
   );
 }
