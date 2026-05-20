@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { useData, getTodayStr } from '../store';
 import { useLiveData, liveCalendarEventsNormalized } from '../store/liveData';
 import { gmailSearchUrl } from '../lib/gmail';
+import { api } from '../lib/api';
 import type { PageId, MissingAlert } from '../types';
 
 type EventKind = '면접' | '입사' | '퇴사';
@@ -95,6 +96,24 @@ function timeSlot(tm: string): '오전' | '오후' | '저녁' | '종일' {
   if (h < 12) return '오전';
   if (h < 18) return '오후';
   return '저녁';
+}
+
+// 슬래시 포맷 면접 제목에서 후보자 이름 추출 — "10:00 / 퍼플 / 박연수 / 품질관리1팀" → "박연수"
+function parseCandidateName(title: string): string {
+  if (!title) return '';
+  const parts = title.split('/').map((s) => s.trim()).filter(Boolean);
+  // 시간·사이트·팀 제외하고 한글 2-4자 이름 토큰 찾기
+  for (const p of parts) {
+    if (/\d{1,2}:\d{2}/.test(p)) continue;
+    if (/팀|연구소|본부|실$|센터/.test(p)) continue;
+    if (/^(퍼플|그린|수원|위워크|온라인|방교|서울|판교|강남)/.test(p)) continue;
+    const m = p.match(/([가-힣]{2,4})/);
+    if (m) return m[1];
+  }
+  // "○○팀 면접 - 이름" 패턴
+  const m2 = title.match(/면접\s*[-—–]\s*([가-힣]{2,4})/);
+  if (m2) return m2[1];
+  return '';
 }
 
 // 이벤트 summary에서 인원수 추출 — "입사 2명: 황영애·김민진" → 2
@@ -212,6 +231,7 @@ export function Dashboard({ onNavigate }: { onNavigate: (p: PageId) => void }) {
       todayCount: todayIntv.length,
       weekCount: weekIntv.length,
       monthCount: monthIntv.length,
+      monthIntv, // 익스포트용 (이번 달 면접 시트 생성 시 사용)
       monthJoin,
       teamTop,
       siteAll,
@@ -267,9 +287,51 @@ function HeroSummary({
   live,
 }: {
   today: string;
-  insights: { todayCount: number; weekCount: number; monthCount: number; monthJoin: number };
+  insights: { todayCount: number; weekCount: number; monthCount: number; monthIntv: UnifiedEvent[]; monthJoin: number };
   live: ReturnType<typeof useLiveData>;
 }) {
+  const [exporting, setExporting] = useState(false);
+  const handleExportMonth = async () => {
+    if (exporting) return;
+    if (insights.monthIntv.length === 0) {
+      alert('이번 달 면접 이벤트가 없습니다.');
+      return;
+    }
+    setExporting(true);
+    try {
+      const headers = ['날짜', '요일', '시간', '후보자', '팀', '사이트', '회의실/장소', '제목', '캘린더 링크'];
+      const rows = [...insights.monthIntv]
+        .sort((a, b) => (a.dt + a.tm).localeCompare(b.dt + b.tm))
+        .map((e) => {
+          const p = parseTitle(e.title);
+          const candidate = parseCandidateName(e.title);
+          return [
+            e.dt,
+            dowOf(e.dt),
+            e.tm,
+            candidate,
+            p.team ? shortTeam(p.team) : '',
+            p.site || '',
+            e.location || '',
+            e.title,
+            e.htmlLink || '',
+          ];
+        });
+      const yyMm = today.slice(0, 7);
+      const title = `[CNC] ${yyMm} 면접 명단 (${insights.monthCount}건, 생성: ${today})`;
+      const r = await api.google.createSheet(title, headers, rows);
+      if (!r.ok) {
+        alert(`시트 생성 실패: ${(r as { error?: string }).error || '알 수 없는 오류'}\n\n` +
+          '⚠ 첫 사용 시 구글 재로그인 필요 (drive.file 권한 추가됨).\n설정 → Google 로그아웃 후 재로그인 부탁드립니다.');
+        return;
+      }
+      window.open(r.data.url, '_blank');
+    } catch (e) {
+      alert(`오류: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setExporting(false);
+    }
+  };
   const d = new Date(today + 'T00:00:00');
   const month = d.getMonth() + 1;
   const day = d.getDate();
@@ -307,7 +369,13 @@ function HeroSummary({
         <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
           <BigStat label="오늘 면접" value={insights.todayCount} accent="blue" emphasis />
           <BigStat label="이번 주 면접" value={insights.weekCount} accent="indigo" />
-          <BigStat label="이번 달 면접" value={insights.monthCount} accent="violet" />
+          <BigStat
+            label="이번 달 면접"
+            value={insights.monthCount}
+            accent="violet"
+            hint={exporting ? '시트 생성 중…' : '클릭 → 새 구글 시트로 내보내기'}
+            onClick={handleExportMonth}
+          />
           <BigStat label="이번 달 입사" value={insights.monthJoin} accent="amber" />
         </div>
       </div>
@@ -320,11 +388,15 @@ function BigStat({
   value,
   accent,
   emphasis,
+  onClick,
+  hint,
 }: {
   label: string;
   value: number;
   accent: 'blue' | 'indigo' | 'violet' | 'amber';
   emphasis?: boolean;
+  onClick?: () => void;
+  hint?: string;
 }) {
   const tone = {
     blue: { bar: 'bg-blue-300', num: 'text-white' },
@@ -332,15 +404,24 @@ function BigStat({
     violet: { bar: 'bg-violet-300', num: 'text-violet-100' },
     amber: { bar: 'bg-amber-300', num: 'text-amber-100' },
   }[accent];
+  const clickable = !!onClick;
   return (
     <div
-      className={`relative overflow-hidden rounded-xl px-4 py-3 ${
+      onClick={onClick}
+      title={hint}
+      className={`relative overflow-hidden rounded-xl px-4 py-3 transition ${
         emphasis ? 'bg-white/15 border border-white/25' : 'bg-white/8 border border-white/15'
-      } backdrop-blur`}
+      } backdrop-blur ${clickable ? 'cursor-pointer hover:bg-white/25 hover:border-white/40 ring-1 ring-transparent hover:ring-white/30' : ''}`}
     >
       <div className={`absolute left-0 top-0 bottom-0 w-1 ${tone.bar}`} />
       <div className={`text-4xl font-black ${tone.num} tabular-nums leading-none mb-1.5`}>{value}</div>
-      <div className="text-[11px] text-indigo-100 font-semibold uppercase tracking-wider">{label}</div>
+      <div className="text-[11px] text-indigo-100 font-semibold uppercase tracking-wider flex items-center gap-1">
+        {label}
+        {clickable && <span className="text-[9px] opacity-70">📊</span>}
+      </div>
+      {clickable && hint && (
+        <div className="text-[9px] text-indigo-200/70 mt-0.5 truncate">{hint}</div>
+      )}
     </div>
   );
 }

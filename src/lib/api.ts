@@ -174,7 +174,13 @@ interface ElectronAPI {
     }>>;
     listSheetTabs(id: string): Promise<Result<SheetMeta>>;
     readSheet(id: string, range: string): Promise<Result<string[][]>>;
-    // App is strictly read-only on Google Sheets — no write methods exposed.
+    // 기존 시트 절대 수정 안 함 — drive.file scope로 새 시트만 생성 가능.
+    // 익스포트(이번 달 면접 등) 용도. 반환된 url을 새 탭으로 열면 됨.
+    createSheet(
+      title: string,
+      headers: string[],
+      rows: string[][]
+    ): Promise<Result<{ spreadsheetId: string; url: string }>>;
     listGmail(q: string, max: number): Promise<Result<GmailMsg[]>>;
     openAttachment(messageId: string, filename: string, attachmentId?: string): Promise<Result<{ path: string }>>;
     listCalendar(min: string, max: string, id?: string): Promise<Result<GCalEvent[]>>;

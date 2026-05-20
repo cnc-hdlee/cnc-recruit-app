@@ -33,6 +33,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     revealSecrets: () => invoke('g:revealSecrets'),
     listSheetTabs: (id) => invoke('g:listSheetTabs', id),
     readSheet: (id, range) => invoke('g:readSheet', id, range),
+    createSheet: (title, headers, rows) => invoke('g:createSheet', title, headers, rows),
     listGmail: (q, max) => invoke('g:listGmail', q, max),
     openAttachment: (messageId, filename, attachmentId) => invoke('g:openAttachment', messageId, filename, attachmentId),
     listCalendar: (min, max, id) => invoke('g:listCalendar', min, max, id),

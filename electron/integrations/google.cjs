@@ -15,6 +15,8 @@ const store = require('./store.cjs');
 const SCOPES = [
   'https://www.googleapis.com/auth/spreadsheets.readonly',
   'https://www.googleapis.com/auth/drive.metadata.readonly',
+  'https://www.googleapis.com/auth/drive.file', // 앱이 직접 만든 파일만 read/write — 기존 시트는 절대 건드릴 수 없음.
+                                                 // "이번 달 면접" 익스포트 같이 새 시트 생성+데이터 쓰기 용도.
   'https://www.googleapis.com/auth/gmail.readonly',
   'https://www.googleapis.com/auth/gmail.send', // self-mail anomaly alerts only
   'https://www.googleapis.com/auth/calendar.events', // read+write events only (not calendar settings/ACL)
@@ -169,6 +171,66 @@ async function readSheetRange(spreadsheetId, range) {
   const sheets = google.sheets({ version: 'v4', auth });
   const r = await sheets.spreadsheets.values.get({ spreadsheetId, range });
   return r.data.values || [];
+}
+
+// 새 Google 시트를 만들고 데이터를 채워서 spreadsheetId+url 반환.
+// drive.file scope로 동작 — 앱이 만든 파일만 접근 가능, 기존 시트는 절대 못 건드림.
+// 사용처: 대시보드 "이번 달 면접" 카드 클릭 시 데이터 익스포트.
+async function createSheetWithData(title, headers, rows) {
+  const auth = buildClient();
+  const sheets = google.sheets({ version: 'v4', auth });
+  // 1) 빈 시트 생성
+  const created = await sheets.spreadsheets.create({
+    requestBody: { properties: { title } },
+  });
+  const spreadsheetId = created.data.spreadsheetId;
+  // 2) values.update로 헤더+데이터 한 번에 쓰기
+  const allRows = [headers, ...rows];
+  await sheets.spreadsheets.values.update({
+    spreadsheetId,
+    range: 'A1',
+    valueInputOption: 'USER_ENTERED', // 날짜·숫자 자동 포맷
+    requestBody: { values: allRows },
+  });
+  // 3) 첫 행 굵게 + freeze + auto resize
+  const sheetId = created.data.sheets[0].properties.sheetId;
+  await sheets.spreadsheets.batchUpdate({
+    spreadsheetId,
+    requestBody: {
+      requests: [
+        // 첫 행 굵게 + 배경
+        {
+          repeatCell: {
+            range: { sheetId, startRowIndex: 0, endRowIndex: 1 },
+            cell: {
+              userEnteredFormat: {
+                textFormat: { bold: true },
+                backgroundColor: { red: 0.92, green: 0.92, blue: 0.97 },
+              },
+            },
+            fields: 'userEnteredFormat(textFormat,backgroundColor)',
+          },
+        },
+        // 첫 행 freeze
+        {
+          updateSheetProperties: {
+            properties: { sheetId, gridProperties: { frozenRowCount: 1 } },
+            fields: 'gridProperties.frozenRowCount',
+          },
+        },
+        // 컬럼 폭 자동 조정
+        {
+          autoResizeDimensions: {
+            dimensions: { sheetId, dimension: 'COLUMNS', startIndex: 0, endIndex: headers.length },
+          },
+        },
+      ],
+    },
+  });
+  return {
+    spreadsheetId,
+    url: `https://docs.google.com/spreadsheets/d/${spreadsheetId}/edit`,
+  };
 }
 
 // Walk Gmail message payload and collect attachment filenames (recursively).
@@ -446,9 +508,10 @@ module.exports = {
   startAuth,
   getStatus,
   signOut,
-  // Sheets/Drive/Gmail: read-only
+  // Sheets/Drive/Gmail: read-only (기존 시트), 단 createSheetWithData는 새 시트만 생성 (drive.file scope)
   listSheetTabs,
   readSheetRange,
+  createSheetWithData,
   listGmail,
   openGmailAttachment,
   // Calendar: read + WRITE (user explicitly authorized)

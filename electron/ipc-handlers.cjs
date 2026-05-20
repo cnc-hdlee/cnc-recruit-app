@@ -40,7 +40,8 @@ function register() {
   });
   safeHandle('g:listSheetTabs', async (id) => google.listSheetTabs(id));
   safeHandle('g:readSheet', async (id, range) => google.readSheetRange(id, range));
-  // No write IPC for Google Sheets — strictly read-only.
+  // Sheets: 기존 시트 절대 수정 안 함 — 단, drive.file scope로 새 시트만 생성 가능.
+  safeHandle('g:createSheet', async (title, headers, rows) => google.createSheetWithData(title, headers, rows));
   safeHandle('g:listGmail', async (q, max) => google.listGmail(q, max));
   safeHandle('g:openAttachment', async (messageId, filename, attachmentId) =>
     google.openGmailAttachment(messageId, filename, attachmentId));
