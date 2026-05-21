@@ -322,10 +322,13 @@ function GmailCard({ msg, candidateName }: { msg: GmailMsg; candidateName: strin
           setError(r.error || '첨부를 불러올 수 없습니다.');
           return;
         }
-        const byteChars = atob(r.data.base64);
-        const bytes = new Uint8Array(byteChars.length);
-        for (let i = 0; i < byteChars.length; i++) bytes[i] = byteChars.charCodeAt(i);
-        const blob = new Blob([bytes], { type: r.data.mimeType || 'application/octet-stream' });
+        // base64 → Blob 변환: 브라우저 내장 디코더에 위임 (fetch data URL).
+        // atob 동기 루프는 큰 PDF에서 메인 스레드를 막아 UI freeze 유발 → fetch는 비동기 + 내부적으로 worker pool 사용.
+        const mimeType = r.data.mimeType || 'application/pdf';
+        const res = await fetch(`data:${mimeType};base64,${r.data.base64}`);
+        if (cancelled) return;
+        const blob = await res.blob();
+        if (cancelled) return;
         const url = URL.createObjectURL(blob);
         blobUrlRef.current = url;
         if (!cancelled) setBlobUrl(url);
