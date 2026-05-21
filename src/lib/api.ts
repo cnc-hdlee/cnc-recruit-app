@@ -183,6 +183,7 @@ interface ElectronAPI {
     ): Promise<Result<{ spreadsheetId: string; url: string }>>;
     listGmail(q: string, max: number): Promise<Result<GmailMsg[]>>;
     openAttachment(messageId: string, filename: string, attachmentId?: string): Promise<Result<{ path: string }>>;
+    fetchAttachmentBase64(messageId: string, filename: string, attachmentId?: string): Promise<Result<{ base64: string; mimeType: string; filename: string }>>;
     listCalendar(min: string, max: string, id?: string): Promise<Result<GCalEvent[]>>;
     listCalendars(): Promise<Result<GCalListItem[]>>;
     listCalendarsFull(): Promise<Result<GCalListEntry[]>>;

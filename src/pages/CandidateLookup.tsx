@@ -1,7 +1,37 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLiveData, liveCalendarEventsNormalized } from '../store/liveData';
 import { api } from '../lib/api';
-import type { GmailMsg } from '../lib/api';
+import type { GmailMsg, GmailAttachmentInfo } from '../lib/api';
+
+// 후보자 이름 + 첨부 인포로부터 "이력서로 추정되는" 1개 첨부 추출 — CalendarPage 1~4순위 로직 단순화 버전.
+// 메모리 [면접 카드 첨부는 이력서만 — 사전질문지/평가표 절대 금지] 정책 준수.
+function pickResumeAttachment(infos: GmailAttachmentInfo[], candidateName: string): GmailAttachmentInfo | null {
+  if (!infos || infos.length === 0) return null;
+  const candidateNorm = (candidateName || '').replace(/[\s_\-.()\[\]·ㆍ／（）［］、,，]+/g, '');
+  if (candidateNorm.length < 2) {
+    // 이름 매칭 못함 — 메일 안에 EXCLUDE 아닌 doc 1개면 그것을 채택, 아니면 null
+    const docs = infos.filter(isDocFile).filter((a) => !EXCLUDE_RESUME.test(a.filename));
+    return docs.length === 1 ? docs[0] : null;
+  }
+  const norm = (s: string) => s.replace(/[\s_\-.()\[\]·ㆍ／（）［］、,，]+/g, '');
+  const filesWithName = infos.filter((a) => isDocFile(a) && norm(a.filename || '').includes(candidateNorm));
+  // 1순위: 이름 + RESUME 키워드 + EXCLUDE 없음
+  const exact = filesWithName.find((a) => RESUME_KEY.test(a.filename) && !EXCLUDE_RESUME.test(a.filename));
+  if (exact) return exact;
+  // 2순위: 이름 + EXCLUDE 없음
+  const looseButSafe = filesWithName.find((a) => !EXCLUDE_RESUME.test(a.filename));
+  if (looseButSafe) return looseButSafe;
+  // 3순위: 메일에 doc 1개고 EXCLUDE 아님
+  const allDocs = infos.filter((a) => isDocFile(a) && !EXCLUDE_RESUME.test(a.filename));
+  if (allDocs.length === 1) return allDocs[0];
+  return null;
+}
+const RESUME_KEY = /이력서|이력|resume|cv|portfolio|포트폴리오|자기소개서|자소서|지원서|입사지원|서류전형/i;
+const EXCLUDE_RESUME = /사전질문|질문지|평가표|평가서|평가지|면접평가|자기평가|인성검사|적성검사|체크리스트|온보딩|입사안내|일정공유|프로세스|가이드/i;
+function isDocFile(a: GmailAttachmentInfo): boolean {
+  if (a.mimeType?.startsWith('image/')) return false;
+  return /\.(pdf|hwp|hwpx|doc|docx|zip)$/i.test(a.filename || '');
+}
 
 interface SheetHit {
   spreadsheetTitle: string;
@@ -187,7 +217,7 @@ export function CandidateLookup() {
             ) : (
               <div className="space-y-2">
                 {bundle.gmailHits.map((m) => (
-                  <GmailCard key={m.id} msg={m} />
+                  <GmailCard key={m.id} msg={m} candidateName={submitted} />
                 ))}
               </div>
             )}
@@ -263,18 +293,128 @@ function CalCard({ hit }: { hit: CalHit }) {
   return inner;
 }
 
-function GmailCard({ msg }: { msg: GmailMsg }) {
-  const url = `https://mail.google.com/mail/u/0/#inbox/${msg.threadId}`;
+// 펼침 가능한 Gmail 카드 — 클릭하면 후보자 이력서 PDF를 앱 내 iframe으로 inline 표시.
+// 메모리: 새 창 안 띄움, 사용자 요청 "이력서 내용 자체가 펼쳐져서 보였으면 좋겠어. 새로운 창을 띄어주지는 말고"
+function GmailCard({ msg, candidateName }: { msg: GmailMsg; candidateName: string }) {
+  const [expanded, setExpanded] = useState(false);
+  const [blobUrl, setBlobUrl] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const blobUrlRef = useRef<string | null>(null);
+
+  const resumePick = useMemo(
+    () => pickResumeAttachment(msg.attachmentInfos || [], candidateName),
+    [msg.attachmentInfos, candidateName],
+  );
+
+  // 펼침 + 첨부 있음 → base64 fetch → Blob URL 생성. 펼침 해제 또는 unmount 시 URL revoke.
+  useEffect(() => {
+    if (!expanded || !resumePick) return;
+    if (blobUrl) return; // 이미 로드됨
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
+    void (async () => {
+      try {
+        const r = await api.google.fetchAttachmentBase64(msg.id, resumePick.filename, resumePick.attachmentId);
+        if (cancelled) return;
+        if (!r.ok || !r.data) {
+          setError(r.error || '첨부를 불러올 수 없습니다.');
+          return;
+        }
+        const byteChars = atob(r.data.base64);
+        const bytes = new Uint8Array(byteChars.length);
+        for (let i = 0; i < byteChars.length; i++) bytes[i] = byteChars.charCodeAt(i);
+        const blob = new Blob([bytes], { type: r.data.mimeType || 'application/octet-stream' });
+        const url = URL.createObjectURL(blob);
+        blobUrlRef.current = url;
+        if (!cancelled) setBlobUrl(url);
+      } catch (e) {
+        if (!cancelled) setError(e instanceof Error ? e.message : String(e));
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [expanded, resumePick, msg.id, blobUrl]);
+
+  useEffect(() => () => {
+    if (blobUrlRef.current) URL.revokeObjectURL(blobUrlRef.current);
+  }, []);
+
+  const gmailUrl = `https://mail.google.com/mail/u/0/#inbox/${msg.threadId}`;
+  const isPdf = resumePick?.mimeType === 'application/pdf' || /\.pdf$/i.test(resumePick?.filename || '');
+
   return (
-    <a href={url} target="_blank" rel="noopener noreferrer" className="block">
-      <div className="rounded-lg border border-rose-200 p-2.5 bg-rose-50/40 hover:bg-rose-50/70 transition">
+    <div className="rounded-lg border border-rose-200 bg-rose-50/40">
+      <button
+        type="button"
+        onClick={() => setExpanded((v) => !v)}
+        className="w-full text-left p-2.5 hover:bg-rose-50/70 transition rounded-lg"
+      >
         <div className="text-[10px] text-slate-500 mb-0.5 truncate">
           {new Date(msg.date).toLocaleString('ko-KR', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })} · {msg.from}
         </div>
-        <div className="text-[12px] font-bold text-slate-800 truncate">{msg.subject}</div>
-        <div className="text-[11px] text-slate-600 line-clamp-2 mt-0.5">{msg.snippet}</div>
-      </div>
-    </a>
+        <div className="flex items-center gap-1.5">
+          <span className="text-[12px] font-bold text-slate-900 truncate flex-1">{msg.subject}</span>
+          {resumePick && (
+            <span className="chip bg-rose-100 text-rose-700 text-[10px] font-bold whitespace-nowrap">📄 이력서</span>
+          )}
+          <span className="text-[10px] text-slate-500 whitespace-nowrap">{expanded ? '▲ 접기' : '▼ 펼치기'}</span>
+        </div>
+        <div className="text-[11px] text-slate-700 line-clamp-2 mt-0.5">{msg.snippet}</div>
+      </button>
+
+      {expanded && (
+        <div className="border-t border-rose-200 p-2.5 space-y-2">
+          {!resumePick ? (
+            <div className="text-[11px] text-slate-700 py-2">
+              이력서로 추정되는 첨부가 없습니다.{' '}
+              <a href={gmailUrl} target="_blank" rel="noopener noreferrer" className="text-indigo-600 font-bold hover:underline">
+                Gmail에서 열기 ↗
+              </a>
+            </div>
+          ) : (
+            <>
+              <div className="flex items-center gap-2 text-[11px] text-slate-700">
+                <span className="font-bold text-slate-900 truncate flex-1" title={resumePick.filename}>
+                  📎 {resumePick.filename}
+                </span>
+                <span className="text-slate-500">{Math.round((resumePick.size || 0) / 1024)} KB</span>
+                <button
+                  type="button"
+                  onClick={(ev) => {
+                    ev.stopPropagation();
+                    void (async () => {
+                      const r = await api.google.openAttachment(msg.id, resumePick.filename, resumePick.attachmentId);
+                      if (!r.ok) alert(`OS 뷰어 열기 실패: ${r.error || '알 수 없는 오류'}`);
+                    })();
+                  }}
+                  className="px-2 py-0.5 rounded text-[10px] font-bold bg-white border border-slate-300 text-slate-700 hover:bg-slate-50"
+                  title="OS 기본 PDF 뷰어로 열기 (별도 창)"
+                >
+                  ↗ OS 뷰어
+                </button>
+              </div>
+              {loading && <div className="text-[11px] text-slate-500 py-4 text-center">불러오는 중...</div>}
+              {error && <div className="text-[11px] text-rose-700 py-2">{error}</div>}
+              {blobUrl && isPdf && (
+                <iframe
+                  src={blobUrl}
+                  title={resumePick.filename}
+                  className="w-full h-[600px] rounded border border-slate-300 bg-white"
+                />
+              )}
+              {blobUrl && !isPdf && (
+                <div className="text-[11px] text-slate-700 py-2">
+                  PDF가 아닌 첨부({resumePick.mimeType || '알 수 없음'})는 앱 내 인라인 표시 불가 — 위 ↗ OS 뷰어 버튼을 사용하세요.
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      )}
+    </div>
   );
 }
 

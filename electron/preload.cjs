@@ -36,6 +36,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     createSheet: (title, headers, rows) => invoke('g:createSheet', title, headers, rows),
     listGmail: (q, max) => invoke('g:listGmail', q, max),
     openAttachment: (messageId, filename, attachmentId) => invoke('g:openAttachment', messageId, filename, attachmentId),
+    fetchAttachmentBase64: (messageId, filename, attachmentId) => invoke('g:fetchAttachmentBase64', messageId, filename, attachmentId),
     listCalendar: (min, max, id) => invoke('g:listCalendar', min, max, id),
     listCalendars: () => invoke('g:listCalendars'),
     listCalendarsFull: () => invoke('g:listCalendarsFull'),

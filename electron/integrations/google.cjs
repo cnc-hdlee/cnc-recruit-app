@@ -290,6 +290,40 @@ async function listGmail(query, max = 30) {
   return detailed;
 }
 
+// Gmail 첨부의 base64 raw + mimeType만 반환 — 렌더러에서 Blob URL로 만들어 iframe inline 표시.
+// CandidateLookup의 "앱 내에서 펼쳐 보기" UX에 사용. 새 창 안 띄움.
+async function fetchGmailAttachmentBase64(messageId, filename, attachmentId) {
+  const auth = buildClient();
+  const gmail = google.gmail({ version: 'v1', auth });
+  let attId = attachmentId;
+  let mimeType = '';
+  if (!attId) {
+    const det = await gmail.users.messages.get({ userId: 'me', id: messageId, format: 'full' });
+    const infos = [];
+    collectAttachmentNames(det.data.payload, infos);
+    const hit = infos.find((x) => x.filename === filename);
+    if (!hit) throw new Error(`첨부 "${filename}"을 찾을 수 없습니다.`);
+    attId = hit.attachmentId;
+    mimeType = hit.mimeType || '';
+  }
+  if (!mimeType) {
+    // attachmentId만 알고 mimeType 모르면 full fetch 한 번 더
+    const det = await gmail.users.messages.get({ userId: 'me', id: messageId, format: 'full' });
+    const infos = [];
+    collectAttachmentNames(det.data.payload, infos);
+    const hit = infos.find((x) => x.attachmentId === attId);
+    if (hit) mimeType = hit.mimeType || '';
+  }
+  const att = await gmail.users.messages.attachments.get({
+    userId: 'me',
+    messageId,
+    id: attId,
+  });
+  // Gmail API는 base64url 인코딩 — Blob 호환 base64로 변환 (URL-safe → standard)
+  const b64 = (att.data.data || '').replace(/-/g, '+').replace(/_/g, '/');
+  return { base64: b64, mimeType, filename };
+}
+
 // Gmail 첨부 다운로드 → 임시 폴더에 저장 → 시스템 기본 앱으로 open.
 // 사용처: 이력서 메일 박스 옆 PDF 버튼 클릭 → 바로 PDF Reader로 열림.
 async function openGmailAttachment(messageId, filename, attachmentId) {
@@ -514,6 +548,7 @@ module.exports = {
   createSheetWithData,
   listGmail,
   openGmailAttachment,
+  fetchGmailAttachmentBase64,
   // Calendar: read + WRITE (user explicitly authorized)
   listCalendar,
   listCalendars,
