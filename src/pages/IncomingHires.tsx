@@ -4,7 +4,6 @@ import { getTodayStr } from '../store';
 import { parseSheetDate, field, fmtDateLabel } from '../lib/sheetParse';
 import { rowsToObjects } from '../lib/sheetMapping';
 import { api } from '../lib/api';
-import { SHARED_CAL } from '../lib/sharedCalendars';
 
 // 입사안내 메일 발송 정보 — Gmail 발송함 검색 결과 1건
 interface OnboardingMail {
@@ -283,46 +282,41 @@ async function fetchOnboardingMails(): Promise<Map<string, OnboardingMail[]>> {
 // 입사 자동 등록 마커 — 우리가 만든 이벤트만 cleanup 대상이 되도록 description에 박아둠.
 const HIRE_AUTO_MARKER = '※ 입사예정자 시트에서 자동 등록';
 
-// 1일 1이벤트 정책 — 그날 입사자 N명을 한 줄 summary에 모두 나열, description에 상세표.
+// 1일 1이벤트 정책 — 그날 입사자 N명을 한 줄 summary에 소속(팀)과 함께 나열, description에 상세 HTML 표.
+// 메모리 [입사 이벤트는 노란색 + 소속·이름] 형식 준수.
 function buildHireDateSummary(rows: HireRow[]): string {
-  const names = rows.map((r) => r.name.trim()).filter(Boolean);
-  return `입사 - ${names.join(', ')} (${names.length}명)`;
+  const valid = rows.filter((r) => r.name.trim());
+  if (valid.length === 1) {
+    const r = valid[0];
+    return `입사 - ${r.name.trim()} (${r.team || '-'})`;
+  }
+  const parts = valid.map((r) => `${r.name.trim()}(${r.team || '-'})`);
+  return `입사 ${valid.length}명: ${parts.join('·')}`;
 }
 function buildHireDateDescription(rows: HireRow[]): string {
-  const approved = rows.filter((r) => r.approval === 'approved');
-  const pending = rows.filter((r) => r.approval === 'pending');
-  // unknown but with note → "결재상신예정/기타" 섹션
-  const other = rows.filter((r) => r.approval === 'unknown');
-  const fmt = (r: HireRow) => {
-    const team = r.team || '-';
-    const career = r.career + (r.birthYear ? `(${r.birthYear})` : '');
-    return `• ${r.name.trim()} — ${r.bonbu || '-'} / ${team} / ${r.job || '-'} / ${r.rank || '-'} / ${career || '-'} / ${r.gender || '-'} / ${r.site || '-'} / ${r.jikgu || '-'}`;
-  };
-  const totalLabel = `총 ${rows.length}명 입사 (` + [
-    approved.length > 0 ? `결재완료 ${approved.length}` : '',
-    pending.length > 0 ? `결재중 ${pending.length}` : '',
-    other.length > 0 ? `기타 ${other.length}` : '',
-  ].filter(Boolean).join(' / ') + ')';
-  const sep = '────────────────────────';
-  const parts: string[] = [totalLabel, '', sep];
-  if (approved.length > 0) {
-    parts.push(`✓ 결재완료 (${approved.length}명)`);
-    parts.push(...approved.map(fmt));
-    parts.push('');
+  // 메모리 [입사 캘린더는 결재 완료만] — approved만 받는 가정. 호출 측에서 이미 필터됨.
+  const dateLabel = rows[0]?.date ? rows[0].date.slice(5).replace('-', '/') : '';
+  const lines: string[] = [];
+  lines.push(`<h3>${dateLabel} 입사자 ${rows.length}명 (정규직 · 결재완료)</h3><br>`);
+  // 본부 + 팀으로 그룹핑
+  const groupKey = (r: HireRow) => `${r.bonbu || '-'} — ${r.team || '-'}`;
+  const groups = new Map<string, HireRow[]>();
+  for (const r of rows) {
+    const k = groupKey(r);
+    if (!groups.has(k)) groups.set(k, []);
+    groups.get(k)!.push(r);
   }
-  if (pending.length > 0) {
-    parts.push(`⏳ 결재중 (${pending.length}명)`);
-    parts.push(...pending.map(fmt));
-    parts.push('');
+  for (const [k, members] of groups) {
+    const first = members[0];
+    lines.push(`<b>■ ${k} (${members.length}명, ${first.site || '-'} / ${first.jikgu || '-'})</b><br>`);
+    for (const r of members) {
+      const career = r.career + (r.birthYear ? `, ${r.birthYear}년생` : '');
+      lines.push(`• ${r.name.trim()} — ${r.job || '-'} (${r.rank || '-'}/${career || '-'}, ${r.gender || '-'})<br>`);
+    }
+    lines.push('<br>');
   }
-  if (other.length > 0) {
-    parts.push(`📋 기타 (${other.length}명)`);
-    parts.push(...other.map(fmt));
-    parts.push('');
-  }
-  parts.push(sep);
-  parts.push(`${HIRE_AUTO_MARKER} (${getTodayStr()})`);
-  return parts.join('\n').replace(/\n+$/g, '\n').trim();
+  lines.push(`${HIRE_AUTO_MARKER} (${getTodayStr()})`);
+  return lines.join('\n');
 }
 
 export function IncomingHires() {
@@ -391,33 +385,13 @@ export function IncomingHires() {
     const calRes = await api.google.listCalendar(calStart, calEnd, hireCalId);
     const onboardingEvents = (calRes.ok && calRes.data) ? calRes.data : [];
 
-    // primary calendar에 동일 이름이 노란색(colorId=5) 입사 이벤트로 이미 등록되어 있으면 skip — 시각적 2중표시 방지.
-    // (과거 다른 Claude 세션이 primary에 직접 만든 임시 이벤트와 자동 캘린더가 같은 입사자를 양쪽에 띄우는 버그를 차단)
-    const primaryRes = await api.google.listCalendar(calStart, calEnd, 'primary');
-    const primaryEvents = (primaryRes.ok && primaryRes.data) ? primaryRes.data : [];
-    const primaryHireTextByDate = new Map<string, string>();
-    for (const e of primaryEvents) {
-      if (e.colorId !== '5') continue;
-      const text = `${e.summary || ''}\n${e.description || ''}`;
-      if (!text.includes('입사')) continue;
-      const dt = (e.start || '').slice(0, 10);
-      if (!dt) continue;
-      primaryHireTextByDate.set(dt, (primaryHireTextByDate.get(dt) || '') + '\n' + text);
-    }
-    const isCoveredOnPrimary = (r: HireRow) => {
-      const text = primaryHireTextByDate.get(r.date);
-      if (!text) return false;
-      return text.includes(r.name.trim());
-    };
-
-    // 날짜별 그룹핑 — 정책: 1일 1이벤트, summary에 모든 이름, description에 상세표
-    // (사용자 요청: "한개 입사 - 김차윤, 김위 ... 이런식으로 한개만 해 세부사항에 내용을 적으면 되잖아")
+    // 날짜별 그룹핑 — 정책: 1일 1이벤트, summary에 모든 이름+팀, description에 상세 HTML 표.
+    // 메모리 [입사 캘린더는 결재 완료만]: 결재완료(approved) 한정 등록. 결재중/결재상신예정은 제외.
     const eligible = allRows.filter((r) => {
-      if (r.approval === 'unknown' && !r.noteRaw) return false; // 비고 비어있는 unknown은 skip
+      if (r.approval !== 'approved') return false; // 결재완료만 등록
       if (r.date < today) return false;
       const key = `${r.date}|${r.name.trim()}`;
       if (dismissedHires.has(key)) return false;
-      if (isCoveredOnPrimary(r)) return false; // primary에 동일 입사자 노란색 이벤트 있으면 skip
       return true;
     });
     const byDate = new Map<string, HireRow[]>();
@@ -564,10 +538,11 @@ export function IncomingHires() {
       e.colorId === '5' && (e.description || '').includes(HIRE_AUTO_MARKER)
     );
     if (ourEvents.length === 0) return;
-    // 시트에 미래 입사자가 1명이라도 남아있는 날짜 = 유지 대상
+    // 시트에 미래 입사자(결재완료)가 1명이라도 남아있는 날짜 = 유지 대상.
+    // 메모리 [입사 캘린더는 결재 완료만] 정책에 맞춰 approved만 카운트.
     const validDates = new Set(
       allRows
-        .filter((r) => r.date >= today && !((r.approval === 'unknown') && !r.noteRaw))
+        .filter((r) => r.date >= today && r.approval === 'approved')
         .filter((r) => !dismissedHires.has(`${r.date}|${r.name.trim()}`))
         .map((r) => r.date)
     );
