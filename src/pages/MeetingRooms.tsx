@@ -1018,10 +1018,21 @@ function NewBookingModal({
   // "면접" 없는데 사용자가 수동으로 켜려 하면 confirm 한 번 띄워서 오동작 방지
   // (산업안전/일자리센터 등 비-면접 오염 방지). 장성민 같은 진짜 면접(직무명만 쓴 케이스)은
   // 사용자가 confirm 통과시켜 등록 가능.
-  const titleHasInterview = /면접/.test(title);
+  // 단, 차량(kind='car') 예약은 면접이 아니므로 면접 캘린더 등록을 처음부터 차단.
+  const selectedRoom = rooms.find((r) => r.id === roomId) || null;
+  const isCarBooking = selectedRoom?.kind === 'car';
+  const titleHasInterview = /면접/.test(title) && !isCarBooking;
   const [alsoInterview, setAlsoInterview] = useState(false);
-  useEffect(() => { setAlsoInterview(titleHasInterview); }, [titleHasInterview]);
+  useEffect(() => {
+    if (isCarBooking) { setAlsoInterview(false); return; }
+    setAlsoInterview(titleHasInterview);
+  }, [titleHasInterview, isCarBooking]);
   const handleAlsoInterviewToggle = (checked: boolean) => {
+    if (isCarBooking) {
+      // 차량 예약은 절대 면접 캘린더로 가지 않음 — "안성 채용박람회 참석"이 면접으로 잡혔던 사고 차단
+      alert('🚗 차량 예약은 면접이 아니므로 면접 캘린더에 등록할 수 없습니다.');
+      return;
+    }
     if (checked && !titleHasInterview) {
       const ok = window.confirm(
         `제목에 "면접" 단어가 없습니다.\n\n현재 제목: "${title || '(없음)'}"\n\n정말 면접 일정이 맞나요?\n` +
@@ -1069,8 +1080,10 @@ function NewBookingModal({
         setErr(r.error || '예약에 실패했습니다. (응답 ok=false, error 없음)');
         return;
       }
-      // 면접 캘린더에도 동시 등록 — 메모리 룰: colorId=3(보라), location 명시
-      if (alsoInterview) {
+      // 면접 캘린더에도 동시 등록 — 메모리 룰: colorId=3(보라), location 명시.
+      // 차량 예약일 때는 alsoInterview가 강제로 false라 진입 안 됨 (위 useEffect/handleAlsoInterviewToggle 가드).
+      // 한 번 더 방어: room.kind==='car'면 절대 면접 캘린더 insert 금지.
+      if (alsoInterview && room.kind !== 'car') {
         const interviewBody = {
           summary: title.trim(),
           description: (note.trim() ? note.trim() + '\n\n' : '') +
@@ -1170,20 +1183,27 @@ function NewBookingModal({
         {/* 면접 캘린더 동시 등록 — 제목에 "면접" 들어가면 자동 ON.
             "면접" 없는데 수동으로 켜려 하면 confirm으로 한 번 묻는다 (오염 방지 + 장성민 케이스 허용). */}
         <label
-          className={`flex items-center gap-2 p-2 rounded-md border cursor-pointer ${
-            alsoInterview ? 'bg-purple-50 border-purple-300' : 'bg-slate-50 border-slate-200'
+          className={`flex items-center gap-2 p-2 rounded-md border ${
+            isCarBooking
+              ? 'bg-slate-100 border-slate-200 opacity-60 cursor-not-allowed'
+              : alsoInterview
+                ? 'bg-purple-50 border-purple-300 cursor-pointer'
+                : 'bg-slate-50 border-slate-200 cursor-pointer'
           }`}
         >
           <input
             type="checkbox"
             checked={alsoInterview}
+            disabled={isCarBooking}
             onChange={(e) => handleAlsoInterviewToggle(e.target.checked)}
             className="w-4 h-4"
           />
           <span className="text-xs font-semibold text-slate-800">
             🟣 면접 캘린더에도 함께 등록 (보라색)
           </span>
-          {alsoInterview && titleHasInterview ? (
+          {isCarBooking ? (
+            <span className="ml-auto text-[10px] text-slate-500 font-bold">🚗 차량 예약은 등록 불가</span>
+          ) : alsoInterview && titleHasInterview ? (
             <span className="ml-auto text-[10px] text-purple-600 font-bold">자동 감지됨</span>
           ) : alsoInterview ? (
             <span className="ml-auto text-[10px] text-amber-700 font-bold">수동 확인됨</span>
