@@ -391,6 +391,25 @@ export function IncomingHires() {
     const calRes = await api.google.listCalendar(calStart, calEnd, hireCalId);
     const onboardingEvents = (calRes.ok && calRes.data) ? calRes.data : [];
 
+    // primary calendar에 동일 이름이 노란색(colorId=5) 입사 이벤트로 이미 등록되어 있으면 skip — 시각적 2중표시 방지.
+    // (과거 다른 Claude 세션이 primary에 직접 만든 임시 이벤트와 자동 캘린더가 같은 입사자를 양쪽에 띄우는 버그를 차단)
+    const primaryRes = await api.google.listCalendar(calStart, calEnd, 'primary');
+    const primaryEvents = (primaryRes.ok && primaryRes.data) ? primaryRes.data : [];
+    const primaryHireTextByDate = new Map<string, string>();
+    for (const e of primaryEvents) {
+      if (e.colorId !== '5') continue;
+      const text = `${e.summary || ''}\n${e.description || ''}`;
+      if (!text.includes('입사')) continue;
+      const dt = (e.start || '').slice(0, 10);
+      if (!dt) continue;
+      primaryHireTextByDate.set(dt, (primaryHireTextByDate.get(dt) || '') + '\n' + text);
+    }
+    const isCoveredOnPrimary = (r: HireRow) => {
+      const text = primaryHireTextByDate.get(r.date);
+      if (!text) return false;
+      return text.includes(r.name.trim());
+    };
+
     // 날짜별 그룹핑 — 정책: 1일 1이벤트, summary에 모든 이름, description에 상세표
     // (사용자 요청: "한개 입사 - 김차윤, 김위 ... 이런식으로 한개만 해 세부사항에 내용을 적으면 되잖아")
     const eligible = allRows.filter((r) => {
@@ -398,6 +417,7 @@ export function IncomingHires() {
       if (r.date < today) return false;
       const key = `${r.date}|${r.name.trim()}`;
       if (dismissedHires.has(key)) return false;
+      if (isCoveredOnPrimary(r)) return false; // primary에 동일 입사자 노란색 이벤트 있으면 skip
       return true;
     });
     const byDate = new Map<string, HireRow[]>();
