@@ -265,14 +265,13 @@ async function listGmail(query, max = 30) {
   const msgs = list.data.messages || [];
   const detailed = await Promise.all(
     msgs.map(async (m) => {
-      // format='metadata' — 첨부 본문 데이터는 제외하고 payload tree + attachmentId만 받음.
-      // 'full'은 base64 첨부 데이터까지 통째로 받아 응답 사이즈가 수~수십 MB까지 커져 느림.
-      // 첨부 본문은 펼침 시 g:fetchAttachmentBase64로 lazy fetch.
+      // format='full' — payload.parts 트리가 와야 collectAttachmentNames가 첨부 파일명/attachmentId를 walk할 수 있음.
+      // 'metadata'는 headers만 돌려주고 parts를 통째로 잘라내서 attachments가 항상 []로 비어 보였음 (이력서 매칭 전멸 원인).
+      // 첨부 본문 base64는 walk에서 무시되므로 메모리 부담은 일시적.
       const det = await gmail.users.messages.get({
         userId: 'me',
         id: m.id,
-        format: 'metadata',
-        metadataHeaders: ['From', 'To', 'Subject', 'Date'],
+        format: 'full',
       });
       const h = (name) => (det.data.payload?.headers || []).find((x) => x.name === name)?.value || '';
       const attachmentInfos = [];
