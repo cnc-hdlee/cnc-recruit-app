@@ -29,6 +29,7 @@ const NAV: NavItem[] = [
     badgeKey: 'todayIntv',
     subItems: [
       { id: 'insights', icon: '📊', label: '면접 인사이트' },
+      { id: 'funnel', icon: '🪜', label: '채용 Funnel' },
     ],
   },
   { id: 'rooms', icon: '🚪', label: '회의실 예약' },

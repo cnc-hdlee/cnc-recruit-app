@@ -9,6 +9,7 @@ export type TabKind =
   | 'field_pipeline' // 생산직 면접 내용 (현장직)
   | 'office_interview' // 면접 및 처우 현황 (사무직)
   | 'field_incoming' // 생산입사 예정자
+  | 'recruit_funnel' // 전형별 채용 funnel (시간 stamp 포함)
   | 'weekly_log'; // 위클리 업무
 
 export const TAB_KIND_LABELS: Record<TabKind, string> = {
@@ -19,6 +20,7 @@ export const TAB_KIND_LABELS: Record<TabKind, string> = {
   field_pipeline: '생산직 면접 내용 (현장직)',
   office_interview: '면접 및 처우 현황 (사무직)',
   field_incoming: '생산입사 예정자 (현장직)',
+  recruit_funnel: '전형별 채용 funnel (단계·시간 stamp)',
   weekly_log: '위클리 업무 로그',
 };
 
@@ -30,6 +32,7 @@ export const TAB_KIND_GROUPS: Record<TabKind, 'office' | 'field' | 'shared'> = {
   office_interview: 'office',
   field_pipeline: 'field',
   field_incoming: 'field',
+  recruit_funnel: 'shared',
   weekly_log: 'shared',
 };
 
@@ -52,6 +55,7 @@ export function suggestKind(tabName: string): TabKind | null {
   if (/(^|[^가-힣])(정규직|도급직)DB$/.test(norm)) return null;
   if (norm.includes('월별입퇴사') || norm.includes('입퇴사자추이')) return null;
 
+  if (norm.includes('funnel') || norm.includes('퍼널') || (norm.includes('전형') && (norm.includes('단계') || norm.includes('진행')))) return 'recruit_funnel';
   if (norm.includes('채용요청')) return 'recruit_request';
   if (norm.includes('입사예정') && (norm.includes('도급') || norm.includes('생산') || norm.includes('현장'))) return 'field_incoming';
   if (norm.includes('입사예정')) return 'incoming';

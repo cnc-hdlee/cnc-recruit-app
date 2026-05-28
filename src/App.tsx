@@ -13,6 +13,7 @@ import { Headcount } from './pages/Headcount';
 import { IncomingHires } from './pages/IncomingHires';
 import { CalendarPage } from './pages/CalendarPage';
 import { InterviewInsights } from './pages/InterviewInsights';
+import { RecruitFunnel } from './pages/RecruitFunnel';
 import { MeetingRooms } from './pages/MeetingRooms';
 import { JobCenters } from './pages/JobCenters';
 import { CandidateLookup } from './pages/CandidateLookup';
@@ -29,6 +30,7 @@ const PAGE_TITLES: Record<PageId, string> = {
   incoming: '입사예정자',
   calendar: '면접 캘린더',
   insights: '면접 인사이트',
+  funnel: '채용 Funnel (전형별 진행)',
   rooms: '회의실 예약',
   jobcenters: '일자리센터',
   lookup: '후보자 검색',
@@ -92,6 +94,7 @@ export default function App() {
           {page === 'incoming' && <IncomingHires />}
           {page === 'calendar' && <CalendarPage />}
           {page === 'insights' && <InterviewInsights />}
+          {page === 'funnel' && <RecruitFunnel />}
           {page === 'rooms' && <MeetingRooms />}
           {page === 'jobcenters' && <JobCenters />}
           {page === 'lookup' && <CandidateLookup />}
