@@ -47,7 +47,8 @@
 //   4. 사용자 정책 (메모리): 시트 절대 쓰기 안 함 — read-only.
 // ============================================================
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useLiveData, liveByKindOrScan } from '../store/liveData';
 
 // ============================================================
@@ -375,8 +376,27 @@ export function RecruitFunnel() {
   const rows = usingMock ? MOCK_FUNNEL : sheetRows;
 
   const positions = useMemo(() => buildPositions(rows), [rows]);
-  const [expandedKey, setExpandedKey] = useState<string | null>(null);
+  const [selectedKey, setSelectedKey] = useState<string | null>(null);
   const [showSpec, setShowSpec] = useState(false);
+
+  // 상세 뷰 진입 시 뒤로가기 키 처리
+  useEffect(() => {
+    if (!selectedKey) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setSelectedKey(null);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [selectedKey]);
+
+  const selectedIdx = selectedKey ? positions.findIndex((p) => p.key === selectedKey) : -1;
+  const selectedPosition = selectedIdx >= 0 ? positions[selectedIdx] : null;
+  const gotoPrev = () => {
+    if (selectedIdx > 0) setSelectedKey(positions[selectedIdx - 1].key);
+  };
+  const gotoNext = () => {
+    if (selectedIdx >= 0 && selectedIdx < positions.length - 1) setSelectedKey(positions[selectedIdx + 1].key);
+  };
 
   // 전체 KPI
   const kpi = useMemo(() => {
@@ -425,6 +445,22 @@ export function RecruitFunnel() {
       .sort((a, b) => b.total - a.total);
   }, [rows]);
 
+  // ───── 상세 뷰 모드 ─────
+  if (selectedPosition) {
+    return (
+      <PositionDetailView
+        position={selectedPosition}
+        allPositions={positions}
+        onBack={() => setSelectedKey(null)}
+        onPrev={selectedIdx > 0 ? gotoPrev : undefined}
+        onNext={selectedIdx < positions.length - 1 ? gotoNext : undefined}
+        onJump={(k) => setSelectedKey(k)}
+        usingMock={usingMock}
+      />
+    );
+  }
+
+  // ───── 목록 모드 ─────
   return (
     <div className="space-y-4">
       {/* 헤더 + 모드 배지 */}
@@ -477,8 +513,7 @@ export function RecruitFunnel() {
             <PositionCard
               key={p.key}
               p={p}
-              expanded={expandedKey === p.key}
-              onToggle={() => setExpandedKey(expandedKey === p.key ? null : p.key)}
+              onOpen={() => setSelectedKey(p.key)}
             />
           ))}
           {positions.length === 0 && (
@@ -557,7 +592,7 @@ function ChannelEfficiency({ stats }: { stats: { channel: string; total: number;
   );
 }
 
-function PositionCard({ p, expanded, onToggle }: { p: PositionFunnel; expanded: boolean; onToggle: () => void }) {
+function PositionCard({ p, onOpen }: { p: PositionFunnel; onOpen: () => void }) {
   const total = p.counts.resume;
   const stages = [
     { key: 'resume', label: '이력서', count: total, color: 'bg-slate-400' },
@@ -575,120 +610,493 @@ function PositionCard({ p, expanded, onToggle }: { p: PositionFunnel; expanded: 
   })();
 
   return (
-    <div className="rounded-lg border border-slate-200 bg-white overflow-hidden">
-      <button
-        onClick={onToggle}
-        className="w-full px-4 py-3 flex items-start gap-3 text-left hover:bg-slate-50"
-      >
-        <div className="flex-1 min-w-0">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="font-bold text-slate-900">{p.team}</span>
-            {p.job && <span className="text-sm text-slate-700">· {p.job}</span>}
-            <span className={`chip border ${priChip}`}>{p.priority || '미정'}</span>
-            {p.type && <span className="chip bg-slate-100 text-slate-700 border border-slate-300">{p.type}</span>}
-            {p.site && <span className="chip bg-indigo-50 text-indigo-700 border border-indigo-200">{p.site}</span>}
-            {p.positionId && <span className="text-[10px] font-mono text-slate-500">{p.positionId}</span>}
-          </div>
-          <div className="text-xs text-slate-600 mt-0.5">{p.hq}</div>
+    <button
+      onClick={onOpen}
+      className="w-full px-4 py-3 flex items-start gap-3 text-left rounded-lg border border-slate-200 bg-white hover:bg-violet-50 hover:border-violet-300 hover:shadow-md transition-all group"
+    >
+      <div className="flex-1 min-w-0">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="font-bold text-slate-900">{p.team}</span>
+          {p.job && <span className="text-sm text-slate-700">· {p.job}</span>}
+          <span className={`chip border ${priChip}`}>{p.priority || '미정'}</span>
+          {p.type && <span className="chip bg-slate-100 text-slate-700 border border-slate-300">{p.type}</span>}
+          {p.site && <span className="chip bg-indigo-50 text-indigo-700 border border-indigo-200">{p.site}</span>}
+          {p.positionId && <span className="text-[10px] font-mono text-slate-500">{p.positionId}</span>}
+          <span className="ml-auto text-[11px] text-violet-700 font-bold group-hover:translate-x-0.5 transition-transform">
+            상세 보기 →
+          </span>
+        </div>
+        <div className="text-xs text-slate-600 mt-0.5">{p.hq} · 후보자 {p.candidates.length}명</div>
 
-          {/* Funnel 바 */}
-          <div className="mt-3 flex items-stretch gap-1">
-            {stages.map((s, i) => {
-              const w = Math.max((s.count / Math.max(total, 1)) * 100, 8);
-              const prev = i > 0 ? stages[i - 1].count : null;
-              const drop = prev !== null && prev > 0 ? Math.round(((prev - s.count) / prev) * 100) : null;
-              return (
-                <div key={s.key} className="flex-1 flex flex-col items-center min-w-0">
-                  <div className="w-full h-8 bg-slate-100 rounded relative overflow-hidden">
-                    <div className={`absolute inset-y-0 left-0 ${s.color}`} style={{ width: `${w}%` }} />
-                    <div className="absolute inset-0 flex items-center justify-center text-xs font-bold text-white drop-shadow">
-                      {s.count}
-                    </div>
+        {/* Funnel 바 */}
+        <div className="mt-3 flex items-stretch gap-1">
+          {stages.map((s, i) => {
+            const w = Math.max((s.count / Math.max(total, 1)) * 100, 8);
+            const prev = i > 0 ? stages[i - 1].count : null;
+            const drop = prev !== null && prev > 0 ? Math.round(((prev - s.count) / prev) * 100) : null;
+            return (
+              <div key={s.key} className="flex-1 flex flex-col items-center min-w-0">
+                <div className="w-full h-8 bg-slate-100 rounded relative overflow-hidden">
+                  <div className={`absolute inset-y-0 left-0 ${s.color}`} style={{ width: `${w}%` }} />
+                  <div className="absolute inset-0 flex items-center justify-center text-xs font-bold text-white drop-shadow">
+                    {s.count}
                   </div>
-                  <div className="text-[10px] mt-1 text-slate-700 truncate w-full text-center">{s.label}</div>
-                  {drop !== null && i > 0 && (
-                    <div className={`text-[9px] ${drop > 50 ? 'text-rose-600' : 'text-slate-500'}`}>
-                      {drop > 0 ? `-${drop}%` : '동일'}
-                    </div>
-                  )}
+                </div>
+                <div className="text-[10px] mt-1 text-slate-700 truncate w-full text-center">{s.label}</div>
+                {drop !== null && i > 0 && (
+                  <div className={`text-[9px] ${drop > 50 ? 'text-rose-600' : 'text-slate-500'}`}>
+                    {drop > 0 ? `-${drop}%` : '동일'}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+
+        {/* 평균 소요 + 최근 활동 */}
+        <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-slate-600">
+          {p.avg.resumeToFirst !== null && <span>이력서→1차 평균 <b className="text-slate-900">{p.avg.resumeToFirst}일</b></span>}
+          {p.avg.firstToOffer !== null && <span>1차→오퍼 평균 <b className="text-slate-900">{p.avg.firstToOffer}일</b></span>}
+          {p.recent && (
+            <span className="ml-auto">
+              최근: <b className="text-slate-900">{p.recent.name}</b> {p.recent.what} <span className="text-slate-500">({fmtAgo(p.recent.at)})</span>
+            </span>
+          )}
+        </div>
+      </div>
+    </button>
+  );
+}
+
+// ============================================================
+//  Level 2 — 포지션 상세 풀스크린 뷰
+// ============================================================
+
+interface DetailViewProps {
+  position: PositionFunnel;
+  allPositions: PositionFunnel[];
+  onBack: () => void;
+  onPrev?: () => void;
+  onNext?: () => void;
+  onJump: (key: string) => void;
+  usingMock: boolean;
+}
+
+function PositionDetailView({ position: p, allPositions, onBack, onPrev, onNext, onJump, usingMock }: DetailViewProps) {
+  const [openCandidate, setOpenCandidate] = useState<string | null>(null);
+  const idx = allPositions.findIndex((x) => x.key === p.key);
+
+  const priChip = (() => {
+    if (/즉시/.test(p.priority)) return 'bg-rose-100 text-rose-800 border-rose-300';
+    if (/결재/.test(p.priority)) return 'bg-amber-100 text-amber-800 border-amber-300';
+    return 'bg-slate-100 text-slate-700 border-slate-300';
+  })();
+
+  const total = p.counts.resume;
+  const stages = [
+    { label: '이력서 입수', count: total, color: 'from-slate-400 to-slate-500' },
+    { label: '서류 합격', count: p.counts.screeningPass, color: 'from-violet-400 to-violet-500' },
+    { label: '1차 합격', count: p.counts.firstPass, color: 'from-violet-500 to-violet-600' },
+    { label: '2차 합격', count: p.counts.secondPass, color: 'from-violet-600 to-violet-700' },
+    { label: '오퍼 발송', count: p.counts.offer, color: 'from-emerald-500 to-emerald-600' },
+    { label: '입사 확정', count: p.counts.hired, color: 'from-emerald-600 to-emerald-700' },
+  ];
+
+  // 채널 분포 (이 포지션 한정)
+  const channelDist = (() => {
+    const m = new Map<string, number>();
+    for (const c of p.candidates) {
+      const ch = c.channel || '기타';
+      m.set(ch, (m.get(ch) || 0) + 1);
+    }
+    return Array.from(m.entries()).sort((a, b) => b[1] - a[1]);
+  })();
+
+  const openIdx = openCandidate ? p.candidates.findIndex((c) => c.name === openCandidate) : -1;
+  const openCand = openIdx >= 0 ? p.candidates[openIdx] : null;
+
+  return (
+    <div className="space-y-4">
+      {/* 상단 네비 */}
+      <div className="flex flex-wrap items-center gap-2 bg-white rounded-xl border border-slate-200 px-4 py-3 shadow-sm">
+        <button
+          onClick={onBack}
+          className="px-3 py-1.5 text-sm rounded-md bg-slate-100 hover:bg-slate-200 text-slate-900 font-medium"
+        >
+          ← 전체 목록
+        </button>
+        <div className="flex items-center gap-1">
+          <button
+            onClick={onPrev}
+            disabled={!onPrev}
+            className="px-2.5 py-1.5 text-sm rounded-md border border-slate-300 bg-white text-slate-900 hover:bg-slate-50 disabled:opacity-30 disabled:cursor-not-allowed"
+            title="이전 전형"
+          >
+            ◀
+          </button>
+          <span className="text-xs text-slate-600 px-1 font-mono">
+            {idx + 1} / {allPositions.length}
+          </span>
+          <button
+            onClick={onNext}
+            disabled={!onNext}
+            className="px-2.5 py-1.5 text-sm rounded-md border border-slate-300 bg-white text-slate-900 hover:bg-slate-50 disabled:opacity-30 disabled:cursor-not-allowed"
+            title="다음 전형"
+          >
+            ▶
+          </button>
+        </div>
+        <select
+          value={p.key}
+          onChange={(e) => onJump(e.target.value)}
+          className="text-sm rounded-md border border-slate-300 bg-white text-slate-900 px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-violet-400 min-w-[260px]"
+        >
+          {allPositions.map((q) => (
+            <option key={q.key} value={q.key}>
+              {q.team} {q.job ? `· ${q.job}` : ''} ({q.candidates.length}명)
+            </option>
+          ))}
+        </select>
+        {usingMock && (
+          <span className="chip bg-amber-100 text-amber-900 border border-amber-300">⚠ Mock</span>
+        )}
+        <span className="ml-auto text-[11px] text-slate-500">ESC 키 → 목록</span>
+      </div>
+
+      {/* 포지션 헤더 */}
+      <div className="bg-gradient-to-r from-violet-50 via-indigo-50 to-violet-50 rounded-xl border border-violet-200 px-5 py-4 shadow-sm">
+        <div className="flex flex-wrap items-center gap-2">
+          <h1 className="text-2xl font-bold text-slate-900">{p.team}</h1>
+          {p.job && <span className="text-xl text-slate-700">· {p.job}</span>}
+          <span className={`chip border ${priChip} text-xs`}>{p.priority || '미정'}</span>
+          {p.type && <span className="chip bg-white text-slate-700 border border-slate-300 text-xs">{p.type}</span>}
+          {p.site && <span className="chip bg-indigo-100 text-indigo-800 border border-indigo-300 text-xs">{p.site}</span>}
+        </div>
+        <div className="text-sm text-slate-700 mt-1">
+          {p.hq}{p.positionId && <span className="ml-3 font-mono text-xs text-slate-500">[{p.positionId}]</span>}
+        </div>
+      </div>
+
+      {/* 메인 그리드: 좌측 메타 + 우측 funnel */}
+      <div className="grid grid-cols-1 lg:grid-cols-[280px,1fr] gap-4">
+        {/* 좌측: 메타 + 채널 분포 + 평균 */}
+        <div className="space-y-3">
+          <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
+            <h3 className="text-xs font-bold text-slate-600 uppercase tracking-wider mb-3">전형 통계</h3>
+            <div className="space-y-2.5">
+              <Stat label="총 후보자" value={`${p.candidates.length}명`} />
+              <Stat label="진행 중" value={`${p.candidates.filter(isAlive).length}명`} />
+              <Stat label="입사 확정" value={`${p.counts.hired}명`} accent="emerald" />
+              <Stat label="탈락/이탈" value={`${p.candidates.filter((c) => !isAlive(c)).length}명`} accent="rose" />
+              {p.avg.resumeToFirst !== null && <Stat label="이력서→1차 평균" value={`${p.avg.resumeToFirst}일`} />}
+              {p.avg.firstToOffer !== null && <Stat label="1차→오퍼 평균" value={`${p.avg.firstToOffer}일`} />}
+              {p.avg.resumeToHire !== null && <Stat label="이력서→입사 평균" value={`${p.avg.resumeToHire}일`} />}
+            </div>
+          </div>
+
+          <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
+            <h3 className="text-xs font-bold text-slate-600 uppercase tracking-wider mb-3">채널 분포</h3>
+            {channelDist.length === 0 && <div className="text-xs text-slate-500">채널 정보 없음</div>}
+            {channelDist.map(([ch, n]) => {
+              const max = channelDist[0][1];
+              return (
+                <div key={ch} className="mb-2">
+                  <div className="flex justify-between text-xs">
+                    <span className="text-slate-900 font-medium">{ch}</span>
+                    <span className="text-slate-600">{n}명</span>
+                  </div>
+                  <div className="h-1.5 bg-slate-100 rounded mt-0.5 overflow-hidden">
+                    <div className="h-full bg-violet-500" style={{ width: `${(n / max) * 100}%` }} />
+                  </div>
                 </div>
               );
             })}
           </div>
 
-          {/* 평균 소요 + 최근 활동 */}
-          <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-slate-600">
-            {p.avg.resumeToFirst !== null && <span>이력서→1차 평균 <b className="text-slate-900">{p.avg.resumeToFirst}일</b></span>}
-            {p.avg.firstToOffer !== null && <span>1차→오퍼 평균 <b className="text-slate-900">{p.avg.firstToOffer}일</b></span>}
-            {p.recent && (
-              <span className="ml-auto">
-                최근: <b className="text-slate-900">{p.recent.name}</b> {p.recent.what} <span className="text-slate-500">({fmtAgo(p.recent.at)})</span>
-              </span>
-            )}
+          {p.recent && (
+            <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
+              <h3 className="text-xs font-bold text-slate-600 uppercase tracking-wider mb-2">최근 활동</h3>
+              <div className="text-sm">
+                <b className="text-slate-900">{p.recent.name}</b>
+                <span className="text-slate-700"> {p.recent.what}</span>
+              </div>
+              <div className="text-xs text-slate-500 mt-0.5 font-mono">
+                {p.recent.at} <span className="text-slate-400">({fmtAgo(p.recent.at)})</span>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* 우측: 큰 funnel + 후보자 그리드 */}
+        <div className="space-y-3">
+          {/* 큰 Funnel */}
+          <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
+            <h3 className="text-sm font-bold text-slate-900 mb-4">Funnel — 단계별 통과 인원</h3>
+            <div className="space-y-2">
+              {stages.map((s, i) => {
+                const w = Math.max((s.count / Math.max(total, 1)) * 100, 5);
+                const prev = i > 0 ? stages[i - 1].count : null;
+                const drop = prev !== null && prev > 0 ? Math.round(((prev - s.count) / prev) * 100) : null;
+                return (
+                  <div key={s.label} className="flex items-center gap-3">
+                    <div className="w-24 text-right text-xs font-medium text-slate-700">{s.label}</div>
+                    <div className="flex-1 h-9 bg-slate-100 rounded relative overflow-hidden">
+                      <div
+                        className={`absolute inset-y-0 left-0 bg-gradient-to-r ${s.color} flex items-center justify-end pr-3`}
+                        style={{ width: `${w}%` }}
+                      >
+                        <span className="text-sm font-bold text-white drop-shadow">{s.count}명</span>
+                      </div>
+                    </div>
+                    <div className="w-20 text-xs text-right">
+                      {drop !== null && i > 0 && (
+                        <span className={drop > 50 ? 'text-rose-600 font-bold' : 'text-slate-600'}>
+                          {drop > 0 ? `−${drop}%` : '동일'}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* 후보자 그리드 */}
+          <div className="bg-white rounded-xl border border-slate-200 shadow-sm">
+            <div className="px-4 py-3 border-b border-slate-200 flex items-center justify-between">
+              <h3 className="text-sm font-bold text-slate-900">후보자 {p.candidates.length}명</h3>
+              <span className="text-[11px] text-slate-500">카드 클릭 → 단계별 디테일</span>
+            </div>
+            <div className="p-3 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2.5 max-h-[640px] overflow-y-auto">
+              {p.candidates.map((c) => (
+                <CandidateMiniCard
+                  key={`${c.name}-${c.resumeAt}`}
+                  c={c}
+                  onOpen={() => setOpenCandidate(c.name)}
+                />
+              ))}
+            </div>
           </div>
         </div>
-        <span className="text-slate-400 text-lg">{expanded ? '▾' : '▸'}</span>
-      </button>
+      </div>
 
-      {/* 펼침: 후보자별 타임라인 */}
-      {expanded && (
-        <div className="border-t border-slate-200 bg-slate-50/50 p-3 space-y-2">
-          {p.candidates.map((c) => (
-            <CandidateTimeline key={`${c.name}-${c.resumeAt}`} c={c} />
-          ))}
-        </div>
+      {/* Level 3 모달 */}
+      {openCand && (
+        <CandidateDetailModal
+          candidate={openCand}
+          allCandidates={p.candidates}
+          onClose={() => setOpenCandidate(null)}
+          onPrev={openIdx > 0 ? () => setOpenCandidate(p.candidates[openIdx - 1].name) : undefined}
+          onNext={openIdx < p.candidates.length - 1 ? () => setOpenCandidate(p.candidates[openIdx + 1].name) : undefined}
+        />
       )}
     </div>
   );
 }
 
-function CandidateTimeline({ c }: { c: CandidateRow }) {
+function Stat({ label, value, accent }: { label: string; value: string; accent?: 'emerald' | 'rose' }) {
+  const color = accent === 'emerald' ? 'text-emerald-700' : accent === 'rose' ? 'text-rose-700' : 'text-slate-900';
+  return (
+    <div className="flex justify-between items-baseline">
+      <span className="text-xs text-slate-600">{label}</span>
+      <span className={`text-sm font-bold ${color}`}>{value}</span>
+    </div>
+  );
+}
+
+function CandidateMiniCard({ c, onOpen }: { c: CandidateRow; onOpen: () => void }) {
+  const stage = currentStage(c);
+  const alive = isAlive(c);
+  const dotColor = !alive ? 'bg-slate-300'
+    : stage === 'hired' ? 'bg-emerald-500'
+    : stage === 'offer' || stage === 'negotiation' ? 'bg-emerald-400'
+    : stage === 'second' ? 'bg-violet-600'
+    : stage === 'first' ? 'bg-violet-500'
+    : stage === 'screening' ? 'bg-violet-400'
+    : 'bg-slate-400';
+
+  return (
+    <button
+      onClick={onOpen}
+      className={`text-left rounded-lg border bg-white hover:border-violet-400 hover:shadow-md transition-all p-3 ${alive ? 'border-slate-200' : 'border-slate-200 opacity-70'}`}
+    >
+      <div className="flex items-center gap-2">
+        <span className={`w-2 h-2 rounded-full ${dotColor}`} />
+        <span className="font-bold text-slate-900">{c.name}</span>
+        {c.channel && <span className="text-[10px] text-slate-600 ml-auto">{c.channel}</span>}
+      </div>
+      <div className="text-[11px] text-slate-700 mt-1">
+        {alive ? `🟢 ${stageLabel(stage)}` : `⚪ ${c.finalStatus || '종료'}`}
+      </div>
+      {c.resumeAt && (
+        <div className="text-[10px] text-slate-500 mt-0.5 font-mono">
+          이력서: {c.resumeAt}
+        </div>
+      )}
+      <div className="mt-2 text-[11px] text-violet-700 font-semibold">
+        자세히 보기 →
+      </div>
+    </button>
+  );
+}
+
+// ============================================================
+//  Level 3 — 후보자 디테일 모달 (모든 단계 + 시간 stamp)
+// ============================================================
+
+function CandidateDetailModal({
+  candidate: c,
+  allCandidates,
+  onClose,
+  onPrev,
+  onNext,
+}: {
+  candidate: CandidateRow;
+  allCandidates: CandidateRow[];
+  onClose: () => void;
+  onPrev?: () => void;
+  onNext?: () => void;
+}) {
+  // ESC + 화살표 키
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+      else if (e.key === 'ArrowLeft' && onPrev) onPrev();
+      else if (e.key === 'ArrowRight' && onNext) onNext();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose, onPrev, onNext]);
+
+  const idx = allCandidates.findIndex((x) => x.name === c.name);
   const stage = currentStage(c);
   const alive = isAlive(c);
 
-  const steps = [
-    { key: 'resume', label: '이력서 입수', at: c.resumeAt, result: c.resumeAt ? 'pass' as StageResult : 'pending' as StageResult },
-    { key: 'screening', label: '서류 전형', at: c.screeningAt, result: classifyResult(c.screeningResult) },
-    { key: 'first', label: '1차 면접', at: c.firstResolvedAt || c.first1ScheduledAt, result: classifyResult(c.firstResult), scheduled: c.first1ScheduledAt && !c.firstResolvedAt },
-    { key: 'second', label: '2차 면접', at: c.secondResolvedAt || c.second2ScheduledAt, result: classifyResult(c.secondResult), scheduled: c.second2ScheduledAt && !c.secondResolvedAt },
-    { key: 'nego', label: '처우 협의', at: c.negoResolvedAt || c.negoStartedAt, result: c.negoResolvedAt ? 'pass' as StageResult : c.negoStartedAt ? 'pending' as StageResult : 'pending' as StageResult, untouched: !c.negoStartedAt && !c.negoResolvedAt },
-    { key: 'offer', label: '합격 안내', at: c.offerSentAt, result: c.offerSentAt ? 'pass' as StageResult : 'pending' as StageResult, untouched: !c.offerSentAt },
-    { key: 'hired', label: '입사', at: c.joinPlannedAt, result: c.joinPlannedAt ? 'pass' as StageResult : 'pending' as StageResult, untouched: !c.joinPlannedAt },
+  const timeline = [
+    { key: 'resume',     label: '이력서 입수',     plannedAt: '',                 resolvedAt: c.resumeAt,          result: c.resumeAt ? 'pass' : '',  detail: c.channel ? `채널: ${c.channel}` : '' },
+    { key: 'screening',  label: '서류 전형',       plannedAt: '',                 resolvedAt: c.screeningAt,      result: c.screeningResult,         detail: '' },
+    { key: 'first',      label: '1차 면접',        plannedAt: c.first1ScheduledAt, resolvedAt: c.firstResolvedAt,  result: c.firstResult,             detail: '' },
+    { key: 'second',     label: '2차 면접',        plannedAt: c.second2ScheduledAt, resolvedAt: c.secondResolvedAt, result: c.secondResult,           detail: '' },
+    { key: 'nego',       label: '처우 협의',       plannedAt: c.negoStartedAt,     resolvedAt: c.negoResolvedAt,   result: c.negoResolvedAt ? 'pass' : c.negoStartedAt ? '진행중' : '', detail: '' },
+    { key: 'offer',      label: '최종 합격 안내',  plannedAt: '',                 resolvedAt: c.offerSentAt,      result: c.offerSentAt ? 'pass' : '', detail: c.offerSentAt ? '메일 발송 완료' : '' },
+    { key: 'hired',      label: '입사',            plannedAt: c.joinPlannedAt,    resolvedAt: '',                 result: /입사확정|입사완료/.test(c.finalStatus) ? 'pass' : '', detail: c.finalStatus },
   ];
 
-  return (
-    <div className={`rounded-md border bg-white p-3 ${alive ? 'border-slate-200' : 'border-slate-200 opacity-70'}`}>
-      <div className="flex flex-wrap items-center gap-2 mb-2">
-        <span className="font-bold text-slate-900">{c.name}</span>
-        {c.channel && <span className="chip bg-slate-100 text-slate-700 border border-slate-300 text-[10px]">{c.channel}</span>}
-        <span className={`chip text-[10px] ${alive ? 'bg-emerald-100 text-emerald-800 border border-emerald-300' : 'bg-slate-100 text-slate-600 border border-slate-300'}`}>
-          {alive ? `🟢 진행 중 · ${stageLabel(stage)}` : `⚪ ${c.finalStatus || '종료'}`}
-        </span>
-        {c.note && <span className="text-[11px] text-slate-600 ml-auto truncate max-w-[280px]">📝 {c.note}</span>}
-      </div>
-      <div className="flex items-stretch gap-1">
-        {steps.map((s, i) => {
-          const filled = s.at && (s.result === 'pass' || s.result === 'pending' || s.scheduled);
-          const failed = s.result === 'fail' || s.result === 'drop';
-          const untouched = !s.at && s.untouched;
-          const color = failed ? 'bg-rose-100 border-rose-300 text-rose-800'
-            : s.result === 'pass' && s.at ? 'bg-emerald-100 border-emerald-300 text-emerald-800'
-            : s.scheduled ? 'bg-violet-100 border-violet-300 text-violet-800'
-            : filled ? 'bg-slate-100 border-slate-300 text-slate-700'
-            : 'bg-slate-50 border-slate-200 text-slate-400';
-          return (
-            <div key={s.key} className={`flex-1 rounded border ${color} px-2 py-1.5 min-w-0`}>
-              <div className="text-[10px] font-semibold truncate">{s.label}</div>
-              <div className="text-[10px] mt-0.5 font-mono truncate">
-                {s.at || (untouched ? '—' : '대기')}
-              </div>
-              {failed && <div className="text-[9px] mt-0.5">탈락</div>}
-              {s.scheduled && <div className="text-[9px] mt-0.5">예정</div>}
-              {i < steps.length - 1 && <div className="hidden" />}
+  return createPortal(
+    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-6 animate-fade-in" onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[92vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+        {/* 헤더 */}
+        <div className="px-5 py-4 border-b border-slate-200 flex items-center gap-3 bg-gradient-to-r from-violet-50 to-indigo-50">
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2">
+              <h2 className="text-xl font-bold text-slate-900">{c.name}</h2>
+              <span className={`chip text-xs ${alive ? 'bg-emerald-100 text-emerald-800 border border-emerald-300' : 'bg-slate-100 text-slate-600 border border-slate-300'}`}>
+                {alive ? `🟢 ${stageLabel(stage)}` : `⚪ ${c.finalStatus || '종료'}`}
+              </span>
             </div>
-          );
-        })}
+            <div className="text-xs text-slate-700 mt-1">
+              {c.team}{c.job ? ` · ${c.job}` : ''} · {c.hq}
+              {c.channel && <span className="ml-2">📥 {c.channel}</span>}
+            </div>
+          </div>
+          <div className="flex items-center gap-1">
+            <button onClick={onPrev} disabled={!onPrev} className="px-2 py-1.5 text-sm rounded-md border border-slate-300 bg-white text-slate-900 hover:bg-slate-50 disabled:opacity-30 disabled:cursor-not-allowed" title="이전 후보자 (←)">◀</button>
+            <span className="text-xs text-slate-600 px-1 font-mono">{idx + 1} / {allCandidates.length}</span>
+            <button onClick={onNext} disabled={!onNext} className="px-2 py-1.5 text-sm rounded-md border border-slate-300 bg-white text-slate-900 hover:bg-slate-50 disabled:opacity-30 disabled:cursor-not-allowed" title="다음 후보자 (→)">▶</button>
+            <button onClick={onClose} className="ml-2 w-8 h-8 rounded-md hover:bg-slate-200 grid place-items-center text-slate-700" title="닫기 (ESC)">✕</button>
+          </div>
+        </div>
+
+        {/* 바디: 타임라인 */}
+        <div className="flex-1 overflow-y-auto p-5 space-y-4">
+          <div>
+            <h3 className="text-xs font-bold text-slate-600 uppercase tracking-wider mb-3">단계별 타임라인</h3>
+            <ol className="relative border-l-2 border-slate-200 ml-3 space-y-4">
+              {timeline.map((t) => {
+                const r = classifyResult(t.result);
+                const has = t.plannedAt || t.resolvedAt;
+                const dotColor = !has ? 'bg-slate-200 border-slate-300'
+                  : r === 'pass' ? 'bg-emerald-500 border-emerald-600'
+                  : r === 'fail' ? 'bg-rose-500 border-rose-600'
+                  : r === 'drop' ? 'bg-slate-400 border-slate-500'
+                  : 'bg-violet-500 border-violet-600';
+                const resultBadge = !has ? null
+                  : r === 'pass' ? <span className="chip bg-emerald-100 text-emerald-800 border border-emerald-300 text-[10px]">✓ {t.result || '완료'}</span>
+                  : r === 'fail' ? <span className="chip bg-rose-100 text-rose-800 border border-rose-300 text-[10px]">✗ {t.result}</span>
+                  : r === 'drop' ? <span className="chip bg-slate-100 text-slate-700 border border-slate-300 text-[10px]">⊘ {t.result}</span>
+                  : <span className="chip bg-violet-100 text-violet-800 border border-violet-300 text-[10px]">⏳ {t.result || '대기'}</span>;
+                return (
+                  <li key={t.key} className="ml-4">
+                    <span className={`absolute -left-[9px] w-4 h-4 rounded-full border-2 ${dotColor}`} />
+                    <div className="bg-white rounded-lg border border-slate-200 p-3">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-bold text-slate-900">{t.label}</span>
+                        {resultBadge}
+                      </div>
+                      {(t.plannedAt || t.resolvedAt) && (
+                        <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                          {t.plannedAt && (
+                            <div className="rounded bg-violet-50 border border-violet-200 px-2.5 py-1.5">
+                              <div className="text-[10px] text-violet-700 font-bold uppercase tracking-wider">예정</div>
+                              <div className="font-mono text-slate-900 mt-0.5">{t.plannedAt}</div>
+                              <div className="text-[10px] text-slate-500 mt-0.5">{fmtAgo(t.plannedAt)}</div>
+                            </div>
+                          )}
+                          {t.resolvedAt && (
+                            <div className="rounded bg-slate-50 border border-slate-200 px-2.5 py-1.5">
+                              <div className="text-[10px] text-slate-700 font-bold uppercase tracking-wider">확정</div>
+                              <div className="font-mono text-slate-900 mt-0.5">{t.resolvedAt}</div>
+                              <div className="text-[10px] text-slate-500 mt-0.5">{fmtAgo(t.resolvedAt)}</div>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                      {t.detail && <div className="text-xs text-slate-700 mt-2">{t.detail}</div>}
+                      {!has && <div className="text-xs text-slate-400 mt-1">아직 진행 안 됨</div>}
+                    </div>
+                  </li>
+                );
+              })}
+            </ol>
+          </div>
+
+          {/* 메타 정보 */}
+          <div className="bg-slate-50 rounded-lg border border-slate-200 p-4">
+            <h3 className="text-xs font-bold text-slate-600 uppercase tracking-wider mb-2">메타</h3>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-4 gap-y-1.5 text-xs">
+              <MetaRow label="포지션 ID" value={c.positionId} />
+              <MetaRow label="본부" value={c.hq} />
+              <MetaRow label="팀" value={c.team} />
+              <MetaRow label="직무" value={c.job} />
+              <MetaRow label="채용 유형" value={c.type} />
+              <MetaRow label="우선순위" value={c.priority} />
+              <MetaRow label="근무지" value={c.site} />
+              <MetaRow label="채널" value={c.channel} />
+              <MetaRow label="최종 상태" value={c.finalStatus} />
+            </div>
+            {c.note && (
+              <div className="mt-3 pt-3 border-t border-slate-200">
+                <div className="text-[10px] text-slate-600 font-bold uppercase tracking-wider mb-1">비고</div>
+                <div className="text-sm text-slate-900">{c.note}</div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="px-5 py-3 border-t border-slate-200 bg-slate-50 text-[11px] text-slate-600 flex items-center gap-3">
+          <span>키보드: <kbd className="px-1.5 py-0.5 rounded border border-slate-300 bg-white font-mono text-[10px]">←</kbd> 이전 <kbd className="px-1.5 py-0.5 rounded border border-slate-300 bg-white font-mono text-[10px]">→</kbd> 다음 <kbd className="px-1.5 py-0.5 rounded border border-slate-300 bg-white font-mono text-[10px]">ESC</kbd> 닫기</span>
+        </div>
       </div>
+    </div>,
+    document.body
+  );
+}
+
+function MetaRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex gap-2 items-baseline">
+      <span className="text-slate-600 shrink-0">{label}:</span>
+      <span className="text-slate-900 font-medium truncate">{value || '—'}</span>
     </div>
   );
 }
