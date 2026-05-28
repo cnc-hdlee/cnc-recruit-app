@@ -22,6 +22,33 @@ const FLAG_EMAILS = new Set<string>([
 // 임세현 이름이 organizer displayName으로 보일 때도 잡기 위한 fallback (한글 이름 매치)
 const FLAG_DISPLAY_NAMES = ['이형도', '임세현'];
 
+// 회의실 예약 title을 면접 캘린더 표준 포맷으로 변환하는 헬퍼.
+// 메모리 룰: feedback_interview_cal_summary_format — "HH:MM / 사이트 / 이름 / 부서팀(직무)" 컨벤션, 부서 누락 절대 금지.
+// 입력 예시:
+//   "영업관리팀 면접 - 박수지"        → { deptDisplay: "영업관리팀",        name: "박수지" }
+//   "제조1팀 립제조 면접 - 어성철"     → { deptDisplay: "제조1팀(립제조)",   name: "어성철" }
+//   "포장2팀 ERP파트 - 장성민"         → { deptDisplay: "포장2팀(ERP파트)",  name: "장성민" }
+// dash 종류는 -, –, — 모두 허용. " - " 패턴 없으면 null (caller가 fallback).
+function parseRoomBookingTitle(rawTitle: string): { deptDisplay: string; name: string } | null {
+  const m = rawTitle.match(/^(.+?)\s+[-–—]\s+(.+)$/);
+  if (!m) return null;
+  const name = m[2].trim();
+  let left = m[1].replace(/\s*면접\s*/g, ' ').trim();
+  if (!name || !left) return null;
+  const tokens = left.split(/\s+/).filter(Boolean);
+  if (tokens.length === 0) return null;
+  const deptDisplay = tokens.length === 1
+    ? tokens[0]
+    : `${tokens[0]}(${tokens.slice(1).join(' ')})`;
+  return { deptDisplay, name };
+}
+
+// room.shortName("퍼플 미팅룸-1 (9)" / "그린 소회의실 (20)" 등)에서 사이트 키워드 추출.
+function extractSiteFromRoom(roomShortName: string): string {
+  const SITES = ['퍼플', '그린', '수원', '방교', '위워크', '서울', '온라인'];
+  return SITES.find((s) => roomShortName.includes(s)) || roomShortName.split(/\s+/)[0] || '';
+}
+
 // 회의실 예약 현황판 — 시간표 그리드 형식.
 //
 // 가로: 시간(08:00 ~ 22:00, 30분 슬롯 = 28칸)
@@ -1084,10 +1111,20 @@ function NewBookingModal({
       // 차량 예약일 때는 alsoInterview가 강제로 false라 진입 안 됨 (위 useEffect/handleAlsoInterviewToggle 가드).
       // 한 번 더 방어: room.kind==='car'면 절대 면접 캘린더 insert 금지.
       if (alsoInterview && room.kind !== 'car') {
+        // 회의실 예약 title("○○팀 면접 - 이름" / "○○팀 ○○파트 - 이름")을
+        // 면접 캘린더 표준 summary("HH:MM / 사이트 / 이름 / 부서팀(직무)")로 변환.
+        // 메모리 룰: feedback_interview_cal_summary_format — 부서 누락 절대 금지.
+        const parsed = parseRoomBookingTitle(title.trim());
+        const site = extractSiteFromRoom(room.shortName);
+        const standardSummary = parsed && site
+          ? `${start} / ${site} / ${parsed.name} / ${parsed.deptDisplay}`
+          : title.trim(); // 파싱 실패 시 fallback — 최소한 정상 케이스는 표준 포맷.
         const interviewBody = {
-          summary: title.trim(),
+          summary: standardSummary,
           description: (note.trim() ? note.trim() + '\n\n' : '') +
-            `📍 장소: ${room.shortName}\n※ 회의실 예약 페이지에서 함께 등록됨`,
+            `📍 장소: ${room.shortName}\n` +
+            (parsed ? `후보자: ${parsed.name}\n팀: ${parsed.deptDisplay}\n` : '') +
+            '※ 회의실 예약 페이지에서 함께 등록됨',
           location: room.shortName,
           start: { dateTime: `${date}T${start}:00`, timeZone: 'Asia/Seoul' },
           end: { dateTime: `${date}T${end}:00`, timeZone: 'Asia/Seoul' },
