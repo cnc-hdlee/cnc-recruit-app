@@ -181,6 +181,12 @@ interface ElectronAPI {
       headers: string[],
       rows: string[][]
     ): Promise<Result<{ spreadsheetId: string; url: string }>>;
+    // 입사자 관리 워크북 동기화 — 앱이 만든 새 시트에 날짜별 탭 생성/갱신 (drive.file).
+    // spreadsheetId=null이면 새로 생성. 수기 O(입사안내/건강검진)는 (성명|연락처)로 보존.
+    syncHiresSheet(
+      spreadsheetId: string | null,
+      tabs: { name: string; headers: string[]; rows: string[][] }[]
+    ): Promise<Result<{ spreadsheetId: string; url: string }>>;
     listGmail(q: string, max: number): Promise<Result<GmailMsg[]>>;
     openAttachment(messageId: string, filename: string, attachmentId?: string): Promise<Result<{ path: string }>>;
     fetchAttachmentBase64(messageId: string, filename: string, attachmentId?: string): Promise<Result<{ base64: string; mimeType: string; filename: string }>>;

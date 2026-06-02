@@ -56,10 +56,13 @@ function extractTeamFromSnippet(snippet: string): string | null {
   return m ? m[1].trim() : null;
 }
 
+// 입사자 관리 시트 양식 — 2026-05-20 입사자 관리 1행 항목 그대로.
+export const HIRES_SHEET_HEADERS = ['입사예정일', '본부명', '팀명', '직무', '직급', '신입/경력', '성명', '성별', '근무지', '입사안내', '직/간접분류', '연락처', '건강검진 영수증'];
+
 type SiteTone = 'purple' | 'green' | 'suwon' | 'gray';
 type ApprovalStatus = 'approved' | 'pending' | 'unknown';
 
-interface HireRow {
+export interface HireRow {
   date: string;
   bonbu: string;
   team: string;
@@ -71,6 +74,7 @@ interface HireRow {
   birthYear: string;
   site: string;
   jikgu: string;
+  phone: string;
   noteRaw: string;
   approval: ApprovalStatus;
   approvalLink: string | null;
@@ -150,7 +154,7 @@ function scanSheetOnboardingMarks(
   return out;
 }
 
-function parseHireRows(rows: Record<string, string>[]): HireRow[] {
+export function parseHireRows(rows: Record<string, string>[]): HireRow[] {
   const out: HireRow[] = [];
   for (const r of rows) {
     const name = field(r, ['성명', '이름']).trim();
@@ -172,6 +176,7 @@ function parseHireRows(rows: Record<string, string>[]): HireRow[] {
       birthYear: field(r, ['출생연도', '출생년도', '생년']).trim(),
       site: field(r, ['근무지']).trim(),
       jikgu: field(r, ['직/간접분류', '직간접분류', '직/간접구분', '직간접']).trim(),
+      phone: field(r, ['연락처']).trim(),
       noteRaw,
       approval: status,
       approvalLink: link,
@@ -326,6 +331,22 @@ export function IncomingHires() {
   const [approvalFilter, setApprovalFilter] = useState<'전체' | ApprovalStatus>('전체');
   const [query, setQuery] = useState('');
   const [mailMap, setMailMap] = useState<Map<string, OnboardingMail[]>>(new Map());
+
+  // 입사자 관리 시트 링크 (생성·갱신은 App 레벨 useHiresSheetSync 훅이 자동 수행).
+  // 여기선 cfg에 저장된 시트 id를 읽어 "구글시트 열기" 링크만 표시한다.
+  const [hiresSheetUrl, setHiresSheetUrl] = useState<string | null>(null);
+  useEffect(() => {
+    let alive = true;
+    const load = async () => {
+      const r = await api.cfg.get<string>('incomingHiresSheetId');
+      if (alive && r.ok && typeof r.data === 'string' && r.data) {
+        setHiresSheetUrl(`https://docs.google.com/spreadsheets/d/${r.data}/edit`);
+      }
+    };
+    void load();
+    const t = window.setInterval(load, 15_000); // 생성되면 곧 링크 표시
+    return () => { alive = false; window.clearInterval(t); };
+  }, []);
 
   // 입사안내 메일 매핑 fetch — 마운트 + 90초마다 자동 refresh (Gmail API는 read-only)
   useEffect(() => {
@@ -633,6 +654,29 @@ export function IncomingHires() {
 
   return (
     <div className="space-y-3">
+      {/* 입사자 관리 시트 (앱이 자동 생성·갱신하는 구글시트) */}
+      {hiresSheetUrl ? (
+        <div className="card p-3 flex items-center gap-2 bg-emerald-50 border border-emerald-200">
+          <span className="text-base">📊</span>
+          <div className="min-w-0">
+            <div className="text-sm font-bold text-slate-900">입사자 관리 시트 — 자동 생성·갱신됨</div>
+            <div className="text-[11px] text-slate-600">날짜별 탭 · 5/20 양식 · DB 변경 시 자동 반영 · 입사안내/건강검진 O 표시는 보존</div>
+          </div>
+          <a
+            href={hiresSheetUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="ml-auto shrink-0 px-3 py-1.5 rounded-full text-xs font-bold bg-emerald-600 text-white hover:bg-emerald-700"
+          >
+            구글시트 열기 ↗
+          </a>
+        </div>
+      ) : (
+        <div className="card p-3 text-xs text-slate-700 bg-slate-50 border border-slate-200">
+          ⏳ 입사자 관리 시트 자동 생성 중… (날짜별 탭으로 구성, 잠시 후 링크가 표시됩니다)
+        </div>
+      )}
+
       {/* 요약 카드 */}
       <div className="grid grid-cols-2 md:grid-cols-6 gap-2">
         <SummaryCard label="다가오는 입사" count={summary.total} tone="indigo" />

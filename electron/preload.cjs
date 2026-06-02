@@ -34,6 +34,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     listSheetTabs: (id) => invoke('g:listSheetTabs', id),
     readSheet: (id, range) => invoke('g:readSheet', id, range),
     createSheet: (title, headers, rows) => invoke('g:createSheet', title, headers, rows),
+    syncHiresSheet: (spreadsheetId, tabs) => invoke('g:syncHiresSheet', spreadsheetId, tabs),
     listGmail: (q, max) => invoke('g:listGmail', q, max),
     openAttachment: (messageId, filename, attachmentId) => invoke('g:openAttachment', messageId, filename, attachmentId),
     fetchAttachmentBase64: (messageId, filename, attachmentId) => invoke('g:fetchAttachmentBase64', messageId, filename, attachmentId),

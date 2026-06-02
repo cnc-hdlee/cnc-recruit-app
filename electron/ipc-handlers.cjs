@@ -42,6 +42,8 @@ function register() {
   safeHandle('g:readSheet', async (id, range) => google.readSheetRange(id, range));
   // Sheets: 기존 시트 절대 수정 안 함 — 단, drive.file scope로 새 시트만 생성 가능.
   safeHandle('g:createSheet', async (title, headers, rows) => google.createSheetWithData(title, headers, rows));
+  // 입사자 관리 워크북 동기화 — 앱이 만든 새 시트에 날짜별 탭 생성/갱신 (drive.file). 기존 시트 안 건드림.
+  safeHandle('g:syncHiresSheet', async (spreadsheetId, tabs) => google.syncHiresWorkbook(spreadsheetId, tabs));
   safeHandle('g:listGmail', async (q, max) => google.listGmail(q, max));
   safeHandle('g:openAttachment', async (messageId, filename, attachmentId) =>
     google.openGmailAttachment(messageId, filename, attachmentId));

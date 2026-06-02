@@ -233,6 +233,128 @@ async function createSheetWithData(title, headers, rows) {
   };
 }
 
+// 기존 탭 값에서 (성명|연락처) -> {입사안내, 건강검진} 수기 표시 보존맵 생성.
+function markMapFromValues(values) {
+  const out = {};
+  if (!values || values.length === 0) return out;
+  const head = values[0].map((c) => String(c == null ? '' : c).trim());
+  const ni = head.indexOf('성명');
+  const pi = head.indexOf('연락처');
+  const noticeI = head.indexOf('입사안내');
+  const healthI = head.indexOf('건강검진 영수증');
+  if (ni === -1) return out;
+  for (let i = 1; i < values.length; i++) {
+    const row = values[i] || [];
+    const nm = String(row[ni] == null ? '' : row[ni]).trim();
+    if (!nm) continue;
+    const key = nm + '|' + String(pi >= 0 ? (row[pi] || '') : '').replace(/[^0-9]/g, '');
+    out[key] = {
+      notice: noticeI >= 0 ? (row[noticeI] || '') : '',
+      health: healthI >= 0 ? (row[healthI] || '') : '',
+    };
+  }
+  return out;
+}
+
+// 앱이 만든 "입사자 관리" 워크북을 날짜별 탭으로 동기화 (drive.file scope — 앱이 만든 파일만).
+// 기존 사용자 시트는 절대 건드리지 않음. spreadsheetId가 null이면 새로 생성.
+// tabs: [{ name, headers, rows }] (rows: string[][]). '입사안내'/'건강검진 영수증' 수기 O는
+// (성명|연락처) 기준으로 기존 시트에서 읽어 보존한다.
+async function syncHiresWorkbook(spreadsheetId, tabs) {
+  const auth = buildClient();
+  const sheets = google.sheets({ version: 'v4', auth });
+  const q = (n) => `'${String(n).replace(/'/g, "''")}'`; // 탭 이름 안전 인용
+
+  // 1) 없으면 새 워크북 생성
+  if (!spreadsheetId) {
+    const created = await sheets.spreadsheets.create({
+      requestBody: { properties: { title: '입사자 관리 (자동 · 입사예정정규직DB)' } },
+    });
+    spreadsheetId = created.data.spreadsheetId;
+  }
+
+  // 2) 현재 탭 메타
+  let meta = await sheets.spreadsheets.get({ spreadsheetId, fields: 'sheets.properties(sheetId,title)' });
+  let byTitle = {};
+  meta.data.sheets.forEach((s) => { byTitle[s.properties.title] = s.properties.sheetId; });
+
+  const wantTitles = tabs.map((t) => t.name);
+
+  // 3) 기존 탭에서 수기 표시 보존 (이미 존재하는 탭만 읽기)
+  const present = wantTitles.filter((n) => byTitle[n] != null);
+  const marksByTab = {};
+  if (present.length) {
+    const resp = await sheets.spreadsheets.values.batchGet({ spreadsheetId, ranges: present.map(q) });
+    (resp.data.valueRanges || []).forEach((vr) => {
+      const m = (vr.range || '').match(/^'?(.*?)'?!/);
+      let name = m ? m[1].replace(/''/g, "'") : null;
+      if (name) marksByTab[name] = markMapFromValues(vr.values || []);
+    });
+  }
+
+  // 4) 탭 추가/삭제 (우리가 만든 자동탭 + 기본 Sheet1/시트1 만 정리)
+  const requests = [];
+  for (const name of wantTitles) {
+    if (byTitle[name] == null) requests.push({ addSheet: { properties: { title: name } } });
+  }
+  const isOurs = (t) => t === '전체(날짜순)' || t.indexOf('입사 ') === 0 || /^Sheet1$|^시트1$/.test(t);
+  for (const title of Object.keys(byTitle)) {
+    if (isOurs(title) && !wantTitles.includes(title)) {
+      requests.push({ deleteSheet: { sheetId: byTitle[title] } });
+    }
+  }
+  if (requests.length) {
+    await sheets.spreadsheets.batchUpdate({ spreadsheetId, requestBody: { requests } });
+    meta = await sheets.spreadsheets.get({ spreadsheetId, fields: 'sheets.properties(sheetId,title)' });
+    byTitle = {};
+    meta.data.sheets.forEach((s) => { byTitle[s.properties.title] = s.properties.sheetId; });
+  }
+
+  // 5) 각 탭 clear 후 값 쓰기 (수기 표시 보존 적용)
+  const data = tabs.map((t) => {
+    const h = t.headers;
+    const ni = h.indexOf('성명'), pi = h.indexOf('연락처');
+    const noticeI = h.indexOf('입사안내'), healthI = h.indexOf('건강검진 영수증');
+    const marks = marksByTab[t.name] || {};
+    const rows = t.rows.map((r) => {
+      const row = r.slice();
+      const key = String(row[ni] || '') + '|' + String(pi >= 0 ? (row[pi] || '') : '').replace(/[^0-9]/g, '');
+      const mk = marks[key];
+      if (mk) {
+        if (noticeI >= 0 && !row[noticeI]) row[noticeI] = mk.notice || '';
+        if (healthI >= 0 && !row[healthI]) row[healthI] = mk.health || '';
+      }
+      return row;
+    });
+    return { range: `${q(t.name)}!A1`, values: [h, ...rows] };
+  });
+  await sheets.spreadsheets.values.batchClear({ spreadsheetId, ranges: tabs.map((t) => q(t.name)) });
+  await sheets.spreadsheets.values.batchUpdate({
+    spreadsheetId,
+    requestBody: { valueInputOption: 'USER_ENTERED', data },
+  });
+
+  // 6) 헤더 서식 + freeze
+  const fmt = [];
+  for (const t of tabs) {
+    const sid = byTitle[t.name];
+    if (sid == null) continue;
+    fmt.push({
+      repeatCell: {
+        range: { sheetId: sid, startRowIndex: 0, endRowIndex: 1 },
+        cell: { userEnteredFormat: { textFormat: { bold: true }, backgroundColor: { red: 0.85, green: 0.92, blue: 0.83 } } },
+        fields: 'userEnteredFormat(textFormat,backgroundColor)',
+      },
+    });
+    fmt.push({
+      updateSheetProperties: { properties: { sheetId: sid, gridProperties: { frozenRowCount: 1 } }, fields: 'gridProperties.frozenRowCount' },
+    });
+  }
+  if (fmt.length) await sheets.spreadsheets.batchUpdate({ spreadsheetId, requestBody: { requests: fmt } });
+
+  return { spreadsheetId, url: `https://docs.google.com/spreadsheets/d/${spreadsheetId}/edit` };
+}
+
 // Walk Gmail message payload and collect attachment filenames (recursively).
 // 또한 attachmentId/mimeType을 별도 _detailed로 수집해 다운로드/오픈 기능에 활용.
 function collectAttachmentNames(payload, detailed) {
@@ -549,6 +671,7 @@ module.exports = {
   listSheetTabs,
   readSheetRange,
   createSheetWithData,
+  syncHiresWorkbook,
   listGmail,
   openGmailAttachment,
   fetchGmailAttachmentBase64,

@@ -5,6 +5,7 @@ import { loadOverrides } from './store/columnOverrides';
 import { applyFirstRunDefaultsIfNeeded, autoTriggerLoginIfNeeded } from './lib/firstRunDefaults';
 import { refreshNow } from './store/liveData';
 import { IS_VIEWER } from './lib/mode';
+import { useHiresSheetSync } from './lib/useHiresSheetSync';
 import { Sidebar } from './components/Sidebar';
 import { TopBar } from './components/TopBar';
 import { InstallPrompt } from './components/InstallPrompt';
@@ -44,6 +45,9 @@ const PAGE_TITLES: Record<PageId, string> = {
 export default function App() {
   const [page, setPage] = useState<PageId>('dashboard');
   const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  // 입사자 관리 시트 자동 동기화 — 어느 페이지에 있든 입사예정(정규직)DB 변경 시 자동 반영.
+  useHiresSheetSync();
 
   useEffect(() => {
     // 첫 실행: 빌드에 박힌 OAuth + 시트 기본값 자동 적용 → 로그인 필요하면 자동 OAuth → sync 시작
