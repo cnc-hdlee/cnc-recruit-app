@@ -12,6 +12,7 @@ import {
 } from '../pages/IncomingHires';
 import { api } from './api';
 import { IS_VIEWER } from './mode';
+import { SHARED_CAL } from './sharedCalendars';
 
 // 입사예정자 → 입사 캘린더 자동 등록/취소 (App 레벨 — 어느 페이지에 있든, 입사예정자 페이지를 안 열어도 실행).
 // 메모리 룰:
@@ -30,7 +31,10 @@ let bootstrapLock: Promise<string | null> | null = null;
 let syncLock: Promise<void> | null = null;
 let aclEnsured = false;
 
-// 입사 자동 캘린더 확보 — cfg에 저장된 id 우선, 없으면 1회 생성 + ACL 공유.
+// 입사 자동 캘린더 확보 — 메모리 [입사예정자 자동 등록+취소]: c_1ff0...(hdlee owner "입사")가 유일 master.
+// cfg에 id가 있으면 그걸 쓰고, 없으면 알려진 canonical 캘린더(SHARED_CAL.onboardingAuto)로 자가 복구.
+// ⚠️ 새 캘린더를 만들지 않는다 — 과거 cfg 유실 시 "입사 (자동)"을 새로 만들어 파편화시켰던 버그 제거.
+//    (2026-06-04: cfg.hireAutoCalendarId가 undefined가 되어 5/21 이후 자동 등록이 멈춰 김승화(6/4) 누락.)
 async function ensureHireCalendar(): Promise<string | null> {
   if (cachedCalId) return cachedCalId;
   if (bootstrapLock) return bootstrapLock;
@@ -40,17 +44,11 @@ async function ensureHireCalendar(): Promise<string | null> {
       if (r.ok && typeof r.data === 'string' && r.data) {
         cachedCalId = r.data;
       } else {
-        const cr = await api.google.createCalendar(
-          '입사 (자동)',
-          'Asia/Seoul',
-          'CNC 채용 커맨드센터가 입사예정자를 자동 등록하는 캘린더. 권한 우회 — shim@ owner 메인 캘린더에 hdlee write 권한 없음.'
-        );
-        if (cr.ok && cr.data?.id) {
-          cachedCalId = cr.data.id;
-          await api.cfg.set('hireAutoCalendarId', cachedCalId);
-          // eslint-disable-next-line no-console
-          console.info('[hire-cal-sync] 새 입사 자동 캘린더 생성:', cachedCalId);
-        }
+        // cfg 유실/초기 상태 → 알려진 master로 복구 + cfg에 영구 저장.
+        cachedCalId = SHARED_CAL.onboardingAuto;
+        await api.cfg.set('hireAutoCalendarId', cachedCalId);
+        // eslint-disable-next-line no-console
+        console.info('[hire-cal-sync] hireAutoCalendarId 복구 → canonical 입사 캘린더:', cachedCalId);
       }
       return cachedCalId;
     } catch (e) {
