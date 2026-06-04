@@ -412,6 +412,19 @@ export function IncomingHires() {
     return Array.from(map.entries()).sort(([a], [b]) => a.localeCompare(b));
   }, [filtered]);
 
+  // 오늘(today) 기준으로 다가오는 입사 / 지난 입사를 분리한다.
+  // 사용자 지적: 오늘이 5일인데 1일이 위에 섞여 나오는 게 이상함 → 지난 건은 따로 접어둠.
+  const upcomingGroups = useMemo(() => grouped.filter(([d]) => d >= today), [grouped, today]);
+  const pastGroups = useMemo(
+    () => grouped.filter(([d]) => d < today).reverse(), // 지난 건은 최근 입사일부터 위로
+    [grouped, today]
+  );
+  const pastCount = useMemo(
+    () => pastGroups.reduce((sum, [, rows]) => sum + rows.length, 0),
+    [pastGroups]
+  );
+  const [showPast, setShowPast] = useState(false);
+
   const summary = useMemo(() => {
     const upcoming = allRows.filter((r) => r.date >= today);
     // 입사안내 발송 = Gmail 발송 기록 OR 시트 "입사안내" 컬럼 O 표시
@@ -518,21 +531,57 @@ export function IncomingHires() {
         </div>
       </div>
 
-      {/* 날짜별 그룹 */}
+      {/* 날짜별 그룹 — 다가오는 입사만 기본 표시, 지난 입사는 아래 접이식 섹션 */}
       {grouped.length === 0 ? (
         <div className="card p-8 text-sm text-slate-500 text-center">조건에 맞는 입사예정자가 없습니다.</div>
       ) : (
         <div className="space-y-3 max-h-[calc(100vh-300px)] overflow-y-auto pr-1">
-          {grouped.map(([date, rows]) => (
-            <DateGroup
-              key={date}
-              date={date}
-              rows={rows}
-              today={today}
-              mailMap={mailMap}
-              sheetMarks={sheetMarks}
-            />
-          ))}
+          {upcomingGroups.length === 0 ? (
+            <div className="card p-6 text-sm text-slate-500 text-center">
+              다가오는 입사예정자가 없습니다. {pastCount > 0 && '지난 입사 내역은 아래에서 확인하세요.'}
+            </div>
+          ) : (
+            upcomingGroups.map(([date, rows]) => (
+              <DateGroup
+                key={date}
+                date={date}
+                rows={rows}
+                today={today}
+                mailMap={mailMap}
+                sheetMarks={sheetMarks}
+              />
+            ))
+          )}
+
+          {/* 지난 입사 — 접이식 (오늘 이전 입사일) */}
+          {pastGroups.length > 0 && (
+            <div className="pt-1">
+              <button
+                onClick={() => setShowPast((v) => !v)}
+                className="w-full flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold text-slate-600 bg-slate-100 border border-slate-200 hover:bg-slate-200 transition-colors"
+              >
+                <span>{showPast ? '▼' : '▶'}</span>
+                <span>🕒 지난 입사 {pastCount}명 ({pastGroups.length}일)</span>
+                <span className="ml-auto text-[11px] font-semibold text-slate-500">
+                  {showPast ? '접기' : '펼쳐 보기'}
+                </span>
+              </button>
+              {showPast && (
+                <div className="space-y-3 mt-3">
+                  {pastGroups.map(([date, rows]) => (
+                    <DateGroup
+                      key={date}
+                      date={date}
+                      rows={rows}
+                      today={today}
+                      mailMap={mailMap}
+                      sheetMarks={sheetMarks}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
     </div>
