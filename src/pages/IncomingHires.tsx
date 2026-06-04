@@ -291,18 +291,27 @@ export const HIRE_AUTO_MARKER = '※ 입사예정자 시트에서 자동 등록'
 // 메모리 [입사 이벤트는 노란색 + 소속·이름] 형식 준수.
 export function buildHireDateSummary(rows: HireRow[]): string {
   const valid = rows.filter((r) => r.name.trim());
+  // 결재중(pending)은 이름 뒤에 표시 — 결재완료와 구분 (사용자: 결재중도 등록하되 상태는 보이게).
+  const tag = (r: HireRow) => (r.approval === 'pending' ? ', 결재중' : '');
   if (valid.length === 1) {
     const r = valid[0];
-    return `입사 - ${r.name.trim()} (${r.team || '-'})`;
+    return `입사 - ${r.name.trim()} (${r.team || '-'}${tag(r)})`;
   }
-  const parts = valid.map((r) => `${r.name.trim()}(${r.team || '-'})`);
+  const parts = valid.map((r) => `${r.name.trim()}(${r.team || '-'}${tag(r)})`);
   return `입사 ${valid.length}명: ${parts.join('·')}`;
 }
 export function buildHireDateDescription(rows: HireRow[]): string {
-  // 메모리 [입사 캘린더는 결재 완료만] — approved만 받는 가정. 호출 측에서 이미 필터됨.
+  // 결재완료(approved) + 결재중(pending) 혼재 가능 (호출 측에서 필터). 헤더에 상태 요약 표시.
   const dateLabel = rows[0]?.date ? rows[0].date.slice(5).replace('-', '/') : '';
+  const approvedN = rows.filter((r) => r.approval === 'approved').length;
+  const pendingN = rows.filter((r) => r.approval === 'pending').length;
+  const statusLabel = pendingN === 0
+    ? '정규직 · 결재완료'
+    : approvedN === 0
+      ? '정규직 · 결재중'
+      : `정규직 · 결재완료 ${approvedN} / 결재중 ${pendingN}`;
   const lines: string[] = [];
-  lines.push(`<h3>${dateLabel} 입사자 ${rows.length}명 (정규직 · 결재완료)</h3><br>`);
+  lines.push(`<h3>${dateLabel} 입사자 ${rows.length}명 (${statusLabel})</h3><br>`);
   // 본부 + 팀으로 그룹핑
   const groupKey = (r: HireRow) => `${r.bonbu || '-'} — ${r.team || '-'}`;
   const groups = new Map<string, HireRow[]>();
@@ -316,7 +325,8 @@ export function buildHireDateDescription(rows: HireRow[]): string {
     lines.push(`<b>■ ${k} (${members.length}명, ${first.site || '-'} / ${first.jikgu || '-'})</b><br>`);
     for (const r of members) {
       const career = r.career + (r.birthYear ? `, ${r.birthYear}년생` : '');
-      lines.push(`• ${r.name.trim()} — ${r.job || '-'} (${r.rank || '-'}/${career || '-'}, ${r.gender || '-'})<br>`);
+      const statusTag = r.approval === 'pending' ? ' ⚠️ 결재중' : '';
+      lines.push(`• ${r.name.trim()} — ${r.job || '-'} (${r.rank || '-'}/${career || '-'}, ${r.gender || '-'})${statusTag}<br>`);
     }
     lines.push('<br>');
   }

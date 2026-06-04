@@ -111,9 +111,10 @@ async function runHireCalendarSync(): Promise<void> {
       const calRes = await api.google.listCalendar(calStart, calEnd, hireCalId);
       const onboardingEvents = (calRes.ok && calRes.data) ? calRes.data : [];
 
-      // 등록 대상: 결재완료(approved) + 미래 입사 + dismiss 안 됨.
+      // 등록 대상: 결재완료(approved) + 결재중(pending) + 미래 입사 + dismiss 안 됨.
+      // 2026-06-04 사용자 결정: 결재중도 자동 등록(김승화 6/4 케이스). 단 상신예정/빈칸(unknown)은 제외.
       const eligible = rows.filter((r) => {
-        if (r.approval !== 'approved') return false;
+        if (r.approval !== 'approved' && r.approval !== 'pending') return false;
         if (r.date < today) return false;
         if (dismissed.has(`${r.date}|${r.name.trim()}`)) return false;
         return true;
