@@ -310,6 +310,21 @@ async function syncHiresWorkbook(spreadsheetId, tabs) {
     meta.data.sheets.forEach((s) => { byTitle[s.properties.title] = s.properties.sheetId; });
   }
 
+  // 4b) 탭을 wantTitles(= '전체(날짜순)' + 입사일 오름차순) 순서대로 재배치.
+  //     addSheet는 새 탭을 항상 맨 뒤에 붙이므로, 나중에 추가된 입사자(예: 6/22 정원호)의
+  //     탭이 날짜순을 깨고 끝으로 밀린다. index를 desired 순서로 지정해 매 동기화마다 정렬 보정.
+  //     wantTitles 순서대로(앞→뒤) index=i를 주면 뒤로 밀린 탭이 제자리(낮은 index)로 당겨진다.
+  const orderReq = [];
+  wantTitles.forEach((name, i) => {
+    const sid = byTitle[name];
+    if (sid != null) {
+      orderReq.push({ updateSheetProperties: { properties: { sheetId: sid, index: i }, fields: 'index' } });
+    }
+  });
+  if (orderReq.length) {
+    await sheets.spreadsheets.batchUpdate({ spreadsheetId, requestBody: { requests: orderReq } });
+  }
+
   // 5) 각 탭 clear 후 값 쓰기 (수기 표시 보존 적용)
   const data = tabs.map((t) => {
     const h = t.headers;
