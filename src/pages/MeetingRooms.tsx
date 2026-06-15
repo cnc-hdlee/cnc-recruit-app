@@ -293,7 +293,18 @@ export function MeetingRooms() {
             const er = await api.google.listCalendar(dayStart, dayEnd, r.id);
             if (!er.ok || !er.data) return [r.id, []];
             const list: RoomBooking[] = (er.data as GCalEvent[])
-              .filter((e) => e.start && !e.allDay && isoToWall(e.start).dt === date)
+              // 선택한 날짜에 "걸쳐 있는" 모든 예약을 포함한다. 시작일이 그 전날이어도 점유 중이면 반드시 보여야 함.
+              // (기존엔 isoToWall(e.start).dt === date 로 "그날 시작한" 예약만 봐서, 6/17 00:00→6/19 00:00 같은
+              //  멀티데이 점거('[YSI] 베티 내방')가 6/18 화면에서 통째로 사라졌다. 빈 줄 알고 예약 → 리소스 거부 메일 폭주. 6/18 사고)
+              .filter((e) => {
+                if (!e.start || e.allDay) return false;
+                const sDt = isoToWall(e.start).dt;
+                const eDt = isoToWall(e.end).dt;
+                if (sDt > date || eDt < date) return false; // 선택일 범위 밖
+                // 전날 시작해 선택일 자정(00:00)에 끝나는 carryover는 그날을 실제로 점유하지 않음 → 제외
+                if (eDt === date && sDt < date && (isoToMinutes(e.end) ?? 0) === 0) return false;
+                return true;
+              })
               // 회의실 attendee responseStatus가 declined면 그 슬롯은 회의실 안 잡힘 → 그리드에서도 숨김
               // (기존엔 잔재 표시되어 통 booking과 시각 중복 발생: 5/19 손유민 declined 사고)
               .filter((e) => {
@@ -304,14 +315,14 @@ export function MeetingRooms() {
                 return !ras || (ras as { responseStatus?: string }).responseStatus !== 'declined';
               })
               .map((e) => {
-                const sMin = isoToMinutes(e.start) ?? 0;
-                const rawEMin = isoToMinutes(e.end) ?? sMin + 30;
-                // 익일까지 이어지는 booking (예: 5/19 00:00 → 5/20 00:00 같은 24h 점유)은
-                // isoToMinutes가 다음 날의 00:00을 그냥 0분으로 환산하여 endMin=0 → 박스 길이 0 → 빈 칸으로 보이는 버그.
-                // start.dt < end.dt 이면 24:00 (1440분)으로 clamp하여 그리드 끝까지 막대 표시.
+                // 선택일 기준으로 양끝을 clamp한다.
+                //  · 선택일보다 전에 시작한 carryover → 0시(0분)부터 점유로 표시.
+                //  · 선택일 이후까지 이어지면 24:00(1440분)으로 clamp하여 그리드 끝까지 막대 표시.
+                //    (isoToMinutes가 다음 날 00:00을 0분으로 환산해 endMin=0 → 박스 길이 0 → 빈 칸으로 보이던 버그 방지)
                 const sDt = isoToWall(e.start).dt;
                 const eDt = isoToWall(e.end).dt;
-                const eMin = eDt > sDt ? 24 * 60 : rawEMin;
+                const sMin = sDt < date ? 0 : (isoToMinutes(e.start) ?? 0);
+                const eMin = eDt > date ? 24 * 60 : (isoToMinutes(e.end) ?? sMin + 30);
                 // 진짜 예약자(person) 추출 — 회의실 캘린더 이벤트의 organizer/creator는 보통
                 //   · 회의실 자체(*@resource.calendar.google.com)
                 //   · 면접/입사 공유 캘린더(*@group.calendar.google.com)
