@@ -4,6 +4,8 @@ import { getTodayStr } from '../store';
 import { parseSheetDate, field, fmtDateLabel } from '../lib/sheetParse';
 import { rowsToObjects } from '../lib/sheetMapping';
 import { api } from '../lib/api';
+import { triggerHireCalendarSync } from '../lib/useHireCalendarSync';
+import { triggerHiresSheetSync } from '../lib/useHiresSheetSync';
 
 // 입사안내 메일 발송 정보 — Gmail 발송함 검색 결과 1건
 interface OnboardingMail {
@@ -56,11 +58,20 @@ function extractTeamFromSnippet(snippet: string): string | null {
   return m ? m[1].trim() : null;
 }
 
-// 입사자 관리 시트 양식 — 2026-05-20 입사자 관리 1행 항목 그대로.
-export const HIRES_SHEET_HEADERS = ['입사예정일', '본부명', '팀명', '직무', '직급', '신입/경력', '성명', '성별', '근무지', '입사안내', '직/간접분류', '연락처', '건강검진 영수증'];
+// 입사자 관리 시트 양식 — 2026-05-20 입사자 관리 1행 항목 그대로. + 끝에 '비고' (입사포기/결재 상태 기록).
+export const HIRES_SHEET_HEADERS = ['입사예정일', '본부명', '팀명', '직무', '직급', '신입/경력', '성명', '성별', '근무지', '입사안내', '직/간접분류', '연락처', '건강검진 영수증', '비고'];
 
 type SiteTone = 'purple' | 'green' | 'suwon' | 'gray';
-type ApprovalStatus = 'approved' | 'pending' | 'unknown';
+// declined = 입사 포기 (비고란에 "입사 포기"). 결재완료/결재중과 별개로 빨간색 기록 보존.
+export type ApprovalStatus = 'approved' | 'pending' | 'declined' | 'unknown';
+
+// 결재/입사 상태 한글 라벨 — 자동 시트 '비고' 컬럼·캘린더 기록에 공통 사용.
+export function approvalLabel(a: ApprovalStatus): string {
+  if (a === 'approved') return '결재완료';
+  if (a === 'pending') return '결재중';
+  if (a === 'declined') return '입사포기';
+  return '-';
+}
 
 export interface HireRow {
   date: string;
@@ -101,6 +112,9 @@ function classifyApproval(note: string): { status: ApprovalStatus; link: string 
   if (!n) return { status: 'unknown', link: null };
   // 공백/줄바꿈 정규화 후 매칭 — "결재중"/"결재 중"/"결재 진행 중" 등 표기 변형 모두 흡수
   const normalized = n.replace(/\s+/g, '');
+  // 입사 포기 — 최우선 판정. "입사포기"/"입사 포기"/"입사취소"/"채용포기"/"입사거절" 모두 흡수.
+  // 결재완료(전자결재 링크) 흔적이 같이 적혀 있어도 포기가 최종 상태이므로 declined로 본다.
+  if (/입사포기|입사취소|채용포기|입사거절|입사철회/.test(normalized)) return { status: 'declined', link: null };
   if (/결재중|결재진행/.test(normalized)) return { status: 'pending', link: null };
   // 전자결재 - C&C GW (with or without inline URL, 공백 변형 흡수)
   if (/전자결재|C&CGW/i.test(normalized)) {
@@ -300,7 +314,7 @@ export function buildHireDateSummary(rows: HireRow[]): string {
   const parts = valid.map((r) => `${r.name.trim()}(${r.team || '-'}${tag(r)})`);
   return `입사 ${valid.length}명: ${parts.join('·')}`;
 }
-export function buildHireDateDescription(rows: HireRow[]): string {
+export function buildHireDateDescription(rows: HireRow[], declined: HireRow[] = []): string {
   // 결재완료(approved) + 결재중(pending) 혼재 가능 (호출 측에서 필터). 헤더에 상태 요약 표시.
   const dateLabel = rows[0]?.date ? rows[0].date.slice(5).replace('-', '/') : '';
   const approvedN = rows.filter((r) => r.approval === 'approved').length;
@@ -327,6 +341,15 @@ export function buildHireDateDescription(rows: HireRow[]): string {
       const career = r.career + (r.birthYear ? `, ${r.birthYear}년생` : '');
       const statusTag = r.approval === 'pending' ? ' ⚠️ 결재중' : '';
       lines.push(`• ${r.name.trim()} — ${r.job || '-'} (${r.rank || '-'}/${career || '-'}, ${r.gender || '-'})${statusTag}<br>`);
+    }
+    lines.push('<br>');
+  }
+  // 같은 날짜의 입사 포기자 — 빨간색 기록으로 별도 표시 (메모리: "입사 취소/포기는 description에 별도 표시").
+  const dec = declined.filter((r) => r.name.trim());
+  if (dec.length > 0) {
+    lines.push(`<b><span style="color:#dc2626">🚫 입사 포기 ${dec.length}명</span></b><br>`);
+    for (const r of dec) {
+      lines.push(`<span style="color:#dc2626">• ${r.name.trim()} — ${r.team || '-'} / ${r.job || '-'} (입사 포기)</span><br>`);
     }
     lines.push('<br>');
   }
@@ -388,11 +411,20 @@ export function IncomingHires() {
   // 입사 캘린더 자동 등록/취소/부트스트랩/ACL 공유는 App 레벨 useHireCalendarSync 훅으로 이동.
   // 어느 페이지에 있든(이 페이지 미오픈 포함) 항상 자동 실행되도록 보장. → src/lib/useHireCalendarSync.ts
 
+  // 입사 포기자 — 비고란 "입사 포기". 별도 빨간색 기록 섹션으로만 표시(일반 입사 목록에서는 제외).
+  // 시트에 행이 남아있는 한 계속 누적 보존됨 (단일 출처: 입사예정(정규직)DB).
+  const declinedRows = useMemo(
+    () => allRows.filter((r) => r.approval === 'declined').sort((a, b) => b.date.localeCompare(a.date)),
+    [allRows]
+  );
+
   // 단일 출처: allRows (= 입사예정(정규직)DB 시트만). pastRows / todayPlusFromPastSheets /
   // 정규직DB·도급직DB·재직자 등 다른 시트 끌어오기 모두 제거 — 사용자 강조: "여기에서만 끌어 오라고".
+  // 입사 포기자는 일반 목록에서 빼고 전용 섹션에만 표시.
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     return allRows.filter((r) => {
+      if (r.approval === 'declined') return false;
       if (siteFilter !== '전체' && classifySite(r.site) !== siteFilter) return false;
       if (approvalFilter !== '전체' && r.approval !== approvalFilter) return false;
       if (q) {
@@ -425,8 +457,29 @@ export function IncomingHires() {
   );
   const [showPast, setShowPast] = useState(false);
 
+  // 입사포기 전용 섹션 — 클릭하면 펼침 + 즉시 미러링(캘린더/시트) 강제 실행.
+  const [showDeclined, setShowDeclined] = useState(false);
+  const [mirroring, setMirroring] = useState(false);
+  const [mirrorMsg, setMirrorMsg] = useState<string | null>(null);
+  const handleDeclinedClick = async () => {
+    setShowDeclined((v) => !v);
+    if (mirroring) return;
+    setMirroring(true);
+    setMirrorMsg('미러링 중… (입사포기 기록 → 캘린더·관리시트 동기화)');
+    try {
+      await Promise.all([triggerHireCalendarSync(), triggerHiresSheetSync()]);
+      setMirrorMsg(`✅ 미러링 완료 · 입사포기 ${declinedRows.length}건 기록 반영됨`);
+    } catch {
+      setMirrorMsg('⚠ 미러링 중 일부 실패 — 잠시 후 자동 재시도됩니다');
+    } finally {
+      setMirroring(false);
+      window.setTimeout(() => setMirrorMsg(null), 5000);
+    }
+  };
+
   const summary = useMemo(() => {
-    const upcoming = allRows.filter((r) => r.date >= today);
+    // 입사 포기자는 "입사 예정"이 아니므로 모든 집계에서 제외 (전용 입사포기 카운트만 별도).
+    const upcoming = allRows.filter((r) => r.date >= today && r.approval !== 'declined');
     // 입사안내 발송 = Gmail 발송 기록 OR 시트 "입사안내" 컬럼 O 표시
     const isAnnounced = (r: HireRow) =>
       (mailMap.get(r.name)?.length || 0) > 0 ||
@@ -492,14 +545,67 @@ export function IncomingHires() {
       )}
 
       {/* 요약 카드 */}
-      <div className="grid grid-cols-2 md:grid-cols-6 gap-2">
+      <div className="grid grid-cols-2 md:grid-cols-7 gap-2">
         <SummaryCard label="다가오는 입사" count={summary.total} tone="indigo" />
         <SummaryCard label="결재 완료" count={summary.approved} tone="emerald" />
         <SummaryCard label="결재 진행중" count={summary.pending} tone="amber" />
         <SummaryCard label="입사안내 발송" count={summary.mailSent} tone="emerald" />
         <SummaryCard label="입사안내 미발송" count={summary.mailMissing} tone={summary.mailMissing > 0 ? 'amber' : 'emerald'} />
         <SummaryCard label="퍼플 / 그린" count={summary.bySite.purple + summary.bySite.green} tone="purple" />
+        <SummaryCard label="입사 포기" count={declinedRows.length} tone="rose" />
       </div>
+
+      {/* 입사 포기 전용 섹션 — 클릭하면 펼침 + 즉시 미러링(캘린더·관리시트) 강제 실행. */}
+      {declinedRows.length > 0 && (
+        <div className="card overflow-hidden border border-rose-300">
+          <button
+            onClick={handleDeclinedClick}
+            disabled={mirroring}
+            className="w-full flex items-center gap-2 px-4 py-3 bg-rose-50 hover:bg-rose-100 transition-colors text-left disabled:opacity-70"
+            title="클릭하면 입사포기 기록을 캘린더·입사자 관리시트에 즉시 미러링합니다 (원본 시트는 건드리지 않음)"
+          >
+            <span className="text-base">🚫</span>
+            <span className="text-sm font-bold text-rose-700">입사 포기 {declinedRows.length}명</span>
+            <span className="chip bg-rose-600 text-white text-[10px] font-bold">기록 보존</span>
+            {mirroring ? (
+              <span className="ml-auto text-[11px] font-bold text-rose-600 animate-pulse">🔄 미러링 중…</span>
+            ) : (
+              <span className="ml-auto text-[11px] font-semibold text-rose-500">
+                {showDeclined ? '▼ 접기' : '▶ 펼쳐 보기 · 클릭 시 미러링'}
+              </span>
+            )}
+          </button>
+          {mirrorMsg && (
+            <div className="px-4 py-1.5 text-[11px] font-semibold text-rose-700 bg-rose-50/70 border-t border-rose-200">
+              {mirrorMsg}
+            </div>
+          )}
+          {showDeclined && (
+            <div className="divide-y divide-rose-100 max-h-80 overflow-y-auto">
+              {declinedRows.map((r, i) => (
+                <div key={`${r.name}-${i}`} className="px-4 py-2.5 flex items-center gap-3 bg-rose-50/30">
+                  <div className="w-1 self-stretch rounded bg-rose-500" />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-baseline gap-2 flex-wrap">
+                      <span className="text-sm font-bold text-rose-700 line-through decoration-rose-400">{r.name}</span>
+                      <span className="chip bg-rose-600 text-white text-[10px] font-bold">입사포기</span>
+                      {r.gender && <span className="text-[11px] text-slate-500">{r.gender}</span>}
+                      <span className="text-[11px] text-slate-600">{fmtDateLabel(r.date, today)} 입사예정이었음</span>
+                    </div>
+                    <div className="text-[12px] text-slate-700 mt-0.5">
+                      <span className="font-semibold">{r.bonbu || '본부 미정'}</span>
+                      {r.team && <span className="text-slate-500"> · {r.team}</span>}
+                      {r.job && <span> / <span className="text-slate-600 font-semibold">{r.job}</span></span>}
+                      {r.site && <span className="text-slate-500"> · {r.site}</span>}
+                    </div>
+                  </div>
+                  <span className="chip bg-rose-100 text-rose-700 border border-rose-300 text-[10px] shrink-0">비고: {r.noteRaw || '입사 포기'}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* 필터 */}
       <div className="card p-3">
@@ -770,7 +876,7 @@ function SummaryCard({
 }: {
   label: string;
   count: number;
-  tone: 'indigo' | 'emerald' | 'amber' | 'purple' | 'green';
+  tone: 'indigo' | 'emerald' | 'amber' | 'purple' | 'green' | 'rose';
 }) {
   const palette = {
     indigo: { bg: 'bg-indigo-50', num: 'text-indigo-700', bar: 'bg-indigo-500' },
@@ -778,6 +884,7 @@ function SummaryCard({
     amber: { bg: 'bg-amber-50', num: 'text-amber-700', bar: 'bg-amber-500' },
     purple: { bg: 'bg-purple-50', num: 'text-purple-700', bar: 'bg-purple-500' },
     green: { bg: 'bg-emerald-50', num: 'text-emerald-700', bar: 'bg-emerald-500' },
+    rose: { bg: 'bg-rose-50', num: 'text-rose-700', bar: 'bg-rose-500' },
   }[tone];
   return (
     <div className={`card p-2.5 relative overflow-hidden ${palette.bg}`}>

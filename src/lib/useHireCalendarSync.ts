@@ -127,13 +127,23 @@ async function runHireCalendarSync(): Promise<void> {
         byDate.get(r.date)!.push(r);
       }
 
+      // 입사 포기자 — 날짜별 그룹핑. 별도 노란색 이벤트는 만들지 않고(입사 안 함),
+      // 같은 날짜에 실제 입사자가 있으면 그 이벤트 description에 빨간색 "입사 포기" 기록으로 남긴다.
+      const declinedByDate = new Map<string, HireRow[]>();
+      for (const r of rows) {
+        if (r.approval !== 'declined') continue;
+        if (r.date < today) continue;
+        if (!declinedByDate.has(r.date)) declinedByDate.set(r.date, []);
+        declinedByDate.get(r.date)!.push(r);
+      }
+
       let changed = false;
 
       // 등록/갱신
       for (const [date, list] of byDate) {
         try {
           const summary = buildHireDateSummary(list);
-          const description = buildHireDateDescription(list);
+          const description = buildHireDateDescription(list, declinedByDate.get(date) || []);
           const existing = onboardingEvents.find((e) => {
             const dt = (e.start || '').slice(0, 10);
             if (dt !== date) return false;
@@ -206,6 +216,13 @@ async function runHireCalendarSync(): Promise<void> {
   })();
   syncLock = p;
   return p;
+}
+
+// 수동 트리거 — 입사예정자 페이지의 "입사포기" 섹션 클릭 시 즉시 1회전 강제 실행.
+// (자동 polling과 별개. 진행 중이면 그 promise를 그대로 반환 — 멱등.)
+export function triggerHireCalendarSync(): Promise<void> {
+  if (IS_VIEWER) return Promise.resolve();
+  return runHireCalendarSync();
 }
 
 // App 레벨 훅 — live 변경 시 + 2분 interval 안전망으로 자동 실행.
