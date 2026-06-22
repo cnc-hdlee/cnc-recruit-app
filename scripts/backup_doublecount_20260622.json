@@ -1,0 +1,4 @@
+{
+ "N5": "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\",\"'★전사인원현황'!J37\")",
+ "N6": "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\",\"'★전사인원현황'!J51\")"
+}
