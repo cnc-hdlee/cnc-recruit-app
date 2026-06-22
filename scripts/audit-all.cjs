@@ -14,8 +14,8 @@ async function auth(){const tok=JSON.parse(fs.readFileSync(path.join(__dirname,'
  const dc=(await s.spreadsheets.values.get({spreadsheetId:HR,range:`'채용완료'!A2:O20`,valueRenderOption:'FORMATTED_VALUE'})).data.values||[];
  dc.forEach((r,i)=>{const rn=i+2;if(!(r[3]||r[4]))return;
    pool.push({src:'완료',rn,team:r[3]||'',job:r[4]||'',site:r[8]||'',ipsaja:r[11]||'',TO:String(r[5]??'').trim(),plan:String(r[12]??'').trim(),used:false});});
- const fv=(await s.spreadsheets.values.get({spreadsheetId:PROG,range:`'${PTAB}'!A14:V75`,valueRenderOption:'FORMATTED_VALUE'})).data.values||[];
- const fm=(await s.spreadsheets.values.get({spreadsheetId:PROG,range:`'${PTAB}'!A14:V75`,valueRenderOption:'FORMULA'})).data.values||[];
+ const fv=(await s.spreadsheets.values.get({spreadsheetId:PROG,range:`'${PTAB}'!A14:V105`,valueRenderOption:'FORMATTED_VALUE'})).data.values||[];
+ const fm=(await s.spreadsheets.values.get({spreadsheetId:PROG,range:`'${PTAB}'!A14:V105`,valueRenderOption:'FORMULA'})).data.values||[];
  const det=[];fv.forEach((r,i)=>{const rn=i+14;if(String(r[0]||'').match(/^[■▸]/)||!(r[6]||r[7]))return;
    const f=fm[i]||[];const nf=String(f[13]||'');
    let cs=null,cr=null;let m;
