@@ -1,0 +1,56 @@
+[
+ [
+  "월",
+  "채용목표(전체)",
+  "누적입사(누적)",
+  "달성률"
+ ],
+ [
+  "=DATE(2026,1,1)",
+  "=$B$114",
+  "=SUMIFS('RAW DATA_채용진행상황(현재)'!$O$5:$O$2029,'RAW DATA_채용진행상황(현재)'!$A$5:$A$2029,\"<=\"&EOMONTH($A118,0))+IF(EOMONTH($A118,0)>=EOMONTH(TODAY(),0),SUMIFS('RAW DATA_채용진행상황(현재)'!$O$5:$O$2029,'RAW DATA_채용진행상황(현재)'!$A$5:$A$2029,\"\"),0)",
+  "=IFERROR(C118/B118,0)"
+ ],
+ [
+  "=DATE(2026,2,1)",
+  "=$B$114",
+  "=SUMIFS('RAW DATA_채용진행상황(현재)'!$O$5:$O$2029,'RAW DATA_채용진행상황(현재)'!$A$5:$A$2029,\"<=\"&EOMONTH($A119,0))+IF(EOMONTH($A119,0)>=EOMONTH(TODAY(),0),SUMIFS('RAW DATA_채용진행상황(현재)'!$O$5:$O$2029,'RAW DATA_채용진행상황(현재)'!$A$5:$A$2029,\"\"),0)",
+  "=IFERROR(C119/B119,0)"
+ ],
+ [
+  "=DATE(2026,3,1)",
+  "=$B$114",
+  "=SUMIFS('RAW DATA_채용진행상황(현재)'!$O$5:$O$2029,'RAW DATA_채용진행상황(현재)'!$A$5:$A$2029,\"<=\"&EOMONTH($A120,0))+IF(EOMONTH($A120,0)>=EOMONTH(TODAY(),0),SUMIFS('RAW DATA_채용진행상황(현재)'!$O$5:$O$2029,'RAW DATA_채용진행상황(현재)'!$A$5:$A$2029,\"\"),0)",
+  "=IFERROR(C120/B120,0)"
+ ],
+ [
+  "=DATE(2026,4,1)",
+  "=$B$114",
+  "=SUMIFS('RAW DATA_채용진행상황(현재)'!$O$5:$O$2029,'RAW DATA_채용진행상황(현재)'!$A$5:$A$2029,\"<=\"&EOMONTH($A121,0))+IF(EOMONTH($A121,0)>=EOMONTH(TODAY(),0),SUMIFS('RAW DATA_채용진행상황(현재)'!$O$5:$O$2029,'RAW DATA_채용진행상황(현재)'!$A$5:$A$2029,\"\"),0)",
+  "=IFERROR(C121/B121,0)"
+ ],
+ [
+  "=DATE(2026,5,1)",
+  "=$B$114",
+  "=SUMIFS('RAW DATA_채용진행상황(현재)'!$O$5:$O$2029,'RAW DATA_채용진행상황(현재)'!$A$5:$A$2029,\"<=\"&EOMONTH($A122,0))+IF(EOMONTH($A122,0)>=EOMONTH(TODAY(),0),SUMIFS('RAW DATA_채용진행상황(현재)'!$O$5:$O$2029,'RAW DATA_채용진행상황(현재)'!$A$5:$A$2029,\"\"),0)",
+  "=IFERROR(C122/B122,0)"
+ ],
+ [
+  "=DATE(2026,6,1)",
+  "=$B$114",
+  "=SUMIFS('RAW DATA_채용진행상황(현재)'!$O$5:$O$2029,'RAW DATA_채용진행상황(현재)'!$A$5:$A$2029,\"<=\"&EOMONTH($A123,0))+IF(EOMONTH($A123,0)>=EOMONTH(TODAY(),0),SUMIFS('RAW DATA_채용진행상황(현재)'!$O$5:$O$2029,'RAW DATA_채용진행상황(현재)'!$A$5:$A$2029,\"\"),0)",
+  "=IFERROR(C123/B123,0)"
+ ],
+ [
+  "=DATE(2026,7,1)",
+  "=$B$114",
+  "=SUMIFS('RAW DATA_채용진행상황(현재)'!$O$5:$O$2029,'RAW DATA_채용진행상황(현재)'!$A$5:$A$2029,\"<=\"&EOMONTH($A124,0))+IF(EOMONTH($A124,0)>=EOMONTH(TODAY(),0),SUMIFS('RAW DATA_채용진행상황(현재)'!$O$5:$O$2029,'RAW DATA_채용진행상황(현재)'!$A$5:$A$2029,\"\"),0)",
+  "=IFERROR(C124/B124,0)"
+ ],
+ [
+  "=DATE(2026,8,1)",
+  "=$B$114",
+  "=SUMIFS('RAW DATA_채용진행상황(현재)'!$O$5:$O$2029,'RAW DATA_채용진행상황(현재)'!$A$5:$A$2029,\"<=\"&EOMONTH($A125,0))+IF(EOMONTH($A125,0)>=EOMONTH(TODAY(),0),SUMIFS('RAW DATA_채용진행상황(현재)'!$O$5:$O$2029,'RAW DATA_채용진행상황(현재)'!$A$5:$A$2029,\"\"),0)",
+  "=IFERROR(C125/B125,0)"
+ ]
+]
