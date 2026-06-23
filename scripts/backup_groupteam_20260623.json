@@ -1,0 +1,7255 @@
+[
+ {
+  "values": [
+   {
+    "userEnteredValue": {
+     "stringValue": "■ COO"
+    },
+    "userEnteredFormat": {
+     "backgroundColor": {
+      "red": 0.11764706,
+      "green": 0.21960784,
+      "blue": 0.3882353
+     },
+     "horizontalAlignment": "LEFT",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      },
+      "fontSize": 12,
+      "bold": true,
+      "foregroundColorStyle": {
+       "rgbColor": {
+        "red": 1,
+        "green": 1,
+        "blue": 1
+       }
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 0.11764706,
+       "green": 0.21960784,
+       "blue": 0.3882353
+      }
+     }
+    }
+   },
+   {
+    "userEnteredFormat": {
+     "backgroundColor": {
+      "red": 0.11764706,
+      "green": 0.21960784,
+      "blue": 0.3882353
+     },
+     "horizontalAlignment": "LEFT",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      },
+      "fontSize": 12,
+      "bold": true,
+      "foregroundColorStyle": {
+       "rgbColor": {
+        "red": 1,
+        "green": 1,
+        "blue": 1
+       }
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 0.11764706,
+       "green": 0.21960784,
+       "blue": 0.3882353
+      }
+     }
+    }
+   },
+   {
+    "userEnteredFormat": {
+     "backgroundColor": {
+      "red": 0.11764706,
+      "green": 0.21960784,
+      "blue": 0.3882353
+     },
+     "horizontalAlignment": "LEFT",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      },
+      "fontSize": 12,
+      "bold": true,
+      "foregroundColorStyle": {
+       "rgbColor": {
+        "red": 1,
+        "green": 1,
+        "blue": 1
+       }
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 0.11764706,
+       "green": 0.21960784,
+       "blue": 0.3882353
+      }
+     }
+    }
+   },
+   {
+    "userEnteredFormat": {
+     "backgroundColor": {
+      "red": 0.11764706,
+      "green": 0.21960784,
+      "blue": 0.3882353
+     },
+     "horizontalAlignment": "LEFT",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      },
+      "fontSize": 12,
+      "bold": true,
+      "foregroundColorStyle": {
+       "rgbColor": {
+        "red": 1,
+        "green": 1,
+        "blue": 1
+       }
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 0.11764706,
+       "green": 0.21960784,
+       "blue": 0.3882353
+      }
+     }
+    }
+   },
+   {
+    "userEnteredFormat": {
+     "backgroundColor": {
+      "red": 0.11764706,
+      "green": 0.21960784,
+      "blue": 0.3882353
+     },
+     "horizontalAlignment": "LEFT",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      },
+      "fontSize": 12,
+      "bold": true,
+      "foregroundColorStyle": {
+       "rgbColor": {
+        "red": 1,
+        "green": 1,
+        "blue": 1
+       }
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 0.11764706,
+       "green": 0.21960784,
+       "blue": 0.3882353
+      }
+     }
+    }
+   },
+   {
+    "userEnteredFormat": {
+     "backgroundColor": {
+      "red": 0.11764706,
+      "green": 0.21960784,
+      "blue": 0.3882353
+     },
+     "horizontalAlignment": "LEFT",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      },
+      "fontSize": 12,
+      "bold": true,
+      "foregroundColorStyle": {
+       "rgbColor": {
+        "red": 1,
+        "green": 1,
+        "blue": 1
+       }
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 0.11764706,
+       "green": 0.21960784,
+       "blue": 0.3882353
+      }
+     }
+    }
+   },
+   {
+    "userEnteredFormat": {
+     "backgroundColor": {
+      "red": 0.11764706,
+      "green": 0.21960784,
+      "blue": 0.3882353
+     },
+     "horizontalAlignment": "LEFT",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      },
+      "fontSize": 12,
+      "bold": true,
+      "foregroundColorStyle": {
+       "rgbColor": {
+        "red": 1,
+        "green": 1,
+        "blue": 1
+       }
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 0.11764706,
+       "green": 0.21960784,
+       "blue": 0.3882353
+      }
+     }
+    }
+   },
+   {
+    "userEnteredFormat": {
+     "backgroundColor": {
+      "red": 0.11764706,
+      "green": 0.21960784,
+      "blue": 0.3882353
+     },
+     "horizontalAlignment": "LEFT",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      },
+      "fontSize": 12,
+      "bold": true,
+      "foregroundColorStyle": {
+       "rgbColor": {
+        "red": 1,
+        "green": 1,
+        "blue": 1
+       }
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 0.11764706,
+       "green": 0.21960784,
+       "blue": 0.3882353
+      }
+     }
+    }
+   },
+   {
+    "userEnteredFormat": {
+     "backgroundColor": {
+      "red": 0.11764706,
+      "green": 0.21960784,
+      "blue": 0.3882353
+     },
+     "horizontalAlignment": "LEFT",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      },
+      "fontSize": 12,
+      "bold": true,
+      "foregroundColorStyle": {
+       "rgbColor": {
+        "red": 1,
+        "green": 1,
+        "blue": 1
+       }
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 0.11764706,
+       "green": 0.21960784,
+       "blue": 0.3882353
+      }
+     }
+    }
+   },
+   {
+    "userEnteredFormat": {
+     "backgroundColor": {
+      "red": 0.11764706,
+      "green": 0.21960784,
+      "blue": 0.3882353
+     },
+     "horizontalAlignment": "LEFT",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      },
+      "fontSize": 12,
+      "bold": true,
+      "foregroundColorStyle": {
+       "rgbColor": {
+        "red": 1,
+        "green": 1,
+        "blue": 1
+       }
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 0.11764706,
+       "green": 0.21960784,
+       "blue": 0.3882353
+      }
+     }
+    }
+   },
+   {
+    "userEnteredFormat": {
+     "backgroundColor": {
+      "red": 0.11764706,
+      "green": 0.21960784,
+      "blue": 0.3882353
+     },
+     "horizontalAlignment": "LEFT",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      },
+      "fontSize": 12,
+      "bold": true,
+      "foregroundColorStyle": {
+       "rgbColor": {
+        "red": 1,
+        "green": 1,
+        "blue": 1
+       }
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 0.11764706,
+       "green": 0.21960784,
+       "blue": 0.3882353
+      }
+     }
+    }
+   },
+   {
+    "userEnteredFormat": {
+     "backgroundColor": {
+      "red": 0.11764706,
+      "green": 0.21960784,
+      "blue": 0.3882353
+     },
+     "horizontalAlignment": "LEFT",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      },
+      "fontSize": 12,
+      "bold": true,
+      "foregroundColorStyle": {
+       "rgbColor": {
+        "red": 1,
+        "green": 1,
+        "blue": 1
+       }
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 0.11764706,
+       "green": 0.21960784,
+       "blue": 0.3882353
+      }
+     }
+    }
+   },
+   {
+    "userEnteredFormat": {
+     "backgroundColor": {
+      "red": 0.11764706,
+      "green": 0.21960784,
+      "blue": 0.3882353
+     },
+     "horizontalAlignment": "LEFT",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      },
+      "fontSize": 12,
+      "bold": true,
+      "foregroundColorStyle": {
+       "rgbColor": {
+        "red": 1,
+        "green": 1,
+        "blue": 1
+       }
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 0.11764706,
+       "green": 0.21960784,
+       "blue": 0.3882353
+      }
+     }
+    }
+   },
+   {
+    "userEnteredValue": {
+     "formulaValue": "=SUMIF($D$5:$D$105,\"COO\",$N$5:$N$105)"
+    },
+    "userEnteredFormat": {
+     "backgroundColor": {
+      "red": 0.11764706,
+      "green": 0.21960784,
+      "blue": 0.3882353
+     },
+     "horizontalAlignment": "LEFT",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      },
+      "fontSize": 12,
+      "bold": true,
+      "foregroundColorStyle": {
+       "rgbColor": {
+        "red": 1,
+        "green": 1,
+        "blue": 1
+       }
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 0.11764706,
+       "green": 0.21960784,
+       "blue": 0.3882353
+      }
+     }
+    }
+   },
+   {
+    "userEnteredValue": {
+     "formulaValue": "=SUMIF($D$5:$D$105,\"COO\",$O$5:$O$105)"
+    },
+    "userEnteredFormat": {
+     "backgroundColor": {
+      "red": 0.11764706,
+      "green": 0.21960784,
+      "blue": 0.3882353
+     },
+     "horizontalAlignment": "LEFT",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      },
+      "fontSize": 12,
+      "bold": true,
+      "foregroundColorStyle": {
+       "rgbColor": {
+        "red": 1,
+        "green": 1,
+        "blue": 1
+       }
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 0.11764706,
+       "green": 0.21960784,
+       "blue": 0.3882353
+      }
+     }
+    }
+   },
+   {
+    "userEnteredFormat": {
+     "backgroundColor": {
+      "red": 0.11764706,
+      "green": 0.21960784,
+      "blue": 0.3882353
+     },
+     "horizontalAlignment": "LEFT",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      },
+      "fontSize": 12,
+      "bold": true,
+      "foregroundColorStyle": {
+       "rgbColor": {
+        "red": 1,
+        "green": 1,
+        "blue": 1
+       }
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 0.11764706,
+       "green": 0.21960784,
+       "blue": 0.3882353
+      }
+     }
+    }
+   },
+   {
+    "userEnteredFormat": {
+     "backgroundColor": {
+      "red": 0.11764706,
+      "green": 0.21960784,
+      "blue": 0.3882353
+     },
+     "horizontalAlignment": "LEFT",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      },
+      "fontSize": 12,
+      "bold": true,
+      "foregroundColorStyle": {
+       "rgbColor": {
+        "red": 1,
+        "green": 1,
+        "blue": 1
+       }
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 0.11764706,
+       "green": 0.21960784,
+       "blue": 0.3882353
+      }
+     }
+    }
+   },
+   {
+    "userEnteredFormat": {
+     "backgroundColor": {
+      "red": 0.11764706,
+      "green": 0.21960784,
+      "blue": 0.3882353
+     },
+     "horizontalAlignment": "LEFT",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      },
+      "fontSize": 12,
+      "bold": true,
+      "foregroundColorStyle": {
+       "rgbColor": {
+        "red": 1,
+        "green": 1,
+        "blue": 1
+       }
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 0.11764706,
+       "green": 0.21960784,
+       "blue": 0.3882353
+      }
+     }
+    }
+   },
+   {
+    "userEnteredFormat": {
+     "backgroundColor": {
+      "red": 0.11764706,
+      "green": 0.21960784,
+      "blue": 0.3882353
+     },
+     "horizontalAlignment": "LEFT",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      },
+      "fontSize": 12,
+      "bold": true,
+      "foregroundColorStyle": {
+       "rgbColor": {
+        "red": 1,
+        "green": 1,
+        "blue": 1
+       }
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 0.11764706,
+       "green": 0.21960784,
+       "blue": 0.3882353
+      }
+     }
+    }
+   },
+   {
+    "userEnteredFormat": {
+     "backgroundColor": {
+      "red": 0.11764706,
+      "green": 0.21960784,
+      "blue": 0.3882353
+     },
+     "horizontalAlignment": "LEFT",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      },
+      "fontSize": 12,
+      "bold": true,
+      "foregroundColorStyle": {
+       "rgbColor": {
+        "red": 1,
+        "green": 1,
+        "blue": 1
+       }
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 0.11764706,
+       "green": 0.21960784,
+       "blue": 0.3882353
+      }
+     }
+    }
+   },
+   {
+    "userEnteredFormat": {
+     "numberFormat": {
+      "type": "DATE",
+      "pattern": "yyyy-mm-dd"
+     },
+     "backgroundColor": {
+      "red": 0.11764706,
+      "green": 0.21960784,
+      "blue": 0.3882353
+     },
+     "horizontalAlignment": "CENTER",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      },
+      "fontSize": 12,
+      "bold": true,
+      "foregroundColorStyle": {
+       "rgbColor": {
+        "red": 1,
+        "green": 1,
+        "blue": 1
+       }
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 0.11764706,
+       "green": 0.21960784,
+       "blue": 0.3882353
+      }
+     }
+    }
+   },
+   {
+    "userEnteredFormat": {
+     "numberFormat": {
+      "type": "DATE",
+      "pattern": "yyyy-mm-dd"
+     },
+     "backgroundColor": {
+      "red": 0.11764706,
+      "green": 0.21960784,
+      "blue": 0.3882353
+     },
+     "horizontalAlignment": "CENTER",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      },
+      "fontSize": 12,
+      "bold": true,
+      "foregroundColorStyle": {
+       "rgbColor": {
+        "red": 1,
+        "green": 1,
+        "blue": 1
+       }
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 0.11764706,
+       "green": 0.21960784,
+       "blue": 0.3882353
+      }
+     }
+    }
+   }
+  ]
+ },
+ {
+  "values": [
+   {
+    "userEnteredValue": {
+     "stringValue": "▸ 정규직 라인"
+    },
+    "userEnteredFormat": {
+     "backgroundColor": {
+      "red": 0.8392157,
+      "green": 0.91764706,
+      "blue": 0.9764706
+     },
+     "horizontalAlignment": "LEFT",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "bold": true,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 0.8392157,
+       "green": 0.91764706,
+       "blue": 0.9764706
+      }
+     }
+    }
+   },
+   {
+    "userEnteredFormat": {
+     "backgroundColor": {
+      "red": 0.8392157,
+      "green": 0.91764706,
+      "blue": 0.9764706
+     },
+     "horizontalAlignment": "LEFT",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "bold": true,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 0.8392157,
+       "green": 0.91764706,
+       "blue": 0.9764706
+      }
+     }
+    }
+   },
+   {
+    "userEnteredFormat": {
+     "backgroundColor": {
+      "red": 0.8392157,
+      "green": 0.91764706,
+      "blue": 0.9764706
+     },
+     "horizontalAlignment": "LEFT",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "bold": true,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 0.8392157,
+       "green": 0.91764706,
+       "blue": 0.9764706
+      }
+     }
+    }
+   },
+   {
+    "userEnteredFormat": {
+     "backgroundColor": {
+      "red": 0.8392157,
+      "green": 0.91764706,
+      "blue": 0.9764706
+     },
+     "horizontalAlignment": "LEFT",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "bold": true,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 0.8392157,
+       "green": 0.91764706,
+       "blue": 0.9764706
+      }
+     }
+    }
+   },
+   {
+    "userEnteredFormat": {
+     "backgroundColor": {
+      "red": 0.8392157,
+      "green": 0.91764706,
+      "blue": 0.9764706
+     },
+     "horizontalAlignment": "LEFT",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "bold": true,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 0.8392157,
+       "green": 0.91764706,
+       "blue": 0.9764706
+      }
+     }
+    }
+   },
+   {
+    "userEnteredFormat": {
+     "backgroundColor": {
+      "red": 0.8392157,
+      "green": 0.91764706,
+      "blue": 0.9764706
+     },
+     "horizontalAlignment": "LEFT",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "bold": true,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 0.8392157,
+       "green": 0.91764706,
+       "blue": 0.9764706
+      }
+     }
+    }
+   },
+   {
+    "userEnteredFormat": {
+     "backgroundColor": {
+      "red": 0.8392157,
+      "green": 0.91764706,
+      "blue": 0.9764706
+     },
+     "horizontalAlignment": "LEFT",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "bold": true,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 0.8392157,
+       "green": 0.91764706,
+       "blue": 0.9764706
+      }
+     }
+    }
+   },
+   {
+    "userEnteredFormat": {
+     "backgroundColor": {
+      "red": 0.8392157,
+      "green": 0.91764706,
+      "blue": 0.9764706
+     },
+     "horizontalAlignment": "LEFT",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "bold": true,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 0.8392157,
+       "green": 0.91764706,
+       "blue": 0.9764706
+      }
+     }
+    }
+   },
+   {
+    "userEnteredFormat": {
+     "backgroundColor": {
+      "red": 0.8392157,
+      "green": 0.91764706,
+      "blue": 0.9764706
+     },
+     "horizontalAlignment": "LEFT",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "bold": true,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 0.8392157,
+       "green": 0.91764706,
+       "blue": 0.9764706
+      }
+     }
+    }
+   },
+   {
+    "userEnteredFormat": {
+     "backgroundColor": {
+      "red": 0.8392157,
+      "green": 0.91764706,
+      "blue": 0.9764706
+     },
+     "horizontalAlignment": "LEFT",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "bold": true,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 0.8392157,
+       "green": 0.91764706,
+       "blue": 0.9764706
+      }
+     }
+    }
+   },
+   {
+    "userEnteredFormat": {
+     "backgroundColor": {
+      "red": 0.8392157,
+      "green": 0.91764706,
+      "blue": 0.9764706
+     },
+     "horizontalAlignment": "LEFT",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "bold": true,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 0.8392157,
+       "green": 0.91764706,
+       "blue": 0.9764706
+      }
+     }
+    }
+   },
+   {
+    "userEnteredFormat": {
+     "backgroundColor": {
+      "red": 0.8392157,
+      "green": 0.91764706,
+      "blue": 0.9764706
+     },
+     "horizontalAlignment": "LEFT",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "bold": true,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 0.8392157,
+       "green": 0.91764706,
+       "blue": 0.9764706
+      }
+     }
+    }
+   },
+   {
+    "userEnteredFormat": {
+     "backgroundColor": {
+      "red": 0.8392157,
+      "green": 0.91764706,
+      "blue": 0.9764706
+     },
+     "horizontalAlignment": "LEFT",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "bold": true,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 0.8392157,
+       "green": 0.91764706,
+       "blue": 0.9764706
+      }
+     }
+    }
+   },
+   {
+    "userEnteredValue": {
+     "formulaValue": "=SUM(N5:N6)"
+    },
+    "userEnteredFormat": {
+     "backgroundColor": {
+      "red": 0.8392157,
+      "green": 0.91764706,
+      "blue": 0.9764706
+     },
+     "horizontalAlignment": "LEFT",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "bold": true,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 0.8392157,
+       "green": 0.91764706,
+       "blue": 0.9764706
+      }
+     }
+    }
+   },
+   {
+    "userEnteredValue": {
+     "formulaValue": "=SUM(O5:O6)"
+    },
+    "userEnteredFormat": {
+     "backgroundColor": {
+      "red": 0.8392157,
+      "green": 0.91764706,
+      "blue": 0.9764706
+     },
+     "horizontalAlignment": "LEFT",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "bold": true,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 0.8392157,
+       "green": 0.91764706,
+       "blue": 0.9764706
+      }
+     }
+    }
+   },
+   {
+    "userEnteredFormat": {
+     "backgroundColor": {
+      "red": 0.8392157,
+      "green": 0.91764706,
+      "blue": 0.9764706
+     },
+     "horizontalAlignment": "LEFT",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "bold": true,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 0.8392157,
+       "green": 0.91764706,
+       "blue": 0.9764706
+      }
+     }
+    }
+   },
+   {
+    "userEnteredFormat": {
+     "backgroundColor": {
+      "red": 0.8392157,
+      "green": 0.91764706,
+      "blue": 0.9764706
+     },
+     "horizontalAlignment": "LEFT",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "bold": true,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 0.8392157,
+       "green": 0.91764706,
+       "blue": 0.9764706
+      }
+     }
+    }
+   },
+   {
+    "userEnteredFormat": {
+     "backgroundColor": {
+      "red": 0.8392157,
+      "green": 0.91764706,
+      "blue": 0.9764706
+     },
+     "horizontalAlignment": "LEFT",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "bold": true,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 0.8392157,
+       "green": 0.91764706,
+       "blue": 0.9764706
+      }
+     }
+    }
+   },
+   {
+    "userEnteredFormat": {
+     "backgroundColor": {
+      "red": 0.8392157,
+      "green": 0.91764706,
+      "blue": 0.9764706
+     },
+     "horizontalAlignment": "LEFT",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "bold": true,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 0.8392157,
+       "green": 0.91764706,
+       "blue": 0.9764706
+      }
+     }
+    }
+   },
+   {
+    "userEnteredFormat": {
+     "backgroundColor": {
+      "red": 0.8392157,
+      "green": 0.91764706,
+      "blue": 0.9764706
+     },
+     "horizontalAlignment": "LEFT",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "bold": true,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 0.8392157,
+       "green": 0.91764706,
+       "blue": 0.9764706
+      }
+     }
+    }
+   },
+   {
+    "userEnteredValue": {
+     "formulaValue": "=SUM(U5:U6)"
+    },
+    "userEnteredFormat": {
+     "backgroundColor": {
+      "red": 0.8392157,
+      "green": 0.91764706,
+      "blue": 0.9764706
+     },
+     "horizontalAlignment": "LEFT",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "bold": true,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 0.8392157,
+       "green": 0.91764706,
+       "blue": 0.9764706
+      }
+     }
+    }
+   },
+   {
+    "userEnteredFormat": {
+     "backgroundColor": {
+      "red": 0.8392157,
+      "green": 0.91764706,
+      "blue": 0.9764706
+     },
+     "horizontalAlignment": "LEFT",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "bold": true,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 0.8392157,
+       "green": 0.91764706,
+       "blue": 0.9764706
+      }
+     }
+    }
+   }
+  ]
+ },
+ {
+  "values": [
+   {
+    "userEnteredFormat": {
+     "numberFormat": {
+      "type": "DATE",
+      "pattern": "yyyy-mm-dd"
+     },
+     "backgroundColor": {
+      "red": 1,
+      "green": 1,
+      "blue": 1
+     },
+     "horizontalAlignment": "CENTER",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "fontSize": 10,
+      "bold": false,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      }
+     }
+    }
+   },
+   {
+    "userEnteredFormat": {
+     "numberFormat": {
+      "type": "NUMBER",
+      "pattern": "0\"일\""
+     },
+     "backgroundColor": {
+      "red": 1,
+      "green": 1,
+      "blue": 1
+     },
+     "horizontalAlignment": "CENTER",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "fontSize": 10,
+      "bold": false,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      }
+     }
+    }
+   },
+   {
+    "userEnteredFormat": {
+     "backgroundColor": {
+      "red": 1,
+      "green": 1,
+      "blue": 1
+     },
+     "horizontalAlignment": "CENTER",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "fontSize": 10,
+      "bold": false,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      }
+     }
+    }
+   },
+   {
+    "userEnteredValue": {
+     "stringValue": "COO"
+    },
+    "userEnteredFormat": {
+     "backgroundColor": {
+      "red": 1,
+      "green": 1,
+      "blue": 1
+     },
+     "horizontalAlignment": "CENTER",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "fontSize": 10,
+      "bold": false,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      }
+     }
+    }
+   },
+   {
+    "userEnteredValue": {
+     "stringValue": "생산본부"
+    },
+    "userEnteredFormat": {
+     "backgroundColor": {
+      "red": 1,
+      "green": 1,
+      "blue": 1
+     },
+     "horizontalAlignment": "CENTER",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "fontSize": 10,
+      "bold": false,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      }
+     }
+    }
+   },
+   {
+    "userEnteredValue": {
+     "stringValue": "생산1부"
+    },
+    "userEnteredFormat": {
+     "backgroundColor": {
+      "red": 1,
+      "green": 1,
+      "blue": 1
+     },
+     "horizontalAlignment": "CENTER",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "fontSize": 10,
+      "bold": false,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      }
+     }
+    }
+   },
+   {
+    "userEnteredValue": {
+     "stringValue": "생산1팀"
+    },
+    "userEnteredFormat": {
+     "backgroundColor": {
+      "red": 1,
+      "green": 1,
+      "blue": 1
+     },
+     "horizontalAlignment": "CENTER",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "fontSize": 10,
+      "bold": false,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      }
+     }
+    }
+   },
+   {
+    "userEnteredValue": {
+     "stringValue": "생산"
+    },
+    "userEnteredFormat": {
+     "backgroundColor": {
+      "red": 1,
+      "green": 1,
+      "blue": 1
+     },
+     "horizontalAlignment": "CENTER",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "fontSize": 10,
+      "bold": false,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      }
+     }
+    }
+   },
+   {
+    "userEnteredFormat": {
+     "backgroundColor": {
+      "red": 1,
+      "green": 1,
+      "blue": 1
+     },
+     "horizontalAlignment": "CENTER",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "fontSize": 10,
+      "bold": false,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      }
+     }
+    }
+   },
+   {
+    "userEnteredFormat": {
+     "backgroundColor": {
+      "red": 1,
+      "green": 1,
+      "blue": 1
+     },
+     "horizontalAlignment": "CENTER",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "fontSize": 10,
+      "bold": false,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      }
+     }
+    }
+   },
+   {
+    "userEnteredValue": {
+     "stringValue": "퍼플"
+    },
+    "userEnteredFormat": {
+     "backgroundColor": {
+      "red": 1,
+      "green": 1,
+      "blue": 1
+     },
+     "horizontalAlignment": "LEFT",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "fontSize": 10,
+      "bold": false,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      }
+     }
+    }
+   },
+   {
+    "userEnteredValue": {
+     "stringValue": "직접"
+    },
+    "userEnteredFormat": {
+     "backgroundColor": {
+      "red": 1,
+      "green": 1,
+      "blue": 1
+     },
+     "horizontalAlignment": "LEFT",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "fontSize": 10,
+      "bold": false,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      }
+     }
+    }
+   },
+   {
+    "userEnteredFormat": {
+     "backgroundColor": {
+      "red": 1,
+      "green": 1,
+      "blue": 1
+     },
+     "horizontalAlignment": "LEFT",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "fontSize": 10,
+      "bold": false,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      }
+     }
+    }
+   },
+   {
+    "userEnteredValue": {
+     "formulaValue": "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\",\"'★전사인원현황'!J37\")"
+    },
+    "userEnteredFormat": {
+     "numberFormat": {
+      "type": "NUMBER",
+      "pattern": "0"
+     },
+     "backgroundColor": {
+      "red": 1,
+      "green": 1,
+      "blue": 1
+     },
+     "horizontalAlignment": "CENTER",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "fontSize": 10,
+      "bold": false,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      }
+     }
+    }
+   },
+   {
+    "userEnteredValue": {
+     "formulaValue": "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\",\"'★전사인원현황'!N37\")"
+    },
+    "userEnteredFormat": {
+     "numberFormat": {
+      "type": "NUMBER",
+      "pattern": "0"
+     },
+     "backgroundColor": {
+      "red": 1,
+      "green": 1,
+      "blue": 1
+     },
+     "horizontalAlignment": "CENTER",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "fontSize": 10,
+      "bold": false,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      }
+     }
+    }
+   },
+   {
+    "userEnteredValue": {
+     "formulaValue": "=N5-O5"
+    },
+    "userEnteredFormat": {
+     "numberFormat": {
+      "type": "NUMBER",
+      "pattern": "0"
+     },
+     "backgroundColor": {
+      "red": 1,
+      "green": 1,
+      "blue": 1
+     },
+     "horizontalAlignment": "CENTER",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "fontSize": 10,
+      "bold": false,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      }
+     }
+    }
+   },
+   {
+    "userEnteredValue": {
+     "formulaValue": "=IFERROR(O5/N5,0)"
+    },
+    "userEnteredFormat": {
+     "numberFormat": {
+      "type": "PERCENT",
+      "pattern": "0.0%"
+     },
+     "backgroundColor": {
+      "red": 1,
+      "green": 1,
+      "blue": 1
+     },
+     "borders": {
+      "left": {
+       "style": "SOLID_THICK",
+       "width": 3,
+       "color": {
+        "red": 1
+       },
+       "colorStyle": {
+        "rgbColor": {
+         "red": 1
+        }
+       }
+      },
+      "right": {
+       "style": "SOLID_THICK",
+       "width": 3,
+       "color": {
+        "red": 1
+       },
+       "colorStyle": {
+        "rgbColor": {
+         "red": 1
+        }
+       }
+      }
+     },
+     "horizontalAlignment": "CENTER",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "fontSize": 10,
+      "bold": false,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      }
+     }
+    }
+   },
+   {
+    "userEnteredFormat": {
+     "backgroundColor": {
+      "red": 1,
+      "green": 1,
+      "blue": 1
+     },
+     "horizontalAlignment": "CENTER",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {
+       "red": 0.4,
+       "green": 0.4,
+       "blue": 0.4
+      },
+      "bold": false,
+      "foregroundColorStyle": {
+       "rgbColor": {
+        "red": 0.4,
+        "green": 0.4,
+        "blue": 0.4
+       }
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      }
+     }
+    }
+   },
+   {
+    "userEnteredFormat": {
+     "backgroundColor": {
+      "red": 1,
+      "green": 1,
+      "blue": 1
+     },
+     "horizontalAlignment": "CENTER",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {
+       "red": 0.4,
+       "green": 0.4,
+       "blue": 0.4
+      },
+      "bold": false,
+      "foregroundColorStyle": {
+       "rgbColor": {
+        "red": 0.4,
+        "green": 0.4,
+        "blue": 0.4
+       }
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      }
+     }
+    }
+   },
+   {
+    "userEnteredFormat": {
+     "numberFormat": {
+      "type": "DATE",
+      "pattern": "yyyy-mm-dd"
+     },
+     "backgroundColor": {
+      "red": 1,
+      "green": 1,
+      "blue": 1
+     },
+     "horizontalAlignment": "CENTER",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "fontSize": 10,
+      "bold": false,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      }
+     }
+    }
+   },
+   {
+    "userEnteredValue": {
+     "formulaValue": "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\",\"'★전사인원현황'!E37\")"
+    },
+    "userEnteredFormat": {
+     "backgroundColor": {
+      "red": 1,
+      "green": 1,
+      "blue": 1
+     },
+     "horizontalAlignment": "CENTER",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "fontSize": 10,
+      "bold": false,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      }
+     }
+    }
+   },
+   {
+    "userEnteredFormat": {
+     "backgroundColor": {
+      "red": 1,
+      "green": 1,
+      "blue": 1
+     },
+     "horizontalAlignment": "CENTER",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "fontSize": 10,
+      "bold": false,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      }
+     }
+    }
+   }
+  ]
+ },
+ {
+  "values": [
+   {
+    "userEnteredFormat": {
+     "numberFormat": {
+      "type": "DATE",
+      "pattern": "yyyy-mm-dd"
+     },
+     "backgroundColor": {
+      "red": 1,
+      "green": 1,
+      "blue": 1
+     },
+     "horizontalAlignment": "CENTER",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "fontSize": 10,
+      "bold": false,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      }
+     }
+    }
+   },
+   {
+    "userEnteredFormat": {
+     "numberFormat": {
+      "type": "NUMBER",
+      "pattern": "0\"일\""
+     },
+     "backgroundColor": {
+      "red": 1,
+      "green": 1,
+      "blue": 1
+     },
+     "horizontalAlignment": "CENTER",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "fontSize": 10,
+      "bold": false,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      }
+     }
+    }
+   },
+   {
+    "userEnteredFormat": {
+     "backgroundColor": {
+      "red": 1,
+      "green": 1,
+      "blue": 1
+     },
+     "horizontalAlignment": "CENTER",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "fontSize": 10,
+      "bold": false,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      }
+     }
+    }
+   },
+   {
+    "userEnteredValue": {
+     "stringValue": "COO"
+    },
+    "userEnteredFormat": {
+     "backgroundColor": {
+      "red": 1,
+      "green": 1,
+      "blue": 1
+     },
+     "horizontalAlignment": "CENTER",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "fontSize": 10,
+      "bold": false,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      }
+     }
+    }
+   },
+   {
+    "userEnteredValue": {
+     "stringValue": "생산본부"
+    },
+    "userEnteredFormat": {
+     "backgroundColor": {
+      "red": 1,
+      "green": 1,
+      "blue": 1
+     },
+     "horizontalAlignment": "CENTER",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "fontSize": 10,
+      "bold": false,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      }
+     }
+    }
+   },
+   {
+    "userEnteredValue": {
+     "stringValue": "생산2부"
+    },
+    "userEnteredFormat": {
+     "backgroundColor": {
+      "red": 1,
+      "green": 1,
+      "blue": 1
+     },
+     "horizontalAlignment": "CENTER",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "fontSize": 10,
+      "bold": false,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      }
+     }
+    }
+   },
+   {
+    "userEnteredValue": {
+     "stringValue": "생산2팀"
+    },
+    "userEnteredFormat": {
+     "backgroundColor": {
+      "red": 1,
+      "green": 1,
+      "blue": 1
+     },
+     "horizontalAlignment": "CENTER",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "fontSize": 10,
+      "bold": false,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      }
+     }
+    }
+   },
+   {
+    "userEnteredValue": {
+     "stringValue": "생산"
+    },
+    "userEnteredFormat": {
+     "backgroundColor": {
+      "red": 1,
+      "green": 1,
+      "blue": 1
+     },
+     "horizontalAlignment": "CENTER",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "fontSize": 10,
+      "bold": false,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      }
+     }
+    }
+   },
+   {
+    "userEnteredFormat": {
+     "backgroundColor": {
+      "red": 1,
+      "green": 1,
+      "blue": 1
+     },
+     "horizontalAlignment": "CENTER",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "fontSize": 10,
+      "bold": false,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      }
+     }
+    }
+   },
+   {
+    "userEnteredFormat": {
+     "backgroundColor": {
+      "red": 1,
+      "green": 1,
+      "blue": 1
+     },
+     "horizontalAlignment": "CENTER",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "fontSize": 10,
+      "bold": false,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      }
+     }
+    }
+   },
+   {
+    "userEnteredValue": {
+     "stringValue": "그린"
+    },
+    "userEnteredFormat": {
+     "backgroundColor": {
+      "red": 1,
+      "green": 1,
+      "blue": 1
+     },
+     "horizontalAlignment": "LEFT",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "fontSize": 10,
+      "bold": false,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      }
+     }
+    }
+   },
+   {
+    "userEnteredValue": {
+     "stringValue": "직접"
+    },
+    "userEnteredFormat": {
+     "backgroundColor": {
+      "red": 1,
+      "green": 1,
+      "blue": 1
+     },
+     "horizontalAlignment": "LEFT",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "fontSize": 10,
+      "bold": false,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      }
+     }
+    }
+   },
+   {
+    "userEnteredFormat": {
+     "backgroundColor": {
+      "red": 1,
+      "green": 1,
+      "blue": 1
+     },
+     "horizontalAlignment": "LEFT",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "fontSize": 10,
+      "bold": false,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      }
+     }
+    }
+   },
+   {
+    "userEnteredValue": {
+     "formulaValue": "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\",\"'★전사인원현황'!J51\")"
+    },
+    "userEnteredFormat": {
+     "numberFormat": {
+      "type": "NUMBER",
+      "pattern": "0"
+     },
+     "backgroundColor": {
+      "red": 1,
+      "green": 1,
+      "blue": 1
+     },
+     "horizontalAlignment": "CENTER",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "fontSize": 10,
+      "bold": false,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      }
+     }
+    }
+   },
+   {
+    "userEnteredValue": {
+     "formulaValue": "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\",\"'★전사인원현황'!N51\")"
+    },
+    "userEnteredFormat": {
+     "numberFormat": {
+      "type": "NUMBER",
+      "pattern": "0"
+     },
+     "backgroundColor": {
+      "red": 1,
+      "green": 1,
+      "blue": 1
+     },
+     "horizontalAlignment": "CENTER",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "fontSize": 10,
+      "bold": false,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      }
+     }
+    }
+   },
+   {
+    "userEnteredValue": {
+     "formulaValue": "=N6-O6"
+    },
+    "userEnteredFormat": {
+     "numberFormat": {
+      "type": "NUMBER",
+      "pattern": "0"
+     },
+     "backgroundColor": {
+      "red": 1,
+      "green": 1,
+      "blue": 1
+     },
+     "horizontalAlignment": "CENTER",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "fontSize": 10,
+      "bold": false,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      }
+     }
+    }
+   },
+   {
+    "userEnteredValue": {
+     "formulaValue": "=IFERROR(O6/N6,0)"
+    },
+    "userEnteredFormat": {
+     "numberFormat": {
+      "type": "PERCENT",
+      "pattern": "0.0%"
+     },
+     "backgroundColor": {
+      "red": 1,
+      "green": 1,
+      "blue": 1
+     },
+     "borders": {
+      "left": {
+       "style": "SOLID_THICK",
+       "width": 3,
+       "color": {
+        "red": 1
+       },
+       "colorStyle": {
+        "rgbColor": {
+         "red": 1
+        }
+       }
+      },
+      "right": {
+       "style": "SOLID_THICK",
+       "width": 3,
+       "color": {
+        "red": 1
+       },
+       "colorStyle": {
+        "rgbColor": {
+         "red": 1
+        }
+       }
+      }
+     },
+     "horizontalAlignment": "CENTER",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "fontSize": 10,
+      "bold": false,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      }
+     }
+    }
+   },
+   {
+    "userEnteredFormat": {
+     "backgroundColor": {
+      "red": 1,
+      "green": 1,
+      "blue": 1
+     },
+     "horizontalAlignment": "CENTER",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {
+       "red": 0.4,
+       "green": 0.4,
+       "blue": 0.4
+      },
+      "bold": false,
+      "foregroundColorStyle": {
+       "rgbColor": {
+        "red": 0.4,
+        "green": 0.4,
+        "blue": 0.4
+       }
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      }
+     }
+    }
+   },
+   {
+    "userEnteredFormat": {
+     "backgroundColor": {
+      "red": 1,
+      "green": 1,
+      "blue": 1
+     },
+     "horizontalAlignment": "CENTER",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {
+       "red": 0.4,
+       "green": 0.4,
+       "blue": 0.4
+      },
+      "bold": false,
+      "foregroundColorStyle": {
+       "rgbColor": {
+        "red": 0.4,
+        "green": 0.4,
+        "blue": 0.4
+       }
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      }
+     }
+    }
+   },
+   {
+    "userEnteredFormat": {
+     "numberFormat": {
+      "type": "DATE",
+      "pattern": "yyyy-mm-dd"
+     },
+     "backgroundColor": {
+      "red": 1,
+      "green": 1,
+      "blue": 1
+     },
+     "horizontalAlignment": "CENTER",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "fontSize": 10,
+      "bold": false,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      }
+     }
+    }
+   },
+   {
+    "userEnteredValue": {
+     "formulaValue": "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\",\"'★전사인원현황'!E51\")"
+    },
+    "userEnteredFormat": {
+     "backgroundColor": {
+      "red": 1,
+      "green": 1,
+      "blue": 1
+     },
+     "horizontalAlignment": "CENTER",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "fontSize": 10,
+      "bold": false,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      }
+     }
+    }
+   },
+   {
+    "userEnteredFormat": {
+     "backgroundColor": {
+      "red": 1,
+      "green": 1,
+      "blue": 1
+     },
+     "horizontalAlignment": "CENTER",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "fontSize": 10,
+      "bold": false,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      }
+     }
+    }
+   }
+  ]
+ },
+ {
+  "values": [
+   {
+    "userEnteredValue": {
+     "stringValue": "▸ 도급직 라인"
+    },
+    "userEnteredFormat": {
+     "backgroundColor": {
+      "red": 0.9882353,
+      "green": 0.8980392,
+      "blue": 0.7882353
+     },
+     "horizontalAlignment": "LEFT",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "bold": true,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 0.9882353,
+       "green": 0.8980392,
+       "blue": 0.7882353
+      }
+     }
+    }
+   },
+   {
+    "userEnteredFormat": {
+     "backgroundColor": {
+      "red": 0.9882353,
+      "green": 0.8980392,
+      "blue": 0.7882353
+     },
+     "horizontalAlignment": "LEFT",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "bold": true,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 0.9882353,
+       "green": 0.8980392,
+       "blue": 0.7882353
+      }
+     }
+    }
+   },
+   {
+    "userEnteredFormat": {
+     "backgroundColor": {
+      "red": 0.9882353,
+      "green": 0.8980392,
+      "blue": 0.7882353
+     },
+     "horizontalAlignment": "LEFT",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "bold": true,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 0.9882353,
+       "green": 0.8980392,
+       "blue": 0.7882353
+      }
+     }
+    }
+   },
+   {
+    "userEnteredFormat": {
+     "backgroundColor": {
+      "red": 0.9882353,
+      "green": 0.8980392,
+      "blue": 0.7882353
+     },
+     "horizontalAlignment": "LEFT",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "bold": true,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 0.9882353,
+       "green": 0.8980392,
+       "blue": 0.7882353
+      }
+     }
+    }
+   },
+   {
+    "userEnteredFormat": {
+     "backgroundColor": {
+      "red": 0.9882353,
+      "green": 0.8980392,
+      "blue": 0.7882353
+     },
+     "horizontalAlignment": "LEFT",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "bold": true,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 0.9882353,
+       "green": 0.8980392,
+       "blue": 0.7882353
+      }
+     }
+    }
+   },
+   {
+    "userEnteredFormat": {
+     "backgroundColor": {
+      "red": 0.9882353,
+      "green": 0.8980392,
+      "blue": 0.7882353
+     },
+     "horizontalAlignment": "LEFT",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "bold": true,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 0.9882353,
+       "green": 0.8980392,
+       "blue": 0.7882353
+      }
+     }
+    }
+   },
+   {
+    "userEnteredFormat": {
+     "backgroundColor": {
+      "red": 0.9882353,
+      "green": 0.8980392,
+      "blue": 0.7882353
+     },
+     "horizontalAlignment": "LEFT",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "bold": true,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 0.9882353,
+       "green": 0.8980392,
+       "blue": 0.7882353
+      }
+     }
+    }
+   },
+   {
+    "userEnteredFormat": {
+     "backgroundColor": {
+      "red": 0.9882353,
+      "green": 0.8980392,
+      "blue": 0.7882353
+     },
+     "horizontalAlignment": "LEFT",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "bold": true,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 0.9882353,
+       "green": 0.8980392,
+       "blue": 0.7882353
+      }
+     }
+    }
+   },
+   {
+    "userEnteredFormat": {
+     "backgroundColor": {
+      "red": 0.9882353,
+      "green": 0.8980392,
+      "blue": 0.7882353
+     },
+     "horizontalAlignment": "LEFT",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "bold": true,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 0.9882353,
+       "green": 0.8980392,
+       "blue": 0.7882353
+      }
+     }
+    }
+   },
+   {
+    "userEnteredFormat": {
+     "backgroundColor": {
+      "red": 0.9882353,
+      "green": 0.8980392,
+      "blue": 0.7882353
+     },
+     "horizontalAlignment": "LEFT",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "bold": true,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 0.9882353,
+       "green": 0.8980392,
+       "blue": 0.7882353
+      }
+     }
+    }
+   },
+   {
+    "userEnteredFormat": {
+     "backgroundColor": {
+      "red": 0.9882353,
+      "green": 0.8980392,
+      "blue": 0.7882353
+     },
+     "horizontalAlignment": "LEFT",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "bold": true,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 0.9882353,
+       "green": 0.8980392,
+       "blue": 0.7882353
+      }
+     }
+    }
+   },
+   {
+    "userEnteredFormat": {
+     "backgroundColor": {
+      "red": 0.9882353,
+      "green": 0.8980392,
+      "blue": 0.7882353
+     },
+     "horizontalAlignment": "LEFT",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "bold": true,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 0.9882353,
+       "green": 0.8980392,
+       "blue": 0.7882353
+      }
+     }
+    }
+   },
+   {
+    "userEnteredFormat": {
+     "backgroundColor": {
+      "red": 0.9882353,
+      "green": 0.8980392,
+      "blue": 0.7882353
+     },
+     "horizontalAlignment": "LEFT",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "bold": true,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 0.9882353,
+       "green": 0.8980392,
+       "blue": 0.7882353
+      }
+     }
+    }
+   },
+   {
+    "userEnteredValue": {
+     "formulaValue": "=SUM(N8:N13)"
+    },
+    "userEnteredFormat": {
+     "backgroundColor": {
+      "red": 0.9882353,
+      "green": 0.8980392,
+      "blue": 0.7882353
+     },
+     "horizontalAlignment": "LEFT",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "bold": true,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 0.9882353,
+       "green": 0.8980392,
+       "blue": 0.7882353
+      }
+     }
+    }
+   },
+   {
+    "userEnteredValue": {
+     "formulaValue": "=SUM(O8:O13)"
+    },
+    "userEnteredFormat": {
+     "backgroundColor": {
+      "red": 0.9882353,
+      "green": 0.8980392,
+      "blue": 0.7882353
+     },
+     "horizontalAlignment": "LEFT",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "bold": true,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 0.9882353,
+       "green": 0.8980392,
+       "blue": 0.7882353
+      }
+     }
+    }
+   },
+   {
+    "userEnteredFormat": {
+     "backgroundColor": {
+      "red": 0.9882353,
+      "green": 0.8980392,
+      "blue": 0.7882353
+     },
+     "horizontalAlignment": "LEFT",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "bold": true,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 0.9882353,
+       "green": 0.8980392,
+       "blue": 0.7882353
+      }
+     }
+    }
+   },
+   {
+    "userEnteredFormat": {
+     "backgroundColor": {
+      "red": 0.9882353,
+      "green": 0.8980392,
+      "blue": 0.7882353
+     },
+     "horizontalAlignment": "LEFT",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "bold": true,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 0.9882353,
+       "green": 0.8980392,
+       "blue": 0.7882353
+      }
+     }
+    }
+   },
+   {
+    "userEnteredFormat": {
+     "backgroundColor": {
+      "red": 0.9882353,
+      "green": 0.8980392,
+      "blue": 0.7882353
+     },
+     "horizontalAlignment": "LEFT",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "bold": true,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 0.9882353,
+       "green": 0.8980392,
+       "blue": 0.7882353
+      }
+     }
+    }
+   },
+   {
+    "userEnteredFormat": {
+     "backgroundColor": {
+      "red": 0.9882353,
+      "green": 0.8980392,
+      "blue": 0.7882353
+     },
+     "horizontalAlignment": "LEFT",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "bold": true,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 0.9882353,
+       "green": 0.8980392,
+       "blue": 0.7882353
+      }
+     }
+    }
+   },
+   {
+    "userEnteredFormat": {
+     "backgroundColor": {
+      "red": 0.9882353,
+      "green": 0.8980392,
+      "blue": 0.7882353
+     },
+     "horizontalAlignment": "LEFT",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "bold": true,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 0.9882353,
+       "green": 0.8980392,
+       "blue": 0.7882353
+      }
+     }
+    }
+   },
+   {
+    "userEnteredFormat": {
+     "backgroundColor": {
+      "red": 0.9882353,
+      "green": 0.8980392,
+      "blue": 0.7882353
+     },
+     "horizontalAlignment": "LEFT",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "bold": true,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 0.9882353,
+       "green": 0.8980392,
+       "blue": 0.7882353
+      }
+     }
+    }
+   },
+   {
+    "userEnteredValue": {
+     "formulaValue": "=SUM(V8:V13)"
+    },
+    "userEnteredFormat": {
+     "backgroundColor": {
+      "red": 0.9882353,
+      "green": 0.8980392,
+      "blue": 0.7882353
+     },
+     "horizontalAlignment": "LEFT",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "bold": true,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 0.9882353,
+       "green": 0.8980392,
+       "blue": 0.7882353
+      }
+     }
+    }
+   }
+  ]
+ },
+ {
+  "values": [
+   {
+    "userEnteredFormat": {
+     "numberFormat": {
+      "type": "DATE",
+      "pattern": "yyyy-mm-dd"
+     },
+     "backgroundColor": {
+      "red": 1,
+      "green": 1,
+      "blue": 1
+     },
+     "horizontalAlignment": "CENTER",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "fontSize": 10,
+      "bold": false,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      }
+     }
+    }
+   },
+   {
+    "userEnteredFormat": {
+     "numberFormat": {
+      "type": "NUMBER",
+      "pattern": "0\"일\""
+     },
+     "backgroundColor": {
+      "red": 1,
+      "green": 1,
+      "blue": 1
+     },
+     "horizontalAlignment": "CENTER",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "fontSize": 10,
+      "bold": false,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      }
+     }
+    }
+   },
+   {
+    "userEnteredFormat": {
+     "backgroundColor": {
+      "red": 1,
+      "green": 1,
+      "blue": 1
+     },
+     "horizontalAlignment": "CENTER",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "fontSize": 10,
+      "bold": false,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      }
+     }
+    }
+   },
+   {
+    "userEnteredValue": {
+     "stringValue": "COO"
+    },
+    "userEnteredFormat": {
+     "backgroundColor": {
+      "red": 1,
+      "green": 1,
+      "blue": 1
+     },
+     "horizontalAlignment": "CENTER",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "fontSize": 10,
+      "bold": false,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      }
+     }
+    }
+   },
+   {
+    "userEnteredValue": {
+     "stringValue": "생산본부"
+    },
+    "userEnteredFormat": {
+     "backgroundColor": {
+      "red": 1,
+      "green": 1,
+      "blue": 1
+     },
+     "horizontalAlignment": "CENTER",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "fontSize": 10,
+      "bold": false,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      }
+     }
+    }
+   },
+   {
+    "userEnteredValue": {
+     "stringValue": "생산1부"
+    },
+    "userEnteredFormat": {
+     "backgroundColor": {
+      "red": 1,
+      "green": 1,
+      "blue": 1
+     },
+     "horizontalAlignment": "CENTER",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "fontSize": 10,
+      "bold": false,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      }
+     }
+    }
+   },
+   {
+    "userEnteredValue": {
+     "stringValue": "생산1팀 (도급직)"
+    },
+    "userEnteredFormat": {
+     "backgroundColor": {
+      "red": 1,
+      "green": 1,
+      "blue": 1
+     },
+     "horizontalAlignment": "CENTER",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "fontSize": 10,
+      "bold": false,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      }
+     }
+    }
+   },
+   {
+    "userEnteredValue": {
+     "stringValue": "생산"
+    },
+    "userEnteredFormat": {
+     "backgroundColor": {
+      "red": 1,
+      "green": 1,
+      "blue": 1
+     },
+     "horizontalAlignment": "CENTER",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "fontSize": 10,
+      "bold": false,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      }
+     }
+    }
+   },
+   {
+    "userEnteredFormat": {
+     "backgroundColor": {
+      "red": 1,
+      "green": 1,
+      "blue": 1
+     },
+     "horizontalAlignment": "CENTER",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "fontSize": 10,
+      "bold": false,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      }
+     }
+    }
+   },
+   {
+    "userEnteredFormat": {
+     "backgroundColor": {
+      "red": 1,
+      "green": 1,
+      "blue": 1
+     },
+     "horizontalAlignment": "CENTER",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "fontSize": 10,
+      "bold": false,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      }
+     }
+    }
+   },
+   {
+    "userEnteredValue": {
+     "stringValue": "퍼플"
+    },
+    "userEnteredFormat": {
+     "backgroundColor": {
+      "red": 1,
+      "green": 1,
+      "blue": 1
+     },
+     "horizontalAlignment": "LEFT",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "fontSize": 10,
+      "bold": false,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      }
+     }
+    }
+   },
+   {
+    "userEnteredValue": {
+     "stringValue": "직접"
+    },
+    "userEnteredFormat": {
+     "backgroundColor": {
+      "red": 1,
+      "green": 1,
+      "blue": 1
+     },
+     "horizontalAlignment": "LEFT",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "fontSize": 10,
+      "bold": false,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      }
+     }
+    }
+   },
+   {
+    "userEnteredFormat": {
+     "backgroundColor": {
+      "red": 1,
+      "green": 1,
+      "blue": 1
+     },
+     "horizontalAlignment": "LEFT",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "fontSize": 10,
+      "bold": false,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      }
+     }
+    }
+   },
+   {
+    "userEnteredValue": {
+     "numberValue": 0
+    },
+    "userEnteredFormat": {
+     "numberFormat": {
+      "type": "NUMBER",
+      "pattern": "0"
+     },
+     "backgroundColor": {
+      "red": 1,
+      "green": 1,
+      "blue": 1
+     },
+     "horizontalAlignment": "CENTER",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "fontSize": 10,
+      "bold": false,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      }
+     }
+    }
+   },
+   {
+    "userEnteredValue": {
+     "formulaValue": "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\",\"'★전사인원현황'!O37\")"
+    },
+    "userEnteredFormat": {
+     "numberFormat": {
+      "type": "NUMBER",
+      "pattern": "0"
+     },
+     "backgroundColor": {
+      "red": 1,
+      "green": 1,
+      "blue": 1
+     },
+     "horizontalAlignment": "CENTER",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "fontSize": 10,
+      "bold": false,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      }
+     }
+    }
+   },
+   {
+    "userEnteredValue": {
+     "formulaValue": "=N8-O8-O5"
+    },
+    "userEnteredFormat": {
+     "numberFormat": {
+      "type": "NUMBER",
+      "pattern": "0"
+     },
+     "backgroundColor": {
+      "red": 1,
+      "green": 1,
+      "blue": 1
+     },
+     "horizontalAlignment": "CENTER",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "fontSize": 10,
+      "bold": false,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      }
+     }
+    }
+   },
+   {
+    "userEnteredValue": {
+     "formulaValue": "=IFERROR(O8/N8,0)"
+    },
+    "userEnteredFormat": {
+     "numberFormat": {
+      "type": "PERCENT",
+      "pattern": "0.0%"
+     },
+     "backgroundColor": {
+      "red": 1,
+      "green": 1,
+      "blue": 1
+     },
+     "borders": {
+      "left": {
+       "style": "SOLID_THICK",
+       "width": 3,
+       "color": {
+        "red": 1
+       },
+       "colorStyle": {
+        "rgbColor": {
+         "red": 1
+        }
+       }
+      },
+      "right": {
+       "style": "SOLID_THICK",
+       "width": 3,
+       "color": {
+        "red": 1
+       },
+       "colorStyle": {
+        "rgbColor": {
+         "red": 1
+        }
+       }
+      }
+     },
+     "horizontalAlignment": "CENTER",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "fontSize": 10,
+      "bold": false,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      }
+     }
+    }
+   },
+   {
+    "userEnteredFormat": {
+     "backgroundColor": {
+      "red": 1,
+      "green": 1,
+      "blue": 1
+     },
+     "horizontalAlignment": "CENTER",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {
+       "red": 0.4,
+       "green": 0.4,
+       "blue": 0.4
+      },
+      "bold": false,
+      "foregroundColorStyle": {
+       "rgbColor": {
+        "red": 0.4,
+        "green": 0.4,
+        "blue": 0.4
+       }
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      }
+     }
+    }
+   },
+   {
+    "userEnteredFormat": {
+     "backgroundColor": {
+      "red": 1,
+      "green": 1,
+      "blue": 1
+     },
+     "horizontalAlignment": "CENTER",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "fontSize": 10,
+      "bold": false,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      }
+     }
+    }
+   },
+   {
+    "userEnteredFormat": {
+     "numberFormat": {
+      "type": "DATE",
+      "pattern": "yyyy-mm-dd"
+     },
+     "backgroundColor": {
+      "red": 1,
+      "green": 1,
+      "blue": 1
+     },
+     "horizontalAlignment": "CENTER",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "fontSize": 10,
+      "bold": false,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      }
+     }
+    }
+   },
+   {
+    "userEnteredFormat": {
+     "backgroundColor": {
+      "red": 1,
+      "green": 1,
+      "blue": 1
+     },
+     "horizontalAlignment": "CENTER",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "fontSize": 10,
+      "bold": false,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      }
+     }
+    }
+   },
+   {
+    "userEnteredValue": {
+     "formulaValue": "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\",\"'★전사인원현황'!H37\")"
+    },
+    "userEnteredFormat": {
+     "backgroundColor": {
+      "red": 1,
+      "green": 1,
+      "blue": 1
+     },
+     "horizontalAlignment": "CENTER",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "fontSize": 10,
+      "bold": false,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      }
+     }
+    }
+   }
+  ]
+ },
+ {
+  "values": [
+   {
+    "userEnteredFormat": {
+     "numberFormat": {
+      "type": "DATE",
+      "pattern": "yyyy-mm-dd"
+     },
+     "backgroundColor": {
+      "red": 1,
+      "green": 1,
+      "blue": 1
+     },
+     "horizontalAlignment": "CENTER",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "bold": false,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      }
+     }
+    }
+   },
+   {
+    "userEnteredFormat": {
+     "numberFormat": {
+      "type": "NUMBER",
+      "pattern": "0\"일\""
+     },
+     "backgroundColor": {
+      "red": 1,
+      "green": 1,
+      "blue": 1
+     },
+     "horizontalAlignment": "CENTER",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "bold": false,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      }
+     }
+    }
+   },
+   {
+    "userEnteredFormat": {
+     "backgroundColor": {
+      "red": 1,
+      "green": 1,
+      "blue": 1
+     },
+     "horizontalAlignment": "CENTER",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "bold": false,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      }
+     }
+    }
+   },
+   {
+    "userEnteredValue": {
+     "stringValue": "COO"
+    },
+    "userEnteredFormat": {
+     "backgroundColor": {
+      "red": 1,
+      "green": 1,
+      "blue": 1
+     },
+     "horizontalAlignment": "CENTER",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "bold": false,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      }
+     }
+    }
+   },
+   {
+    "userEnteredValue": {
+     "stringValue": "생산본부"
+    },
+    "userEnteredFormat": {
+     "backgroundColor": {
+      "red": 1,
+      "green": 1,
+      "blue": 1
+     },
+     "horizontalAlignment": "CENTER",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "bold": false,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      }
+     }
+    }
+   },
+   {
+    "userEnteredValue": {
+     "stringValue": "생산2부"
+    },
+    "userEnteredFormat": {
+     "backgroundColor": {
+      "red": 1,
+      "green": 1,
+      "blue": 1
+     },
+     "horizontalAlignment": "CENTER",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "bold": false,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      }
+     }
+    }
+   },
+   {
+    "userEnteredValue": {
+     "stringValue": "생산2팀 (도급직)"
+    },
+    "userEnteredFormat": {
+     "backgroundColor": {
+      "red": 1,
+      "green": 1,
+      "blue": 1
+     },
+     "horizontalAlignment": "CENTER",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "bold": false,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      }
+     }
+    }
+   },
+   {
+    "userEnteredValue": {
+     "stringValue": "생산"
+    },
+    "userEnteredFormat": {
+     "backgroundColor": {
+      "red": 1,
+      "green": 1,
+      "blue": 1
+     },
+     "horizontalAlignment": "CENTER",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "bold": false,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      }
+     }
+    }
+   },
+   {
+    "userEnteredFormat": {
+     "backgroundColor": {
+      "red": 1,
+      "green": 1,
+      "blue": 1
+     },
+     "horizontalAlignment": "CENTER",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "bold": false,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      }
+     }
+    }
+   },
+   {
+    "userEnteredFormat": {
+     "backgroundColor": {
+      "red": 1,
+      "green": 1,
+      "blue": 1
+     },
+     "horizontalAlignment": "CENTER",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "bold": false,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      }
+     }
+    }
+   },
+   {
+    "userEnteredValue": {
+     "stringValue": "그린"
+    },
+    "userEnteredFormat": {
+     "backgroundColor": {
+      "red": 1,
+      "green": 1,
+      "blue": 1
+     },
+     "horizontalAlignment": "LEFT",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "bold": false,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      }
+     }
+    }
+   },
+   {
+    "userEnteredValue": {
+     "stringValue": "직접"
+    },
+    "userEnteredFormat": {
+     "backgroundColor": {
+      "red": 1,
+      "green": 1,
+      "blue": 1
+     },
+     "horizontalAlignment": "LEFT",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "bold": false,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      }
+     }
+    }
+   },
+   {
+    "userEnteredFormat": {
+     "backgroundColor": {
+      "red": 1,
+      "green": 1,
+      "blue": 1
+     },
+     "horizontalAlignment": "LEFT",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "bold": false,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      }
+     }
+    }
+   },
+   {
+    "userEnteredValue": {
+     "numberValue": 0
+    },
+    "userEnteredFormat": {
+     "numberFormat": {
+      "type": "NUMBER",
+      "pattern": "0"
+     },
+     "backgroundColor": {
+      "red": 1,
+      "green": 1,
+      "blue": 1
+     },
+     "horizontalAlignment": "CENTER",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "bold": false,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      }
+     }
+    }
+   },
+   {
+    "userEnteredValue": {
+     "formulaValue": "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\",\"'★전사인원현황'!O51\")"
+    },
+    "userEnteredFormat": {
+     "numberFormat": {
+      "type": "NUMBER",
+      "pattern": "0"
+     },
+     "backgroundColor": {
+      "red": 1,
+      "green": 1,
+      "blue": 1
+     },
+     "horizontalAlignment": "CENTER",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "fontSize": 10,
+      "bold": false,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      }
+     }
+    }
+   },
+   {
+    "userEnteredValue": {
+     "formulaValue": "=N9-O9"
+    },
+    "userEnteredFormat": {
+     "numberFormat": {
+      "type": "NUMBER",
+      "pattern": "0"
+     },
+     "backgroundColor": {
+      "red": 1,
+      "green": 1,
+      "blue": 1
+     },
+     "horizontalAlignment": "CENTER",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "bold": false,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      }
+     }
+    }
+   },
+   {
+    "userEnteredValue": {
+     "formulaValue": "=IFERROR(O9/N9,0)"
+    },
+    "userEnteredFormat": {
+     "numberFormat": {
+      "type": "PERCENT",
+      "pattern": "0.0%"
+     },
+     "backgroundColor": {
+      "red": 1,
+      "green": 1,
+      "blue": 1
+     },
+     "borders": {
+      "left": {
+       "style": "SOLID_THICK",
+       "width": 3,
+       "color": {
+        "red": 1
+       },
+       "colorStyle": {
+        "rgbColor": {
+         "red": 1
+        }
+       }
+      },
+      "right": {
+       "style": "SOLID_THICK",
+       "width": 3,
+       "color": {
+        "red": 1
+       },
+       "colorStyle": {
+        "rgbColor": {
+         "red": 1
+        }
+       }
+      }
+     },
+     "horizontalAlignment": "CENTER",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "bold": false,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      }
+     }
+    }
+   },
+   {
+    "userEnteredFormat": {
+     "backgroundColor": {
+      "red": 1,
+      "green": 1,
+      "blue": 1
+     },
+     "horizontalAlignment": "CENTER",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "bold": false,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      }
+     }
+    }
+   },
+   {
+    "userEnteredFormat": {
+     "backgroundColor": {
+      "red": 1,
+      "green": 1,
+      "blue": 1
+     },
+     "horizontalAlignment": "CENTER",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {
+       "red": 0.4,
+       "green": 0.4,
+       "blue": 0.4
+      },
+      "bold": false,
+      "foregroundColorStyle": {
+       "rgbColor": {
+        "red": 0.4,
+        "green": 0.4,
+        "blue": 0.4
+       }
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      }
+     }
+    }
+   },
+   {
+    "userEnteredFormat": {
+     "numberFormat": {
+      "type": "DATE",
+      "pattern": "yyyy-mm-dd"
+     },
+     "backgroundColor": {
+      "red": 1,
+      "green": 1,
+      "blue": 1
+     },
+     "horizontalAlignment": "CENTER",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "fontSize": 10,
+      "bold": false,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      }
+     }
+    }
+   },
+   {
+    "userEnteredFormat": {
+     "backgroundColor": {
+      "red": 1,
+      "green": 1,
+      "blue": 1
+     },
+     "horizontalAlignment": "CENTER",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "fontSize": 10,
+      "bold": false,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      }
+     }
+    }
+   },
+   {
+    "userEnteredValue": {
+     "formulaValue": "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\",\"'★전사인원현황'!H51\")"
+    },
+    "userEnteredFormat": {
+     "backgroundColor": {
+      "red": 1,
+      "green": 1,
+      "blue": 1
+     },
+     "horizontalAlignment": "CENTER",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "fontSize": 10,
+      "bold": false,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      }
+     }
+    }
+   }
+  ]
+ },
+ {
+  "values": [
+   {
+    "userEnteredFormat": {
+     "numberFormat": {
+      "type": "DATE",
+      "pattern": "yyyy-mm-dd"
+     },
+     "backgroundColor": {
+      "red": 1,
+      "green": 1,
+      "blue": 1
+     },
+     "horizontalAlignment": "CENTER",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "bold": false,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      }
+     }
+    }
+   },
+   {
+    "userEnteredFormat": {
+     "numberFormat": {
+      "type": "NUMBER",
+      "pattern": "0\"일\""
+     },
+     "backgroundColor": {
+      "red": 1,
+      "green": 1,
+      "blue": 1
+     },
+     "horizontalAlignment": "CENTER",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "bold": false,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      }
+     }
+    }
+   },
+   {
+    "userEnteredFormat": {
+     "backgroundColor": {
+      "red": 1,
+      "green": 1,
+      "blue": 1
+     },
+     "horizontalAlignment": "CENTER",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "bold": false,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      }
+     }
+    }
+   },
+   {
+    "userEnteredValue": {
+     "stringValue": "COO"
+    },
+    "userEnteredFormat": {
+     "backgroundColor": {
+      "red": 1,
+      "green": 1,
+      "blue": 1
+     },
+     "horizontalAlignment": "CENTER",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "bold": false,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      }
+     }
+    }
+   },
+   {
+    "userEnteredValue": {
+     "stringValue": "생산본부"
+    },
+    "userEnteredFormat": {
+     "backgroundColor": {
+      "red": 1,
+      "green": 1,
+      "blue": 1
+     },
+     "horizontalAlignment": "CENTER",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "bold": false,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      }
+     }
+    }
+   },
+   {
+    "userEnteredValue": {
+     "stringValue": "생산3부"
+    },
+    "userEnteredFormat": {
+     "backgroundColor": {
+      "red": 1,
+      "green": 1,
+      "blue": 1
+     },
+     "horizontalAlignment": "CENTER",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "bold": false,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      }
+     }
+    }
+   },
+   {
+    "userEnteredValue": {
+     "stringValue": "생산3팀 (도급직)"
+    },
+    "userEnteredFormat": {
+     "backgroundColor": {
+      "red": 1,
+      "green": 1,
+      "blue": 1
+     },
+     "horizontalAlignment": "CENTER",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "bold": false,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      }
+     }
+    }
+   },
+   {
+    "userEnteredValue": {
+     "stringValue": "생산"
+    },
+    "userEnteredFormat": {
+     "backgroundColor": {
+      "red": 1,
+      "green": 1,
+      "blue": 1
+     },
+     "horizontalAlignment": "CENTER",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "bold": false,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      }
+     }
+    }
+   },
+   {
+    "userEnteredFormat": {
+     "backgroundColor": {
+      "red": 1,
+      "green": 1,
+      "blue": 1
+     },
+     "horizontalAlignment": "CENTER",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "bold": false,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      }
+     }
+    }
+   },
+   {
+    "userEnteredFormat": {
+     "backgroundColor": {
+      "red": 1,
+      "green": 1,
+      "blue": 1
+     },
+     "horizontalAlignment": "CENTER",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "bold": false,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      }
+     }
+    }
+   },
+   {
+    "userEnteredValue": {
+     "stringValue": "3공장"
+    },
+    "userEnteredFormat": {
+     "backgroundColor": {
+      "red": 1,
+      "green": 1,
+      "blue": 1
+     },
+     "horizontalAlignment": "LEFT",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "bold": false,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      }
+     }
+    }
+   },
+   {
+    "userEnteredValue": {
+     "stringValue": "직접"
+    },
+    "userEnteredFormat": {
+     "backgroundColor": {
+      "red": 1,
+      "green": 1,
+      "blue": 1
+     },
+     "horizontalAlignment": "LEFT",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "bold": false,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      }
+     }
+    }
+   },
+   {
+    "userEnteredFormat": {
+     "backgroundColor": {
+      "red": 1,
+      "green": 1,
+      "blue": 1
+     },
+     "horizontalAlignment": "LEFT",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "bold": false,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      }
+     }
+    }
+   },
+   {
+    "userEnteredValue": {
+     "formulaValue": "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\",\"'★전사인원현황'!M41\")"
+    },
+    "userEnteredFormat": {
+     "numberFormat": {
+      "type": "NUMBER",
+      "pattern": "0"
+     },
+     "backgroundColor": {
+      "red": 1,
+      "green": 1,
+      "blue": 1
+     },
+     "horizontalAlignment": "CENTER",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "bold": false,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      }
+     }
+    }
+   },
+   {
+    "userEnteredValue": {
+     "formulaValue": "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\",\"'★전사인원현황'!O41\")"
+    },
+    "userEnteredFormat": {
+     "numberFormat": {
+      "type": "NUMBER",
+      "pattern": "0"
+     },
+     "backgroundColor": {
+      "red": 1,
+      "green": 1,
+      "blue": 1
+     },
+     "horizontalAlignment": "CENTER",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "bold": false,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      }
+     }
+    }
+   },
+   {
+    "userEnteredValue": {
+     "formulaValue": "=N10-O10"
+    },
+    "userEnteredFormat": {
+     "numberFormat": {
+      "type": "NUMBER",
+      "pattern": "0"
+     },
+     "backgroundColor": {
+      "red": 1,
+      "green": 1,
+      "blue": 1
+     },
+     "horizontalAlignment": "CENTER",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "bold": false,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      }
+     }
+    }
+   },
+   {
+    "userEnteredValue": {
+     "formulaValue": "=IFERROR(O10/N10,0)"
+    },
+    "userEnteredFormat": {
+     "numberFormat": {
+      "type": "PERCENT",
+      "pattern": "0.0%"
+     },
+     "backgroundColor": {
+      "red": 1,
+      "green": 1,
+      "blue": 1
+     },
+     "borders": {
+      "left": {
+       "style": "SOLID_THICK",
+       "width": 3,
+       "color": {
+        "red": 1
+       },
+       "colorStyle": {
+        "rgbColor": {
+         "red": 1
+        }
+       }
+      },
+      "right": {
+       "style": "SOLID_THICK",
+       "width": 3,
+       "color": {
+        "red": 1
+       },
+       "colorStyle": {
+        "rgbColor": {
+         "red": 1
+        }
+       }
+      }
+     },
+     "horizontalAlignment": "CENTER",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "bold": false,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      }
+     }
+    }
+   },
+   {
+    "userEnteredFormat": {
+     "backgroundColor": {
+      "red": 1,
+      "green": 1,
+      "blue": 1
+     },
+     "horizontalAlignment": "CENTER",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "bold": false,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      }
+     }
+    }
+   },
+   {
+    "userEnteredFormat": {
+     "backgroundColor": {
+      "red": 1,
+      "green": 1,
+      "blue": 1
+     },
+     "horizontalAlignment": "CENTER",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "bold": false,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      }
+     }
+    }
+   },
+   {
+    "userEnteredFormat": {
+     "numberFormat": {
+      "type": "DATE",
+      "pattern": "yyyy-mm-dd"
+     },
+     "backgroundColor": {
+      "red": 1,
+      "green": 1,
+      "blue": 1
+     },
+     "horizontalAlignment": "CENTER",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "bold": false,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      }
+     }
+    }
+   },
+   {
+    "userEnteredFormat": {
+     "backgroundColor": {
+      "red": 1,
+      "green": 1,
+      "blue": 1
+     },
+     "horizontalAlignment": "CENTER",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "bold": false,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      }
+     }
+    }
+   },
+   {
+    "userEnteredValue": {
+     "formulaValue": "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\",\"'★전사인원현황'!H41\")"
+    },
+    "userEnteredFormat": {
+     "backgroundColor": {
+      "red": 1,
+      "green": 1,
+      "blue": 1
+     },
+     "horizontalAlignment": "CENTER",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "bold": false,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      }
+     }
+    }
+   }
+  ]
+ },
+ {
+  "values": [
+   {
+    "userEnteredFormat": {
+     "numberFormat": {
+      "type": "DATE",
+      "pattern": "yyyy-mm-dd"
+     },
+     "backgroundColor": {
+      "red": 1,
+      "green": 1,
+      "blue": 1
+     },
+     "horizontalAlignment": "CENTER",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "fontSize": 10,
+      "bold": false,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      }
+     }
+    }
+   },
+   {
+    "userEnteredFormat": {
+     "numberFormat": {
+      "type": "NUMBER",
+      "pattern": "0\"일\""
+     },
+     "backgroundColor": {
+      "red": 1,
+      "green": 1,
+      "blue": 1
+     },
+     "horizontalAlignment": "CENTER",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "fontSize": 10,
+      "bold": false,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      }
+     }
+    }
+   },
+   {
+    "userEnteredFormat": {
+     "backgroundColor": {
+      "red": 1,
+      "green": 1,
+      "blue": 1
+     },
+     "horizontalAlignment": "CENTER",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "fontSize": 10,
+      "bold": false,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      }
+     }
+    }
+   },
+   {
+    "userEnteredValue": {
+     "stringValue": "COO"
+    },
+    "userEnteredFormat": {
+     "backgroundColor": {
+      "red": 1,
+      "green": 1,
+      "blue": 1
+     },
+     "horizontalAlignment": "CENTER",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "fontSize": 10,
+      "bold": false,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      }
+     }
+    }
+   },
+   {
+    "userEnteredValue": {
+     "stringValue": "생산본부"
+    },
+    "userEnteredFormat": {
+     "backgroundColor": {
+      "red": 1,
+      "green": 1,
+      "blue": 1
+     },
+     "horizontalAlignment": "CENTER",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "fontSize": 10,
+      "bold": false,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      }
+     }
+    }
+   },
+   {
+    "userEnteredValue": {
+     "stringValue": "생산1부"
+    },
+    "userEnteredFormat": {
+     "backgroundColor": {
+      "red": 1,
+      "green": 1,
+      "blue": 1
+     },
+     "horizontalAlignment": "CENTER",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "fontSize": 10,
+      "bold": false,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      }
+     }
+    }
+   },
+   {
+    "userEnteredValue": {
+     "stringValue": "포장1팀 (도급직)"
+    },
+    "userEnteredFormat": {
+     "backgroundColor": {
+      "red": 1,
+      "green": 1,
+      "blue": 1
+     },
+     "horizontalAlignment": "CENTER",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "fontSize": 10,
+      "bold": false,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      }
+     }
+    }
+   },
+   {
+    "userEnteredValue": {
+     "stringValue": "포장"
+    },
+    "userEnteredFormat": {
+     "backgroundColor": {
+      "red": 1,
+      "green": 1,
+      "blue": 1
+     },
+     "horizontalAlignment": "CENTER",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "fontSize": 10,
+      "bold": false,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      }
+     }
+    }
+   },
+   {
+    "userEnteredFormat": {
+     "backgroundColor": {
+      "red": 1,
+      "green": 1,
+      "blue": 1
+     },
+     "horizontalAlignment": "CENTER",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "fontSize": 10,
+      "bold": false,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      }
+     }
+    }
+   },
+   {
+    "userEnteredFormat": {
+     "backgroundColor": {
+      "red": 1,
+      "green": 1,
+      "blue": 1
+     },
+     "horizontalAlignment": "CENTER",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "fontSize": 10,
+      "bold": false,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      }
+     }
+    }
+   },
+   {
+    "userEnteredValue": {
+     "stringValue": "퍼플"
+    },
+    "userEnteredFormat": {
+     "backgroundColor": {
+      "red": 1,
+      "green": 1,
+      "blue": 1
+     },
+     "horizontalAlignment": "LEFT",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "fontSize": 10,
+      "bold": false,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      }
+     }
+    }
+   },
+   {
+    "userEnteredValue": {
+     "stringValue": "직접"
+    },
+    "userEnteredFormat": {
+     "backgroundColor": {
+      "red": 1,
+      "green": 1,
+      "blue": 1
+     },
+     "horizontalAlignment": "LEFT",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "fontSize": 10,
+      "bold": false,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      }
+     }
+    }
+   },
+   {
+    "userEnteredFormat": {
+     "backgroundColor": {
+      "red": 1,
+      "green": 1,
+      "blue": 1
+     },
+     "horizontalAlignment": "LEFT",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "fontSize": 10,
+      "bold": false,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      }
+     }
+    }
+   },
+   {
+    "userEnteredValue": {
+     "formulaValue": "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\",\"'★전사인원현황'!J39\")"
+    },
+    "userEnteredFormat": {
+     "numberFormat": {
+      "type": "NUMBER",
+      "pattern": "0"
+     },
+     "backgroundColor": {
+      "red": 1,
+      "green": 1,
+      "blue": 1
+     },
+     "horizontalAlignment": "CENTER",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "fontSize": 10,
+      "bold": false,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      }
+     }
+    }
+   },
+   {
+    "userEnteredValue": {
+     "formulaValue": "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\",\"'★전사인원현황'!O39\")"
+    },
+    "userEnteredFormat": {
+     "numberFormat": {
+      "type": "NUMBER",
+      "pattern": "0"
+     },
+     "backgroundColor": {
+      "red": 1,
+      "green": 1,
+      "blue": 1
+     },
+     "horizontalAlignment": "CENTER",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "fontSize": 10,
+      "bold": false,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      }
+     }
+    }
+   },
+   {
+    "userEnteredValue": {
+     "formulaValue": "=N11-O11"
+    },
+    "userEnteredFormat": {
+     "numberFormat": {
+      "type": "NUMBER",
+      "pattern": "0"
+     },
+     "backgroundColor": {
+      "red": 1,
+      "green": 1,
+      "blue": 1
+     },
+     "horizontalAlignment": "CENTER",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "fontSize": 10,
+      "bold": false,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      }
+     }
+    }
+   },
+   {
+    "userEnteredValue": {
+     "formulaValue": "=IFERROR(O11/N11,0)"
+    },
+    "userEnteredFormat": {
+     "numberFormat": {
+      "type": "PERCENT",
+      "pattern": "0.0%"
+     },
+     "backgroundColor": {
+      "red": 1,
+      "green": 1,
+      "blue": 1
+     },
+     "borders": {
+      "left": {
+       "style": "SOLID_THICK",
+       "width": 3,
+       "color": {
+        "red": 1
+       },
+       "colorStyle": {
+        "rgbColor": {
+         "red": 1
+        }
+       }
+      },
+      "right": {
+       "style": "SOLID_THICK",
+       "width": 3,
+       "color": {
+        "red": 1
+       },
+       "colorStyle": {
+        "rgbColor": {
+         "red": 1
+        }
+       }
+      }
+     },
+     "horizontalAlignment": "CENTER",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "fontSize": 10,
+      "bold": false,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      }
+     }
+    }
+   },
+   {
+    "userEnteredFormat": {
+     "backgroundColor": {
+      "red": 1,
+      "green": 1,
+      "blue": 1
+     },
+     "horizontalAlignment": "CENTER",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {
+       "red": 0.4,
+       "green": 0.4,
+       "blue": 0.4
+      },
+      "bold": false,
+      "foregroundColorStyle": {
+       "rgbColor": {
+        "red": 0.4,
+        "green": 0.4,
+        "blue": 0.4
+       }
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      }
+     }
+    }
+   },
+   {
+    "userEnteredFormat": {
+     "backgroundColor": {
+      "red": 1,
+      "green": 1,
+      "blue": 1
+     },
+     "horizontalAlignment": "CENTER",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "fontSize": 10,
+      "bold": false,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      }
+     }
+    }
+   },
+   {
+    "userEnteredFormat": {
+     "numberFormat": {
+      "type": "DATE",
+      "pattern": "yyyy-mm-dd"
+     },
+     "backgroundColor": {
+      "red": 1,
+      "green": 1,
+      "blue": 1
+     },
+     "horizontalAlignment": "CENTER",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "fontSize": 10,
+      "bold": false,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      }
+     }
+    }
+   },
+   {
+    "userEnteredFormat": {
+     "backgroundColor": {
+      "red": 1,
+      "green": 1,
+      "blue": 1
+     },
+     "horizontalAlignment": "CENTER",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "fontSize": 10,
+      "bold": false,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      }
+     }
+    }
+   },
+   {
+    "userEnteredValue": {
+     "formulaValue": "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\",\"'★전사인원현황'!H39\")"
+    },
+    "userEnteredFormat": {
+     "backgroundColor": {
+      "red": 1,
+      "green": 1,
+      "blue": 1
+     },
+     "horizontalAlignment": "CENTER",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "fontSize": 10,
+      "bold": false,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      }
+     }
+    }
+   }
+  ]
+ },
+ {
+  "values": [
+   {
+    "userEnteredFormat": {
+     "numberFormat": {
+      "type": "DATE",
+      "pattern": "yyyy-mm-dd"
+     },
+     "backgroundColor": {
+      "red": 1,
+      "green": 1,
+      "blue": 1
+     },
+     "horizontalAlignment": "CENTER",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "fontSize": 10,
+      "bold": false,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      }
+     }
+    }
+   },
+   {
+    "userEnteredFormat": {
+     "numberFormat": {
+      "type": "NUMBER",
+      "pattern": "0\"일\""
+     },
+     "backgroundColor": {
+      "red": 1,
+      "green": 1,
+      "blue": 1
+     },
+     "horizontalAlignment": "CENTER",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "fontSize": 10,
+      "bold": false,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      }
+     }
+    }
+   },
+   {
+    "userEnteredFormat": {
+     "backgroundColor": {
+      "red": 1,
+      "green": 1,
+      "blue": 1
+     },
+     "horizontalAlignment": "CENTER",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "fontSize": 10,
+      "bold": false,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      }
+     }
+    }
+   },
+   {
+    "userEnteredValue": {
+     "stringValue": "COO"
+    },
+    "userEnteredFormat": {
+     "backgroundColor": {
+      "red": 1,
+      "green": 1,
+      "blue": 1
+     },
+     "horizontalAlignment": "CENTER",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "fontSize": 10,
+      "bold": false,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      }
+     }
+    }
+   },
+   {
+    "userEnteredValue": {
+     "stringValue": "생산본부"
+    },
+    "userEnteredFormat": {
+     "backgroundColor": {
+      "red": 1,
+      "green": 1,
+      "blue": 1
+     },
+     "horizontalAlignment": "CENTER",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "fontSize": 10,
+      "bold": false,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      }
+     }
+    }
+   },
+   {
+    "userEnteredValue": {
+     "stringValue": "생산2부"
+    },
+    "userEnteredFormat": {
+     "backgroundColor": {
+      "red": 1,
+      "green": 1,
+      "blue": 1
+     },
+     "horizontalAlignment": "CENTER",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "fontSize": 10,
+      "bold": false,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      }
+     }
+    }
+   },
+   {
+    "userEnteredValue": {
+     "stringValue": "포장2팀 (도급직)"
+    },
+    "userEnteredFormat": {
+     "backgroundColor": {
+      "red": 1,
+      "green": 1,
+      "blue": 1
+     },
+     "horizontalAlignment": "CENTER",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "fontSize": 10,
+      "bold": false,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      }
+     }
+    }
+   },
+   {
+    "userEnteredValue": {
+     "stringValue": "포장"
+    },
+    "userEnteredFormat": {
+     "backgroundColor": {
+      "red": 1,
+      "green": 1,
+      "blue": 1
+     },
+     "horizontalAlignment": "CENTER",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "fontSize": 10,
+      "bold": false,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      }
+     }
+    }
+   },
+   {
+    "userEnteredFormat": {
+     "backgroundColor": {
+      "red": 1,
+      "green": 1,
+      "blue": 1
+     },
+     "horizontalAlignment": "CENTER",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "fontSize": 10,
+      "bold": false,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      }
+     }
+    }
+   },
+   {
+    "userEnteredFormat": {
+     "backgroundColor": {
+      "red": 1,
+      "green": 1,
+      "blue": 1
+     },
+     "horizontalAlignment": "CENTER",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "fontSize": 10,
+      "bold": false,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      }
+     }
+    }
+   },
+   {
+    "userEnteredValue": {
+     "stringValue": "그린"
+    },
+    "userEnteredFormat": {
+     "backgroundColor": {
+      "red": 1,
+      "green": 1,
+      "blue": 1
+     },
+     "horizontalAlignment": "LEFT",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "fontSize": 10,
+      "bold": false,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      }
+     }
+    }
+   },
+   {
+    "userEnteredValue": {
+     "stringValue": "직접"
+    },
+    "userEnteredFormat": {
+     "backgroundColor": {
+      "red": 1,
+      "green": 1,
+      "blue": 1
+     },
+     "horizontalAlignment": "LEFT",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "fontSize": 10,
+      "bold": false,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      }
+     }
+    }
+   },
+   {
+    "userEnteredFormat": {
+     "backgroundColor": {
+      "red": 1,
+      "green": 1,
+      "blue": 1
+     },
+     "horizontalAlignment": "LEFT",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "fontSize": 10,
+      "bold": false,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      }
+     }
+    }
+   },
+   {
+    "userEnteredValue": {
+     "formulaValue": "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\",\"'★전사인원현황'!J55\")"
+    },
+    "userEnteredFormat": {
+     "numberFormat": {
+      "type": "NUMBER",
+      "pattern": "0"
+     },
+     "backgroundColor": {
+      "red": 1,
+      "green": 1,
+      "blue": 1
+     },
+     "horizontalAlignment": "CENTER",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "fontSize": 10,
+      "bold": false,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      }
+     }
+    }
+   },
+   {
+    "userEnteredValue": {
+     "formulaValue": "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\",\"'★전사인원현황'!O55\")"
+    },
+    "userEnteredFormat": {
+     "numberFormat": {
+      "type": "NUMBER",
+      "pattern": "0"
+     },
+     "backgroundColor": {
+      "red": 1,
+      "green": 1,
+      "blue": 1
+     },
+     "horizontalAlignment": "CENTER",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "fontSize": 10,
+      "bold": false,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      }
+     }
+    }
+   },
+   {
+    "userEnteredValue": {
+     "formulaValue": "=N12-O12"
+    },
+    "userEnteredFormat": {
+     "numberFormat": {
+      "type": "NUMBER",
+      "pattern": "0"
+     },
+     "backgroundColor": {
+      "red": 1,
+      "green": 1,
+      "blue": 1
+     },
+     "horizontalAlignment": "CENTER",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "fontSize": 10,
+      "bold": false,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      }
+     }
+    }
+   },
+   {
+    "userEnteredValue": {
+     "formulaValue": "=IFERROR(O12/N12,0)"
+    },
+    "userEnteredFormat": {
+     "numberFormat": {
+      "type": "PERCENT",
+      "pattern": "0.0%"
+     },
+     "backgroundColor": {
+      "red": 1,
+      "green": 1,
+      "blue": 1
+     },
+     "borders": {
+      "left": {
+       "style": "SOLID_THICK",
+       "width": 3,
+       "color": {
+        "red": 1
+       },
+       "colorStyle": {
+        "rgbColor": {
+         "red": 1
+        }
+       }
+      },
+      "right": {
+       "style": "SOLID_THICK",
+       "width": 3,
+       "color": {
+        "red": 1
+       },
+       "colorStyle": {
+        "rgbColor": {
+         "red": 1
+        }
+       }
+      }
+     },
+     "horizontalAlignment": "CENTER",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "fontSize": 10,
+      "bold": false,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      }
+     }
+    }
+   },
+   {
+    "userEnteredFormat": {
+     "backgroundColor": {
+      "red": 1,
+      "green": 1,
+      "blue": 1
+     },
+     "horizontalAlignment": "CENTER",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {
+       "red": 0.4,
+       "green": 0.4,
+       "blue": 0.4
+      },
+      "bold": false,
+      "foregroundColorStyle": {
+       "rgbColor": {
+        "red": 0.4,
+        "green": 0.4,
+        "blue": 0.4
+       }
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      }
+     }
+    }
+   },
+   {
+    "userEnteredFormat": {
+     "backgroundColor": {
+      "red": 1,
+      "green": 1,
+      "blue": 1
+     },
+     "horizontalAlignment": "CENTER",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "fontSize": 10,
+      "bold": false,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      }
+     }
+    }
+   },
+   {
+    "userEnteredFormat": {
+     "numberFormat": {
+      "type": "DATE",
+      "pattern": "yyyy-mm-dd"
+     },
+     "backgroundColor": {
+      "red": 1,
+      "green": 1,
+      "blue": 1
+     },
+     "horizontalAlignment": "CENTER",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "fontSize": 10,
+      "bold": false,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      }
+     }
+    }
+   },
+   {
+    "userEnteredFormat": {
+     "backgroundColor": {
+      "red": 1,
+      "green": 1,
+      "blue": 1
+     },
+     "horizontalAlignment": "CENTER",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "fontSize": 10,
+      "bold": false,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      }
+     }
+    }
+   },
+   {
+    "userEnteredValue": {
+     "formulaValue": "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\",\"'★전사인원현황'!H55\")"
+    },
+    "userEnteredFormat": {
+     "backgroundColor": {
+      "red": 1,
+      "green": 1,
+      "blue": 1
+     },
+     "horizontalAlignment": "CENTER",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "fontSize": 10,
+      "bold": false,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      }
+     }
+    }
+   }
+  ]
+ },
+ {
+  "values": [
+   {
+    "userEnteredFormat": {
+     "numberFormat": {
+      "type": "DATE",
+      "pattern": "yyyy-mm-dd"
+     },
+     "backgroundColor": {
+      "red": 1,
+      "green": 1,
+      "blue": 1
+     },
+     "horizontalAlignment": "CENTER",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "fontSize": 10,
+      "bold": false,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      }
+     }
+    }
+   },
+   {
+    "userEnteredFormat": {
+     "numberFormat": {
+      "type": "NUMBER",
+      "pattern": "0\"일\""
+     },
+     "backgroundColor": {
+      "red": 1,
+      "green": 1,
+      "blue": 1
+     },
+     "horizontalAlignment": "CENTER",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "fontSize": 10,
+      "bold": false,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      }
+     }
+    }
+   },
+   {
+    "userEnteredFormat": {
+     "backgroundColor": {
+      "red": 1,
+      "green": 1,
+      "blue": 1
+     },
+     "horizontalAlignment": "CENTER",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "fontSize": 10,
+      "bold": false,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      }
+     }
+    }
+   },
+   {
+    "userEnteredValue": {
+     "stringValue": "COO"
+    },
+    "userEnteredFormat": {
+     "backgroundColor": {
+      "red": 1,
+      "green": 1,
+      "blue": 1
+     },
+     "horizontalAlignment": "CENTER",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "fontSize": 10,
+      "bold": false,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      }
+     }
+    }
+   },
+   {
+    "userEnteredValue": {
+     "stringValue": "생산본부"
+    },
+    "userEnteredFormat": {
+     "backgroundColor": {
+      "red": 1,
+      "green": 1,
+      "blue": 1
+     },
+     "horizontalAlignment": "CENTER",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "fontSize": 10,
+      "bold": false,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      }
+     }
+    }
+   },
+   {
+    "userEnteredValue": {
+     "stringValue": "생산3부"
+    },
+    "userEnteredFormat": {
+     "backgroundColor": {
+      "red": 1,
+      "green": 1,
+      "blue": 1
+     },
+     "horizontalAlignment": "CENTER",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "fontSize": 10,
+      "bold": false,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      }
+     }
+    }
+   },
+   {
+    "userEnteredValue": {
+     "stringValue": "포장3팀 (도급직)"
+    },
+    "userEnteredFormat": {
+     "backgroundColor": {
+      "red": 1,
+      "green": 1,
+      "blue": 1
+     },
+     "horizontalAlignment": "CENTER",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "fontSize": 10,
+      "bold": false,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      }
+     }
+    }
+   },
+   {
+    "userEnteredValue": {
+     "stringValue": "포장"
+    },
+    "userEnteredFormat": {
+     "backgroundColor": {
+      "red": 1,
+      "green": 1,
+      "blue": 1
+     },
+     "horizontalAlignment": "CENTER",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "fontSize": 10,
+      "bold": false,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      }
+     }
+    }
+   },
+   {
+    "userEnteredFormat": {
+     "backgroundColor": {
+      "red": 1,
+      "green": 1,
+      "blue": 1
+     },
+     "horizontalAlignment": "CENTER",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "fontSize": 10,
+      "bold": false,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      }
+     }
+    }
+   },
+   {
+    "userEnteredFormat": {
+     "backgroundColor": {
+      "red": 1,
+      "green": 1,
+      "blue": 1
+     },
+     "horizontalAlignment": "CENTER",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "fontSize": 10,
+      "bold": false,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      }
+     }
+    }
+   },
+   {
+    "userEnteredValue": {
+     "stringValue": "3공장"
+    },
+    "userEnteredFormat": {
+     "backgroundColor": {
+      "red": 1,
+      "green": 1,
+      "blue": 1
+     },
+     "horizontalAlignment": "LEFT",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "fontSize": 10,
+      "bold": false,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      }
+     }
+    }
+   },
+   {
+    "userEnteredValue": {
+     "stringValue": "직접"
+    },
+    "userEnteredFormat": {
+     "backgroundColor": {
+      "red": 1,
+      "green": 1,
+      "blue": 1
+     },
+     "horizontalAlignment": "LEFT",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "fontSize": 10,
+      "bold": false,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      }
+     }
+    }
+   },
+   {
+    "userEnteredFormat": {
+     "backgroundColor": {
+      "red": 1,
+      "green": 1,
+      "blue": 1
+     },
+     "horizontalAlignment": "LEFT",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "fontSize": 10,
+      "bold": false,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      }
+     }
+    }
+   },
+   {
+    "userEnteredValue": {
+     "formulaValue": "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\",\"'★전사인원현황'!J43\")"
+    },
+    "userEnteredFormat": {
+     "numberFormat": {
+      "type": "NUMBER",
+      "pattern": "0"
+     },
+     "backgroundColor": {
+      "red": 1,
+      "green": 1,
+      "blue": 1
+     },
+     "horizontalAlignment": "CENTER",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "fontSize": 10,
+      "bold": false,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      }
+     }
+    }
+   },
+   {
+    "userEnteredValue": {
+     "formulaValue": "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\",\"'★전사인원현황'!O43\")"
+    },
+    "userEnteredFormat": {
+     "numberFormat": {
+      "type": "NUMBER",
+      "pattern": "0"
+     },
+     "backgroundColor": {
+      "red": 1,
+      "green": 1,
+      "blue": 1
+     },
+     "horizontalAlignment": "CENTER",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "fontSize": 10,
+      "bold": false,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      }
+     }
+    }
+   },
+   {
+    "userEnteredValue": {
+     "formulaValue": "=N13-O13"
+    },
+    "userEnteredFormat": {
+     "numberFormat": {
+      "type": "NUMBER",
+      "pattern": "0"
+     },
+     "backgroundColor": {
+      "red": 1,
+      "green": 1,
+      "blue": 1
+     },
+     "horizontalAlignment": "CENTER",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "fontSize": 10,
+      "bold": false,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      }
+     }
+    }
+   },
+   {
+    "userEnteredValue": {
+     "formulaValue": "=IFERROR(O13/N13,0)"
+    },
+    "userEnteredFormat": {
+     "numberFormat": {
+      "type": "PERCENT",
+      "pattern": "0.0%"
+     },
+     "backgroundColor": {
+      "red": 1,
+      "green": 1,
+      "blue": 1
+     },
+     "borders": {
+      "left": {
+       "style": "SOLID_THICK",
+       "width": 3,
+       "color": {
+        "red": 1
+       },
+       "colorStyle": {
+        "rgbColor": {
+         "red": 1
+        }
+       }
+      },
+      "right": {
+       "style": "SOLID_THICK",
+       "width": 3,
+       "color": {
+        "red": 1
+       },
+       "colorStyle": {
+        "rgbColor": {
+         "red": 1
+        }
+       }
+      }
+     },
+     "horizontalAlignment": "CENTER",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "fontSize": 10,
+      "bold": false,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      }
+     }
+    }
+   },
+   {
+    "userEnteredFormat": {
+     "backgroundColor": {
+      "red": 1,
+      "green": 1,
+      "blue": 1
+     },
+     "horizontalAlignment": "CENTER",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {
+       "red": 0.4,
+       "green": 0.4,
+       "blue": 0.4
+      },
+      "bold": false,
+      "foregroundColorStyle": {
+       "rgbColor": {
+        "red": 0.4,
+        "green": 0.4,
+        "blue": 0.4
+       }
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      }
+     }
+    }
+   },
+   {
+    "userEnteredFormat": {
+     "backgroundColor": {
+      "red": 1,
+      "green": 1,
+      "blue": 1
+     },
+     "horizontalAlignment": "CENTER",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "fontSize": 10,
+      "bold": false,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      }
+     }
+    }
+   },
+   {
+    "userEnteredFormat": {
+     "numberFormat": {
+      "type": "DATE",
+      "pattern": "yyyy-mm-dd"
+     },
+     "backgroundColor": {
+      "red": 1,
+      "green": 1,
+      "blue": 1
+     },
+     "horizontalAlignment": "CENTER",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "fontSize": 10,
+      "bold": false,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      }
+     }
+    }
+   },
+   {
+    "userEnteredFormat": {
+     "backgroundColor": {
+      "red": 1,
+      "green": 1,
+      "blue": 1
+     },
+     "horizontalAlignment": "CENTER",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "fontSize": 10,
+      "bold": false,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      }
+     }
+    }
+   },
+   {
+    "userEnteredValue": {
+     "formulaValue": "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\",\"'★전사인원현황'!H43\")"
+    },
+    "userEnteredFormat": {
+     "backgroundColor": {
+      "red": 1,
+      "green": 1,
+      "blue": 1
+     },
+     "horizontalAlignment": "CENTER",
+     "verticalAlignment": "MIDDLE",
+     "textFormat": {
+      "foregroundColor": {},
+      "fontSize": 10,
+      "bold": false,
+      "foregroundColorStyle": {
+       "rgbColor": {}
+      }
+     },
+     "backgroundColorStyle": {
+      "rgbColor": {
+       "red": 1,
+       "green": 1,
+       "blue": 1
+      }
+     }
+    }
+   }
+  ]
+ }
+]
