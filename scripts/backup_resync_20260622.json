@@ -23,14 +23,35 @@
   "마감",
   "입사자명단",
   "입사확정일",
-  "정규직",
-  "도급직"
+  "정규직 재직 인원",
+  "도급직 재직 인원"
  ],
  [
-  "=\"■ COO    (채용필요 \"&SUMIF($D$5:$D$105,\"COO\",$N$5:$N$105)&\"명 · 입사예정 \"&SUMIF($D$5:$D$105,\"COO\",$O$5:$O$105)&\"명 · 잔여 \"&(SUMIF($D$5:$D$105,\"COO\",$N$5:$N$105)-SUMIF($D$5:$D$105,\"COO\",$O$5:$O$105))&\"명 · 달성률 \"&TEXT(IFERROR(SUMIF($D$5:$D$105,\"COO\",$O$5:$O$105)/SUMIF($D$5:$D$105,\"COO\",$N$5:$N$105),0),\"0.0%\")&\")\""
+  "■ COO"
  ],
  [
-  "=\"▸ 정규직 라인    (채용필요 \"&SUM(N5:N6)&\"명 · 입사예정 \"&SUM(O5:O6)&\"명 · 재직 \"&SUM(U5:U6)&\"명)\""
+  "▸ 생산1팀",
+  "",
+  "",
+  "",
+  "",
+  "",
+  "",
+  "",
+  "",
+  "",
+  "",
+  "",
+  "",
+  "=SUM(N5:N6)",
+  "=SUM(O5:O6)",
+  "",
+  "=IF($N4=\"\",\"\",IF($N4<=0,\"-\",MIN($O4,$N4)/$N4))",
+  "",
+  "",
+  "",
+  "=SUM(U5:U6)",
+  "=SUM(V5:V6)"
  ],
  [
   "",
@@ -49,11 +70,59 @@
   "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\",\"'★전사인원현황'!J37\")",
   "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\",\"'★전사인원현황'!N37\")",
   "=N5-O5",
-  "=IFERROR(O5/N5,0)",
+  "=IF($N5=\"\",\"\",IF($N5<=0,\"-\",MIN($O5,$N5)/$N5))",
   "",
   "",
   "",
   "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\",\"'★전사인원현황'!E37\")"
+ ],
+ [
+  "",
+  "",
+  "",
+  "COO",
+  "생산본부",
+  "생산1부",
+  "생산1팀 (도급직)",
+  "생산",
+  "",
+  "",
+  "퍼플",
+  "직접",
+  "",
+  "",
+  "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\",\"'★전사인원현황'!O37\")",
+  "",
+  "",
+  "",
+  "",
+  "",
+  "",
+  "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\",\"'★전사인원현황'!H37\")"
+ ],
+ [
+  "▸ 생산2팀",
+  "",
+  "",
+  "",
+  "",
+  "",
+  "",
+  "",
+  "",
+  "",
+  "",
+  "",
+  "",
+  "=SUM(N8:N9)",
+  "=SUM(O8:O9)",
+  "",
+  "=IF($N7=\"\",\"\",IF($N7<=0,\"-\",MIN($O7,$N7)/$N7))",
+  "",
+  "",
+  "",
+  "=SUM(U8:U9)",
+  "=SUM(V8:V9)"
  ],
  [
   "",
@@ -71,39 +140,12 @@
   "",
   "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\",\"'★전사인원현황'!J51\")",
   "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\",\"'★전사인원현황'!N51\")",
-  "=N6-O6",
-  "=IFERROR(O6/N6,0)",
+  "=N8-O8",
+  "=IF($N8=\"\",\"\",IF($N8<=0,\"-\",MIN($O8,$N8)/$N8))",
   "",
   "",
   "",
   "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\",\"'★전사인원현황'!E51\")"
- ],
- [
-  "=\"▸ 도급직 라인    (채용필요 \"&SUM(N8:N13)&\"명 · 입사예정 \"&SUM(O8:O13)&\"명 · 재직 \"&SUM(V8:V13)&\"명)\""
- ],
- [
-  "",
-  "",
-  "",
-  "COO",
-  "생산본부",
-  "생산1부",
-  "생산1팀 (도급직)",
-  "생산",
-  "",
-  "",
-  "퍼플",
-  "직접",
-  "",
-  "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\",\"'★전사인원현황'!M37\")",
-  "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\",\"'★전사인원현황'!O37\")",
-  "=N8-O8",
-  "=IFERROR(O8/N8,0)",
-  "",
-  "",
-  "",
-  "",
-  "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\",\"'★전사인원현황'!H37\")"
  ],
  [
   "",
@@ -119,10 +161,10 @@
   "그린",
   "직접",
   "",
-  "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\",\"'★전사인원현황'!M51\")",
+  "",
   "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\",\"'★전사인원현황'!O51\")",
-  "=N9-O9",
-  "=IFERROR(O9/N9,0)",
+  "",
+  "",
   "",
   "",
   "",
@@ -146,7 +188,7 @@
   "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\",\"'★전사인원현황'!M41\")",
   "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\",\"'★전사인원현황'!O41\")",
   "=N10-O10",
-  "=IFERROR(O10/N10,0)",
+  "=IF($N10=\"\",\"\",IF($N10<=0,\"-\",MIN($O10,$N10)/$N10))",
   "",
   "",
   "",
@@ -170,7 +212,7 @@
   "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\",\"'★전사인원현황'!J39\")",
   "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\",\"'★전사인원현황'!O39\")",
   "=N11-O11",
-  "=IFERROR(O11/N11,0)",
+  "=IF($N11=\"\",\"\",IF($N11<=0,\"-\",MIN($O11,$N11)/$N11))",
   "",
   "",
   "",
@@ -194,7 +236,7 @@
   "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\",\"'★전사인원현황'!J55\")",
   "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\",\"'★전사인원현황'!O55\")",
   "=N12-O12",
-  "=IFERROR(O12/N12,0)",
+  "=IF($N12=\"\",\"\",IF($N12<=0,\"-\",MIN($O12,$N12)/$N12))",
   "",
   "",
   "",
@@ -218,14 +260,32 @@
   "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\",\"'★전사인원현황'!J43\")",
   "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\",\"'★전사인원현황'!O43\")",
   "=N13-O13",
-  "=IFERROR(O13/N13,0)",
+  "=IF($N13=\"\",\"\",IF($N13<=0,\"-\",MIN($O13,$N13)/$N13))",
   "",
   "",
   "",
   "",
   "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\",\"'★전사인원현황'!H43\")"
  ],
- [],
+ [
+  "",
+  "",
+  "",
+  "",
+  "",
+  "",
+  "",
+  "",
+  "",
+  "",
+  "",
+  "",
+  "",
+  "",
+  "",
+  "",
+  "=IF($N14=\"\",\"\",IF($N14<=0,\"-\",MIN($O14,$N14)/$N14))"
+ ],
  [
   46055,
   "=IF(ISNUMBER(A15),IF($T15=\"\",TODAY()-A15,$T15-A15),\"\")",
@@ -243,7 +303,7 @@
   "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\", \"채용요청(정규직)DB!G4\")",
   "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\", \"채용요청(정규직)DB!O4\")",
   "=N15-O15",
-  "=IFERROR(O15/N15,0)",
+  "=IF($N15=\"\",\"\",IF($N15<=0,\"-\",MIN($O15,$N15)/$N15))",
   "=IF(AND(ISNUMBER(Q15),Q15>=1),\"CLOSE\",\"\")",
   "6/15 김태권",
   46188
@@ -265,7 +325,7 @@
   "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\", \"채용요청(정규직)DB!G5\")",
   "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\", \"채용요청(정규직)DB!O5\")",
   "=N16-O16",
-  "=IFERROR(O16/N16,0)",
+  "=IF($N16=\"\",\"\",IF($N16<=0,\"-\",MIN($O16,$N16)/$N16))",
   "=IF(AND(ISNUMBER(Q16),Q16>=1),\"CLOSE\",\"\")"
  ],
  [
@@ -281,11 +341,11 @@
   "김태균,이태양",
   "그린",
   "간접",
-  "채용품의",
+  "입사완료",
   "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\", \"채용완료!F14\")",
   "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\", \"채용완료!M14\")",
   "=N17-O17",
-  "=IFERROR(O17/N17,0)",
+  "=IF($N17=\"\",\"\",IF($N17<=0,\"-\",MIN($O17,$N17)/$N17))",
   "=IF(AND(ISNUMBER(Q17),Q17>=1),\"CLOSE\",\"\")",
   "6/22 권오규\n6/22 박창현",
   46195
@@ -307,7 +367,7 @@
   "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\", \"채용요청(정규직)DB!G6\")",
   "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\", \"채용요청(정규직)DB!O6\")",
   "=N18-O18",
-  "=IFERROR(O18/N18,0)",
+  "=IF($N18=\"\",\"\",IF($N18<=0,\"-\",MIN($O18,$N18)/$N18))",
   "=IF(AND(ISNUMBER(Q18),Q18>=1),\"CLOSE\",\"\")"
  ],
  [
@@ -327,7 +387,7 @@
   "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\", \"채용요청(정규직)DB!G7\")",
   "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\", \"채용요청(정규직)DB!O7\")",
   "=N19-O19",
-  "=IFERROR(O19/N19,0)",
+  "=IF($N19=\"\",\"\",IF($N19<=0,\"-\",MIN($O19,$N19)/$N19))",
   "=IF(AND(ISNUMBER(Q19),Q19>=1),\"CLOSE\",\"\")",
   "6/1 박오균",
   46174
@@ -349,7 +409,7 @@
   "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\", \"채용요청(정규직)DB!G8\")",
   "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\", \"채용요청(정규직)DB!O8\")",
   "=N20-O20",
-  "=IFERROR(O20/N20,0)",
+  "=IF($N20=\"\",\"\",IF($N20<=0,\"-\",MIN($O20,$N20)/$N20))",
   "=IF(AND(ISNUMBER(Q20),Q20>=1),\"CLOSE\",\"\")",
   "6/1 한준희 \n6/29 류종회",
   46202
@@ -371,7 +431,7 @@
   "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\", \"채용요청(정규직)DB!G9\")",
   "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\", \"채용요청(정규직)DB!O9\")",
   "=N21-O21",
-  "=IFERROR(O21/N21,0)",
+  "=IF($N21=\"\",\"\",IF($N21<=0,\"-\",MIN($O21,$N21)/$N21))",
   "=IF(AND(ISNUMBER(Q21),Q21>=1),\"CLOSE\",\"\")"
  ],
  [
@@ -387,11 +447,11 @@
   "",
   "퍼플",
   "간접",
-  "입사확정",
+  "입사완료",
   "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\", \"채용완료!F13\")",
   "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\", \"채용완료!M13\")",
   "=N22-O22",
-  "=IFERROR(O22/N22,0)",
+  "=IF($N22=\"\",\"\",IF($N22<=0,\"-\",MIN($O22,$N22)/$N22))",
   "=IF(AND(ISNUMBER(Q22),Q22>=1),\"CLOSE\",\"\")",
   "고태환",
   46188
@@ -413,7 +473,7 @@
   "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\", \"채용요청(정규직)DB!G11\")",
   "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\", \"채용요청(정규직)DB!O11\")",
   "=N23-O23",
-  "=IFERROR(O23/N23,0)",
+  "=IF($N23=\"\",\"\",IF($N23<=0,\"-\",MIN($O23,$N23)/$N23))",
   "=IF(AND(ISNUMBER(Q23),Q23>=1),\"CLOSE\",\"\")"
  ],
  [
@@ -433,7 +493,7 @@
   "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\", \"채용요청(정규직)DB!G12\")",
   "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\", \"채용요청(정규직)DB!O12\")",
   "=N24-O24",
-  "=IFERROR(O24/N24,0)",
+  "=IF($N24=\"\",\"\",IF($N24<=0,\"-\",MIN($O24,$N24)/$N24))",
   "=IF(AND(ISNUMBER(Q24),Q24>=1),\"CLOSE\",\"\")",
   "신선아",
   46202
@@ -455,7 +515,7 @@
   "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\", \"채용요청(정규직)DB!G14\")",
   "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\", \"채용요청(정규직)DB!O14\")",
   "=N25-O25",
-  "=IFERROR(O25/N25,0)",
+  "=IF($N25=\"\",\"\",IF($N25<=0,\"-\",MIN($O25,$N25)/$N25))",
   "=IF(AND(ISNUMBER(Q25),Q25>=1),\"CLOSE\",\"\")"
  ],
  [
@@ -475,7 +535,7 @@
   "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\", \"채용요청(정규직)DB!G15\")",
   "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\", \"채용요청(정규직)DB!O15\")",
   "=N26-O26",
-  "=IFERROR(O26/N26,0)",
+  "=IF($N26=\"\",\"\",IF($N26<=0,\"-\",MIN($O26,$N26)/$N26))",
   "=IF(AND(ISNUMBER(Q26),Q26>=1),\"CLOSE\",\"\")"
  ],
  [
@@ -495,7 +555,7 @@
   "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\", \"채용요청(정규직)DB!G16\")",
   "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\", \"채용요청(정규직)DB!O16\")",
   "=N27-O27",
-  "=IFERROR(O27/N27,0)",
+  "=IF($N27=\"\",\"\",IF($N27<=0,\"-\",MIN($O27,$N27)/$N27))",
   "=IF(AND(ISNUMBER(Q27),Q27>=1),\"CLOSE\",\"\")",
   "6/8 이혜지(퇴사) 6/8 최영주 \n6/15 최원준",
   46188
@@ -517,7 +577,7 @@
   "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\", \"채용요청(정규직)DB!G17\")",
   "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\", \"채용요청(정규직)DB!O17\")",
   "=N28-O28",
-  "=IFERROR(O28/N28,0)",
+  "=IF($N28=\"\",\"\",IF($N28<=0,\"-\",MIN($O28,$N28)/$N28))",
   "=IF(AND(ISNUMBER(Q28),Q28>=1),\"CLOSE\",\"\")"
  ],
  [
@@ -537,7 +597,7 @@
   "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\", \"채용요청(정규직)DB!G18\")",
   "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\", \"채용요청(정규직)DB!O18\")",
   "=N29-O29",
-  "=IFERROR(O29/N29,0)",
+  "=IF($N29=\"\",\"\",IF($N29<=0,\"-\",MIN($O29,$N29)/$N29))",
   "=IF(AND(ISNUMBER(Q29),Q29>=1),\"CLOSE\",\"\")"
  ],
  [
@@ -557,7 +617,7 @@
   "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\", \"채용요청(정규직)DB!G19\")",
   "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\", \"채용요청(정규직)DB!O19\")",
   "=N30-O30",
-  "=IFERROR(O30/N30,0)",
+  "=IF($N30=\"\",\"\",IF($N30<=0,\"-\",MIN($O30,$N30)/$N30))",
   "=IF(AND(ISNUMBER(Q30),Q30>=1),\"CLOSE\",\"\")"
  ],
  [
@@ -577,7 +637,7 @@
   "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\", \"채용요청(정규직)DB!G20\")",
   "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\", \"채용요청(정규직)DB!O20\")",
   "=N31-O31",
-  "=IFERROR(O31/N31,0)",
+  "=IF($N31=\"\",\"\",IF($N31<=0,\"-\",MIN($O31,$N31)/$N31))",
   "=IF(AND(ISNUMBER(Q31),Q31>=1),\"CLOSE\",\"\")",
   "이승우(써치펌)"
  ],
@@ -598,7 +658,7 @@
   "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\", \"채용요청(정규직)DB!G10\")",
   "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\", \"채용요청(정규직)DB!O10\")",
   "=N32-O32",
-  "=IFERROR(O32/N32,0)",
+  "=IF($N32=\"\",\"\",IF($N32<=0,\"-\",MIN($O32,$N32)/$N32))",
   "=IF(AND(ISNUMBER(Q32),Q32>=1),\"CLOSE\",\"\")"
  ],
  [
@@ -618,7 +678,7 @@
   "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\", \"채용요청(정규직)DB!G13\")",
   "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\", \"채용요청(정규직)DB!O13\")",
   "=N33-O33",
-  "=IFERROR(O33/N33,0)",
+  "=IF($N33=\"\",\"\",IF($N33<=0,\"-\",MIN($O33,$N33)/$N33))",
   "=IF(AND(ISNUMBER(Q33),Q33>=1),\"CLOSE\",\"\")"
  ],
  [
@@ -638,7 +698,7 @@
   "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\", \"채용완료!F2\")",
   "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\", \"채용완료!M2\")",
   "=N34-O34",
-  "=IFERROR(O34/N34,0)",
+  "=IF($N34=\"\",\"\",IF($N34<=0,\"-\",MIN($O34,$N34)/$N34))",
   "=IF(AND(ISNUMBER(Q34),Q34>=1),\"CLOSE\",\"\")",
   "6/1 안대건"
  ],
@@ -659,7 +719,7 @@
   "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\", \"채용완료!F3\")",
   "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\", \"채용완료!M3\")",
   "=N35-O35",
-  "=IFERROR(O35/N35,0)",
+  "=IF($N35=\"\",\"\",IF($N35<=0,\"-\",MIN($O35,$N35)/$N35))",
   "=IF(AND(ISNUMBER(Q35),Q35>=1),\"CLOSE\",\"\")",
   "6/1 백광민"
  ],
@@ -680,7 +740,7 @@
   "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\", \"채용완료!F4\")",
   "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\", \"채용완료!M4\")",
   "=N36-O36",
-  "=IFERROR(O36/N36,0)",
+  "=IF($N36=\"\",\"\",IF($N36<=0,\"-\",MIN($O36,$N36)/$N36))",
   "=IF(AND(ISNUMBER(Q36),Q36>=1),\"CLOSE\",\"\")",
   "6/1 윤송희"
  ],
@@ -701,7 +761,7 @@
   "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\", \"채용완료!F5\")",
   "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\", \"채용완료!M5\")",
   "=N37-O37",
-  "=IFERROR(O37/N37,0)",
+  "=IF($N37=\"\",\"\",IF($N37<=0,\"-\",MIN($O37,$N37)/$N37))",
   "=IF(AND(ISNUMBER(Q37),Q37>=1),\"CLOSE\",\"\")",
   "6/1 안수진"
  ],
@@ -722,7 +782,7 @@
   "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\", \"채용완료!F6\")",
   "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\", \"채용완료!M6\")",
   "=N38-O38",
-  "=IFERROR(O38/N38,0)",
+  "=IF($N38=\"\",\"\",IF($N38<=0,\"-\",MIN($O38,$N38)/$N38))",
   "=IF(AND(ISNUMBER(Q38),Q38>=1),\"CLOSE\",\"\")",
   "6/1 임신혁"
  ],
@@ -743,7 +803,7 @@
   "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\", \"채용완료!F7\")",
   "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\", \"채용완료!M7\")",
   "=N39-O39",
-  "=IFERROR(O39/N39,0)",
+  "=IF($N39=\"\",\"\",IF($N39<=0,\"-\",MIN($O39,$N39)/$N39))",
   "=IF(AND(ISNUMBER(Q39),Q39>=1),\"CLOSE\",\"\")",
   "6/1 박준형"
  ],
@@ -764,7 +824,7 @@
   "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\", \"채용완료!F8\")",
   "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\", \"채용완료!M8\")",
   "=N40-O40",
-  "=IFERROR(O40/N40,0)",
+  "=IF($N40=\"\",\"\",IF($N40<=0,\"-\",MIN($O40,$N40)/$N40))",
   "=IF(AND(ISNUMBER(Q40),Q40>=1),\"CLOSE\",\"\")",
   "6/8 최소연"
  ],
@@ -785,7 +845,7 @@
   "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\", \"채용완료!F12\")",
   "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\", \"채용완료!M12\")",
   "=N41-O41",
-  "=IFERROR(O41/N41,0)",
+  "=IF($N41=\"\",\"\",IF($N41<=0,\"-\",MIN($O41,$N41)/$N41))",
   "=IF(AND(ISNUMBER(Q41),Q41>=1),\"CLOSE\",\"\")",
   "6/15 이현수"
  ],
@@ -809,7 +869,7 @@
   "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\", \"채용요청(정규직)DB!G21\")",
   "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\", \"채용요청(정규직)DB!O21\")",
   "=N43-O43",
-  "=IFERROR(O43/N43,0)",
+  "=IF($N43=\"\",\"\",IF($N43<=0,\"-\",MIN($O43,$N43)/$N43))",
   "=IF(AND(ISNUMBER(Q43),Q43>=1),\"CLOSE\",\"\")",
   "6/1 최윤서",
   46174
@@ -831,7 +891,7 @@
   "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\", \"채용요청(정규직)DB!G24\")",
   "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\", \"채용요청(정규직)DB!O24\")",
   "=N44-O44",
-  "=IFERROR(O44/N44,0)",
+  "=IF($N44=\"\",\"\",IF($N44<=0,\"-\",MIN($O44,$N44)/$N44))",
   "=IF(AND(ISNUMBER(Q44),Q44>=1),\"CLOSE\",\"\")",
   "6/1 김가영, 6/29 윤보영",
   46202
@@ -853,7 +913,7 @@
   "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\", \"채용요청(정규직)DB!G25\")",
   "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\", \"채용요청(정규직)DB!O25\")",
   "=N45-O45",
-  "=IFERROR(O45/N45,0)",
+  "=IF($N45=\"\",\"\",IF($N45<=0,\"-\",MIN($O45,$N45)/$N45))",
   "=IF(AND(ISNUMBER(Q45),Q45>=1),\"CLOSE\",\"\")"
  ],
  [
@@ -873,7 +933,7 @@
   "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\", \"채용요청(정규직)DB!G23\")",
   "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\", \"채용요청(정규직)DB!O23\")",
   "=N46-O46",
-  "=IFERROR(O46/N46,0)",
+  "=IF($N46=\"\",\"\",IF($N46<=0,\"-\",MIN($O46,$N46)/$N46))",
   "=IF(AND(ISNUMBER(Q46),Q46>=1),\"CLOSE\",\"\")"
  ],
  [
@@ -893,7 +953,7 @@
   "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\", \"채용요청(정규직)DB!G26\")",
   "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\", \"채용요청(정규직)DB!O26\")",
   "=N47-O47",
-  "=IFERROR(O47/N47,0)",
+  "=IF($N47=\"\",\"\",IF($N47<=0,\"-\",MIN($O47,$N47)/$N47))",
   "=IF(AND(ISNUMBER(Q47),Q47>=1),\"CLOSE\",\"\")"
  ],
  [
@@ -913,7 +973,7 @@
   "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\", \"채용요청(정규직)DB!G27\")",
   "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\", \"채용요청(정규직)DB!O27\")",
   "=N48-O48",
-  "=IFERROR(O48/N48,0)",
+  "=IF($N48=\"\",\"\",IF($N48<=0,\"-\",MIN($O48,$N48)/$N48))",
   "=IF(AND(ISNUMBER(Q48),Q48>=1),\"CLOSE\",\"\")",
   "7/27 김세진",
   46230
@@ -935,7 +995,7 @@
   "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\", \"채용요청(정규직)DB!G31\")",
   "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\", \"채용요청(정규직)DB!O31\")",
   "=N49-O49",
-  "=IFERROR(O49/N49,0)",
+  "=IF($N49=\"\",\"\",IF($N49<=0,\"-\",MIN($O49,$N49)/$N49))",
   "=IF(AND(ISNUMBER(Q49),Q49>=1),\"CLOSE\",\"\")"
  ],
  [
@@ -955,7 +1015,7 @@
   "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\", \"채용요청(정규직)DB!G32\")",
   "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\", \"채용요청(정규직)DB!O32\")",
   "=N50-O50",
-  "=IFERROR(O50/N50,0)",
+  "=IF($N50=\"\",\"\",IF($N50<=0,\"-\",MIN($O50,$N50)/$N50))",
   "=IF(AND(ISNUMBER(Q50),Q50>=1),\"CLOSE\",\"\")",
   "고예현, 김승은(팀장)"
  ],
@@ -976,7 +1036,7 @@
   "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\", \"채용요청(정규직)DB!G33\")",
   "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\", \"채용요청(정규직)DB!O33\")",
   "=N51-O51",
-  "=IFERROR(O51/N51,0)",
+  "=IF($N51=\"\",\"\",IF($N51<=0,\"-\",MIN($O51,$N51)/$N51))",
   "=IF(AND(ISNUMBER(Q51),Q51>=1),\"CLOSE\",\"\")",
   "우정(팀장)"
  ],
@@ -997,7 +1057,7 @@
   "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\", \"채용요청(정규직)DB!G22\")",
   "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\", \"채용요청(정규직)DB!O22\")",
   "=N52-O52",
-  "=IFERROR(O52/N52,0)",
+  "=IF($N52=\"\",\"\",IF($N52<=0,\"-\",MIN($O52,$N52)/$N52))",
   "=IF(AND(ISNUMBER(Q52),Q52>=1),\"CLOSE\",\"\")",
   "시니어급"
  ],
@@ -1018,7 +1078,7 @@
   "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\", \"채용요청(정규직)DB!G28\")",
   "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\", \"채용요청(정규직)DB!O28\")",
   "=N53-O53",
-  "=IFERROR(O53/N53,0)",
+  "=IF($N53=\"\",\"\",IF($N53<=0,\"-\",MIN($O53,$N53)/$N53))",
   "=IF(AND(ISNUMBER(Q53),Q53>=1),\"CLOSE\",\"\")"
  ],
  [
@@ -1036,9 +1096,9 @@
   "간접",
   "면접예정",
   "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\", \"채용요청(정규직)DB!G29\")",
-  "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\", \"채용요청(정규직)DB!O29\")",
+  0,
   "=N54-O54",
-  "=IFERROR(O54/N54,0)",
+  "=IF($N54=\"\",\"\",IF($N54<=0,\"-\",MIN($O54,$N54)/$N54))",
   "=IF(AND(ISNUMBER(Q54),Q54>=1),\"CLOSE\",\"\")"
  ],
  [
@@ -1056,9 +1116,9 @@
   "간접",
   "면접예정",
   "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\", \"채용요청(정규직)DB!G30\")",
-  "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\", \"채용요청(정규직)DB!O30\")",
+  0,
   "=N55-O55",
-  "=IFERROR(O55/N55,0)",
+  "=IF($N55=\"\",\"\",IF($N55<=0,\"-\",MIN($O55,$N55)/$N55))",
   "=IF(AND(ISNUMBER(Q55),Q55>=1),\"CLOSE\",\"\")"
  ],
  [
@@ -1078,7 +1138,7 @@
   "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\", \"채용완료!F10\")",
   "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\", \"채용완료!M10\")",
   "=N56-O56",
-  "=IFERROR(O56/N56,0)",
+  "=IF($N56=\"\",\"\",IF($N56<=0,\"-\",MIN($O56,$N56)/$N56))",
   "=IF(AND(ISNUMBER(Q56),Q56>=1),\"CLOSE\",\"\")",
   "6/8 김수민, 6/15 박민혜"
  ],
@@ -1102,7 +1162,7 @@
   "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\", \"채용요청(정규직)DB!G37\")",
   "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\", \"채용요청(정규직)DB!O37\")",
   "=N58-O58",
-  "=IFERROR(O58/N58,0)",
+  "=IF($N58=\"\",\"\",IF($N58<=0,\"-\",MIN($O58,$N58)/$N58))",
   "=IF(AND(ISNUMBER(Q58),Q58>=1),\"CLOSE\",\"\")"
  ],
  [
@@ -1122,7 +1182,7 @@
   "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\", \"채용요청(정규직)DB!G38\")",
   "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\", \"채용요청(정규직)DB!O38\")",
   "=N59-O59",
-  "=IFERROR(O59/N59,0)",
+  "=IF($N59=\"\",\"\",IF($N59<=0,\"-\",MIN($O59,$N59)/$N59))",
   "=IF(AND(ISNUMBER(Q59),Q59>=1),\"CLOSE\",\"\")"
  ],
  [
@@ -1142,7 +1202,7 @@
   "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\", \"채용요청(정규직)DB!G39\")",
   "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\", \"채용요청(정규직)DB!O39\")",
   "=N60-O60",
-  "=IFERROR(O60/N60,0)",
+  "=IF($N60=\"\",\"\",IF($N60<=0,\"-\",MIN($O60,$N60)/$N60))",
   "=IF(AND(ISNUMBER(Q60),Q60>=1),\"CLOSE\",\"\")"
  ],
  [
@@ -1162,7 +1222,7 @@
   "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\", \"채용요청(정규직)DB!G40\")",
   "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\", \"채용요청(정규직)DB!O40\")",
   "=N61-O61",
-  "=IFERROR(O61/N61,0)",
+  "=IF($N61=\"\",\"\",IF($N61<=0,\"-\",MIN($O61,$N61)/$N61))",
   "=IF(AND(ISNUMBER(Q61),Q61>=1),\"CLOSE\",\"\")",
   "2차 대기 중"
  ],
@@ -1183,7 +1243,7 @@
   "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\", \"채용요청(정규직)DB!G41\")",
   "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\", \"채용요청(정규직)DB!O41\")",
   "=N62-O62",
-  "=IFERROR(O62/N62,0)",
+  "=IF($N62=\"\",\"\",IF($N62<=0,\"-\",MIN($O62,$N62)/$N62))",
   "=IF(AND(ISNUMBER(Q62),Q62>=1),\"CLOSE\",\"\")"
  ],
  [
@@ -1203,7 +1263,7 @@
   "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\", \"채용요청(정규직)DB!G42\")",
   "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\", \"채용요청(정규직)DB!O42\")",
   "=N63-O63",
-  "=IFERROR(O63/N63,0)",
+  "=IF($N63=\"\",\"\",IF($N63<=0,\"-\",MIN($O63,$N63)/$N63))",
   "=IF(AND(ISNUMBER(Q63),Q63>=1),\"CLOSE\",\"\")",
   "7/1 장광남",
   46204
@@ -1225,7 +1285,7 @@
   "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\", \"채용요청(정규직)DB!G43\")",
   "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\", \"채용요청(정규직)DB!O43\")",
   "=N64-O64",
-  "=IFERROR(O64/N64,0)",
+  "=IF($N64=\"\",\"\",IF($N64<=0,\"-\",MIN($O64,$N64)/$N64))",
   "=IF(AND(ISNUMBER(Q64),Q64>=1),\"CLOSE\",\"\")"
  ],
  [
@@ -1245,7 +1305,7 @@
   "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\", \"채용요청(정규직)DB!G44\")",
   "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\", \"채용요청(정규직)DB!O44\")",
   "=N65-O65",
-  "=IFERROR(O65/N65,0)",
+  "=IF($N65=\"\",\"\",IF($N65<=0,\"-\",MIN($O65,$N65)/$N65))",
   "=IF(AND(ISNUMBER(Q65),Q65>=1),\"CLOSE\",\"\")"
  ],
  [
@@ -1265,7 +1325,7 @@
   "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\", \"채용완료!F9\")",
   "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\", \"채용완료!M9\")",
   "=N66-O66",
-  "=IFERROR(O66/N66,0)",
+  "=IF($N66=\"\",\"\",IF($N66<=0,\"-\",MIN($O66,$N66)/$N66))",
   "=IF(AND(ISNUMBER(Q66),Q66>=1),\"CLOSE\",\"\")",
   "6/10 한결"
  ],
@@ -1289,7 +1349,7 @@
   "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\", \"채용요청(정규직)DB!G46\")",
   "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\", \"채용요청(정규직)DB!O46\")",
   "=N68-O68",
-  "=IFERROR(O68/N68,0)",
+  "=IF($N68=\"\",\"\",IF($N68<=0,\"-\",MIN($O68,$N68)/$N68))",
   "=IF(AND(ISNUMBER(Q68),Q68>=1),\"CLOSE\",\"\")"
  ],
  [
@@ -1309,7 +1369,7 @@
   "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\", \"채용요청(정규직)DB!G47\")",
   "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\", \"채용요청(정규직)DB!O47\")",
   "=N69-O69",
-  "=IFERROR(O69/N69,0)",
+  "=IF($N69=\"\",\"\",IF($N69<=0,\"-\",MIN($O69,$N69)/$N69))",
   "=IF(AND(ISNUMBER(Q69),Q69>=1),\"CLOSE\",\"\")",
   "홀딩/진행 마감"
  ],
@@ -1330,7 +1390,7 @@
   "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\", \"채용요청(정규직)DB!G51\")",
   "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\", \"채용요청(정규직)DB!O51\")",
   "=N70-O70",
-  "=IFERROR(O70/N70,0)",
+  "=IF($N70=\"\",\"\",IF($N70<=0,\"-\",MIN($O70,$N70)/$N70))",
   "=IF(AND(ISNUMBER(Q70),Q70>=1),\"CLOSE\",\"\")",
   "입사일 조율 예정"
  ],
@@ -1351,7 +1411,7 @@
   "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\", \"채용요청(정규직)DB!G52\")",
   "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\", \"채용요청(정규직)DB!O52\")",
   "=N71-O71",
-  "=IFERROR(O71/N71,0)",
+  "=IF($N71=\"\",\"\",IF($N71<=0,\"-\",MIN($O71,$N71)/$N71))",
   "=IF(AND(ISNUMBER(Q71),Q71>=1),\"CLOSE\",\"\")"
  ],
  [
@@ -1371,7 +1431,7 @@
   "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\", \"채용요청(정규직)DB!G53\")",
   "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\", \"채용요청(정규직)DB!O53\")",
   "=N72-O72",
-  "=IFERROR(O72/N72,0)",
+  "=IF($N72=\"\",\"\",IF($N72<=0,\"-\",MIN($O72,$N72)/$N72))",
   "=IF(AND(ISNUMBER(Q72),Q72>=1),\"CLOSE\",\"\")",
   "홀딩/공고 마감"
  ],
@@ -1392,7 +1452,7 @@
   "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\", \"채용요청(정규직)DB!G54\")",
   "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\", \"채용요청(정규직)DB!O54\")",
   "=N73-O73",
-  "=IFERROR(O73/N73,0)",
+  "=IF($N73=\"\",\"\",IF($N73<=0,\"-\",MIN($O73,$N73)/$N73))",
   "=IF(AND(ISNUMBER(Q73),Q73>=1),\"CLOSE\",\"\")",
   "김수현",
   46202
@@ -1414,7 +1474,7 @@
   "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\", \"채용요청(정규직)DB!G55\")",
   "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\", \"채용요청(정규직)DB!O55\")",
   "=N74-O74",
-  "=IFERROR(O74/N74,0)",
+  "=IF($N74=\"\",\"\",IF($N74<=0,\"-\",MIN($O74,$N74)/$N74))",
   "=IF(AND(ISNUMBER(Q74),Q74>=1),\"CLOSE\",\"\")",
   "홀딩/공고 마감"
  ],
@@ -1435,7 +1495,7 @@
   "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\", \"채용요청(정규직)DB!G56\")",
   "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\", \"채용요청(정규직)DB!O56\")",
   "=N75-O75",
-  "=IFERROR(O75/N75,0)",
+  "=IF($N75=\"\",\"\",IF($N75<=0,\"-\",MIN($O75,$N75)/$N75))",
   "=IF(AND(ISNUMBER(Q75),Q75>=1),\"CLOSE\",\"\")"
  ],
  [
@@ -1455,10 +1515,8 @@
   "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\", \"채용요청(정규직)DB!G57\")",
   "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\", \"채용요청(정규직)DB!O57\")",
   "=N76-O76",
-  "=IFERROR(O76/N76,0)",
-  "=IF(AND(ISNUMBER(Q76),Q76>=1),\"CLOSE\",\"\")",
-  "06/22 김범준",
-  46195
+  "=IF($N76=\"\",\"\",IF($N76<=0,\"-\",MIN($O76,$N76)/$N76))",
+  "=IF(AND(ISNUMBER(Q76),Q76>=1),\"CLOSE\",\"\")"
  ],
  [
   46182,
@@ -1473,12 +1531,14 @@
   "임세현 육아휴직",
   "퍼플",
   "간접",
-  "입사확정",
-  "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\", \"채용요청(정규직)DB!G58\")",
-  "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\", \"채용요청(정규직)DB!O58\")",
+  "입사완료",
+  "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\", \"채용완료!F15\")",
+  "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\", \"채용완료!M15\")",
   "=N77-O77",
-  "=IFERROR(O77/N77,0)",
-  "=IF(AND(ISNUMBER(Q77),Q77>=1),\"CLOSE\",\"\")"
+  "=IF($N77=\"\",\"\",IF($N77<=0,\"-\",MIN($O77,$N77)/$N77))",
+  "=IF(AND(ISNUMBER(Q77),Q77>=1),\"CLOSE\",\"\")",
+  "06/22 김범준",
+  46195
  ],
  [
   46189,
@@ -1494,10 +1554,10 @@
   "퍼플",
   "간접",
   "서류접수",
-  "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\", \"채용요청(정규직)DB!G63\")",
-  "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\", \"채용요청(정규직)DB!O63\")",
+  "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\", \"채용요청(정규직)DB!G62\")",
+  "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\", \"채용요청(정규직)DB!O62\")",
   "=N78-O78",
-  "=IFERROR(O78/N78,0)"
+  "=IF($N78=\"\",\"\",IF($N78<=0,\"-\",MIN($O78,$N78)/$N78))"
  ],
  [
   46182,
@@ -1513,10 +1573,10 @@
   "퍼플",
   "간접",
   "면접예정",
-  "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\", \"채용요청(정규직)DB!G59\")",
-  "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\", \"채용요청(정규직)DB!O59\")",
+  "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\", \"채용요청(정규직)DB!G58\")",
+  "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\", \"채용요청(정규직)DB!O58\")",
   "=N79-O79",
-  "=IFERROR(O79/N79,0)",
+  "=IF($N79=\"\",\"\",IF($N79<=0,\"-\",MIN($O79,$N79)/$N79))",
   "=IF(AND(ISNUMBER(Q79),Q79>=1),\"CLOSE\",\"\")"
  ],
  [
@@ -1533,10 +1593,10 @@
   "퍼플",
   "간접",
   "서류접수",
-  "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\", \"채용요청(정규직)DB!G60\")",
-  "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\", \"채용요청(정규직)DB!O60\")",
+  "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\", \"채용요청(정규직)DB!G59\")",
+  "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\", \"채용요청(정규직)DB!O59\")",
   "=N80-O80",
-  "=IFERROR(O80/N80,0)",
+  "=IF($N80=\"\",\"\",IF($N80<=0,\"-\",MIN($O80,$N80)/$N80))",
   "=IF(AND(ISNUMBER(Q80),Q80>=1),\"CLOSE\",\"\")"
  ],
  [
@@ -1553,10 +1613,10 @@
   "퍼플",
   "간접",
   "서류접수",
-  "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\", \"채용요청(정규직)DB!G61\")",
-  "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\", \"채용요청(정규직)DB!O61\")",
+  "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\", \"채용요청(정규직)DB!G60\")",
+  "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\", \"채용요청(정규직)DB!O60\")",
   "=N81-O81",
-  "=IFERROR(O81/N81,0)",
+  "=IF($N81=\"\",\"\",IF($N81<=0,\"-\",MIN($O81,$N81)/$N81))",
   "=IF(AND(ISNUMBER(Q81),Q81>=1),\"CLOSE\",\"\")"
  ],
  [
@@ -1573,10 +1633,10 @@
   "퍼플",
   "간접",
   "서류접수",
-  "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\", \"채용요청(정규직)DB!G62\")",
-  "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\", \"채용요청(정규직)DB!O62\")",
+  "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\", \"채용요청(정규직)DB!G61\")",
+  "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\", \"채용요청(정규직)DB!O61\")",
   "=N82-O82",
-  "=IFERROR(O82/N82,0)",
+  "=IF($N82=\"\",\"\",IF($N82<=0,\"-\",MIN($O82,$N82)/$N82))",
   "=IF(AND(ISNUMBER(Q82),Q82>=1),\"CLOSE\",\"\")"
  ],
  [
@@ -1596,7 +1656,7 @@
   "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\", \"채용요청(정규직)DB!G48\")",
   "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\", \"채용요청(정규직)DB!O48\")",
   "=N83-O83",
-  "=IFERROR(O83/N83,0)",
+  "=IF($N83=\"\",\"\",IF($N83<=0,\"-\",MIN($O83,$N83)/$N83))",
   "=IF(AND(ISNUMBER(Q83),Q83>=1),\"CLOSE\",\"\")"
  ],
  [
@@ -1616,7 +1676,7 @@
   "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\", \"채용요청(정규직)DB!G49\")",
   "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\", \"채용요청(정규직)DB!O49\")",
   "=N84-O84",
-  "=IFERROR(O84/N84,0)",
+  "=IF($N84=\"\",\"\",IF($N84<=0,\"-\",MIN($O84,$N84)/$N84))",
   "=IF(AND(ISNUMBER(Q84),Q84>=1),\"CLOSE\",\"\")"
  ],
  [
@@ -1636,7 +1696,7 @@
   "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\", \"채용요청(정규직)DB!G50\")",
   "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\", \"채용요청(정규직)DB!O50\")",
   "=N85-O85",
-  "=IFERROR(O85/N85,0)",
+  "=IF($N85=\"\",\"\",IF($N85<=0,\"-\",MIN($O85,$N85)/$N85))",
   "=IF(AND(ISNUMBER(Q85),Q85>=1),\"CLOSE\",\"\")"
  ],
  [
@@ -1656,7 +1716,7 @@
   "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\", \"채용완료!F11\")",
   "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\", \"채용완료!M11\")",
   "=N86-O86",
-  "=IFERROR(O86/N86,0)",
+  "=IF($N86=\"\",\"\",IF($N86<=0,\"-\",MIN($O86,$N86)/$N86))",
   "=IF(AND(ISNUMBER(Q86),Q86>=1),\"CLOSE\",\"\")",
   "6/15 박소현"
  ],
@@ -1680,7 +1740,7 @@
   "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\", \"채용요청(정규직)DB!G34\")",
   "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\", \"채용요청(정규직)DB!O34\")",
   "=N88-O88",
-  "=IFERROR(O88/N88,0)",
+  "=IF($N88=\"\",\"\",IF($N88<=0,\"-\",MIN($O88,$N88)/$N88))",
   "=IF(AND(ISNUMBER(Q88),Q88>=1),\"CLOSE\",\"\")"
  ],
  [
@@ -1700,7 +1760,7 @@
   "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\", \"채용요청(정규직)DB!G35\")",
   "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\", \"채용요청(정규직)DB!O35\")",
   "=N89-O89",
-  "=IFERROR(O89/N89,0)",
+  "=IF($N89=\"\",\"\",IF($N89<=0,\"-\",MIN($O89,$N89)/$N89))",
   "=IF(AND(ISNUMBER(Q89),Q89>=1),\"CLOSE\",\"\")",
   "김다혜"
  ],
@@ -1721,7 +1781,7 @@
   "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\", \"채용요청(정규직)DB!G36\")",
   "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\", \"채용요청(정규직)DB!O36\")",
   "=N90-O90",
-  "=IFERROR(O90/N90,0)",
+  "=IF($N90=\"\",\"\",IF($N90<=0,\"-\",MIN($O90,$N90)/$N90))",
   "=IF(AND(ISNUMBER(Q90),Q90>=1),\"CLOSE\",\"\")",
   "정원호",
   46188
@@ -1746,8 +1806,160 @@
   "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\", \"채용요청(정규직)DB!G45\")",
   "=IMPORTRANGE(\"1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY\", \"채용요청(정규직)DB!O45\")",
   "=N92-O92",
-  "=IFERROR(O92/N92,0)",
+  "=IF($N92=\"\",\"\",IF($N92<=0,\"-\",MIN($O92,$N92)/$N92))",
   "=IF(AND(ISNUMBER(Q92),Q92>=1),\"CLOSE\",\"\")",
   "박주영"
+ ],
+ [
+  "",
+  "",
+  "",
+  "",
+  "",
+  "",
+  "",
+  "",
+  "",
+  "",
+  "",
+  "",
+  "",
+  "",
+  "",
+  "",
+  "=IF($N93=\"\",\"\",IF($N93<=0,\"-\",MIN($O93,$N93)/$N93))"
+ ],
+ [
+  "",
+  "",
+  "",
+  "",
+  "",
+  "",
+  "",
+  "",
+  "",
+  "",
+  "",
+  "",
+  "",
+  "",
+  "",
+  "",
+  "=IF($N94=\"\",\"\",IF($N94<=0,\"-\",MIN($O94,$N94)/$N94))"
+ ],
+ [
+  "",
+  "",
+  "",
+  "",
+  "",
+  "",
+  "",
+  "",
+  "",
+  "",
+  "",
+  "",
+  "",
+  "",
+  "",
+  "",
+  "=IF($N95=\"\",\"\",IF($N95<=0,\"-\",MIN($O95,$N95)/$N95))"
+ ],
+ [
+  "",
+  "",
+  "",
+  "",
+  "",
+  "",
+  "",
+  "",
+  "",
+  "",
+  "",
+  "",
+  "",
+  "",
+  "",
+  "",
+  "=IF($N96=\"\",\"\",IF($N96<=0,\"-\",MIN($O96,$N96)/$N96))"
+ ],
+ [
+  "",
+  "",
+  "",
+  "",
+  "",
+  "",
+  "",
+  "",
+  "",
+  "",
+  "",
+  "",
+  "",
+  "",
+  "",
+  "",
+  "=IF($N97=\"\",\"\",IF($N97<=0,\"-\",MIN($O97,$N97)/$N97))"
+ ],
+ [
+  "",
+  "",
+  "",
+  "",
+  "",
+  "",
+  "",
+  "",
+  "",
+  "",
+  "",
+  "",
+  "",
+  "",
+  "",
+  "",
+  "=IF($N98=\"\",\"\",IF($N98<=0,\"-\",MIN($O98,$N98)/$N98))"
+ ],
+ [
+  "",
+  "",
+  "",
+  "",
+  "",
+  "",
+  "",
+  "",
+  "",
+  "",
+  "",
+  "",
+  "",
+  "",
+  "",
+  "",
+  "=IF($N99=\"\",\"\",IF($N99<=0,\"-\",MIN($O99,$N99)/$N99))"
+ ],
+ [
+  "",
+  "",
+  "",
+  "",
+  "",
+  "",
+  "",
+  "",
+  "",
+  "",
+  "",
+  "",
+  "",
+  "",
+  "",
+  "",
+  "=IF($N100=\"\",\"\",IF($N100<=0,\"-\",MIN($O100,$N100)/$N100))"
  ]
 ]
