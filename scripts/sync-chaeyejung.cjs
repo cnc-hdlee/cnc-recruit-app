@@ -30,7 +30,7 @@ async function buildSrc(s){
        const 근무지=(소속==='에스텍플러스'&&DOG_LOC[팀])?DOG_LOC[팀]:(r[cLoc]||'');
        const status=cR>=0?mapStat(r[cR]):'';
        const ipsaRaw=norm(r[cP]); const jwRaw=cJW>=0?norm(r[cJW]):'';
-       src.push({소속,본부:'생산본부',팀,직무,직급:(r[cG]||'사원'),신입:(r[cS]||'신입'),성명,근무지,간접:'직접',status,ipsaRaw,jwRaw,국적:(cNat>=0?(r[cNat]||'').trim():'')});}}};
+       src.push({소속,본부:'생산본부',팀,직무,직급:(r[cG]||'사원'),신입:(r[cS]||'신입'),성명,근무지,간접:'직접',status,ipsaRaw,jwRaw,국적:((cNat>=0?(r[cNat]||'').trim():'')||(소속==='㈜씨앤씨인터내셔널'?'내국인':''))});}}};
  take(reg,'㈜씨앤씨인터내셔널'); take(dog,'에스텍플러스');
  return src;
 }
@@ -76,7 +76,8 @@ async function syncOne(s, ID, TAB, srcList, TD){
    // 근무지 표준화(에스텍 팀별)
    const 소속t=(r[c.소속]||'').trim(),팀t=(r[c.팀]||'').trim();
    if(소속t.includes('에스텍')&&DOG_LOC[팀t]&&curLoc!==DOG_LOC[팀t]) PUT(c.근무지,rowN,DOG_LOC[팀t],`${nm} 근무지→${DOG_LOC[팀t]}`);
-   // 국적: 형도 탭에만, 소스(도급직DB)에 있고 대상 국적칸이 비었을 때만 채움 — 수동입력 보존(비파괴)
+   // 국적: 형도 탭에만. 도급직DB 국적 + 정규직 공란은 '내국인' 기본값. 칸이 비었거나 '대한민국'일 때만 씀.
+   //  → 그 외 형도님 수동수정값(태국/중국(F-5) 등)은 새로고침·재동기화돼도 절대 안 덮음(유지 보장).
    if(isHD && c.국적>=0){ const curNat=(r[c.국적]||'').trim(); const srcNat=natmap.get(nm); if(srcNat&&(!curNat||curNat==='대한민국')) PUT(c.국적,rowN,srcNat,`${nm} 국적 ${curNat||'공란'}→${srcNat}`); }
    // 입사여부(M): 소스 상태 있으면 반영, 없으면 빈칸만 초기값
    if(smap.has(nm)){ if(curSt!==st) PUT(c.입사여부,rowN,st,`${nm} 입사여부 ${curSt||'공란'}→${st}`); }
