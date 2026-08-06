@@ -139,16 +139,37 @@ async function runHireCalendarSync(): Promise<void> {
 
       let changed = false;
 
+      // 우리가 만든(노란색+마커) 이벤트를 날짜별로 그룹핑.
+      const ourByDate = new Map<string, typeof onboardingEvents>();
+      for (const e of onboardingEvents) {
+        if (e.colorId !== '5' || !(e.description || '').includes(HIRE_AUTO_MARKER)) continue;
+        const dt = (e.start || '').slice(0, 10);
+        if (!dt) continue;
+        if (!ourByDate.has(dt)) ourByDate.set(dt, []);
+        ourByDate.get(dt)!.push(e);
+      }
+
+      // 중복 자동 삭제(self-heal): 같은 날짜에 우리 이벤트가 2개 이상이면 1개만 남기고 삭제.
+      // (과거 버그로 같은 날짜가 수십 개까지 쌓였던 문제를 매 polling마다 스스로 정리.)
+      for (const [dt, dups] of ourByDate) {
+        if (dt < today || dups.length <= 1) continue;
+        for (const extra of dups.slice(1)) {
+          try {
+            await api.google.deleteCalEvent(hireCalId, extra.id, 'none');
+            changed = true;
+            // eslint-disable-next-line no-console
+            console.info('[hire-cal-sync] 중복 입사 이벤트 삭제:', dt);
+          } catch { /* 다음 polling 재시도 */ }
+        }
+        dups.length = 1; // 남긴 1개만 이후 로직에서 사용
+      }
+
       // 등록/갱신
       for (const [date, list] of byDate) {
         try {
           const summary = buildHireDateSummary(list);
           const description = buildHireDateDescription(list, declinedByDate.get(date) || []);
-          const existing = onboardingEvents.find((e) => {
-            const dt = (e.start || '').slice(0, 10);
-            if (dt !== date) return false;
-            return e.colorId === '5' && (e.description || '').includes(HIRE_AUTO_MARKER);
-          });
+          const existing = (ourByDate.get(date) || [])[0];
           if (existing) {
             // 이름 set + 결재 상태 동일하면 skip, 다르면 update.
             if (

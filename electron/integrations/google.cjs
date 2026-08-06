@@ -233,7 +233,7 @@ async function createSheetWithData(title, headers, rows) {
   };
 }
 
-// 기존 탭 값에서 (성명|연락처) -> {입사안내, 건강검진} 수기 표시 보존맵 생성.
+// 기존 탭 값에서 (성명|연락처) -> {입사안내, 건강검진, 퇴사} 수기 입력 보존맵 생성.
 function markMapFromValues(values) {
   const out = {};
   if (!values || values.length === 0) return out;
@@ -242,6 +242,7 @@ function markMapFromValues(values) {
   const pi = head.indexOf('연락처');
   const noticeI = head.indexOf('입사안내');
   const healthI = head.indexOf('건강검진 영수증');
+  const resignI = head.indexOf('퇴사');
   if (ni === -1) return out;
   for (let i = 1; i < values.length; i++) {
     const row = values[i] || [];
@@ -251,6 +252,7 @@ function markMapFromValues(values) {
     out[key] = {
       notice: noticeI >= 0 ? (row[noticeI] || '') : '',
       health: healthI >= 0 ? (row[healthI] || '') : '',
+      resign: resignI >= 0 ? (row[resignI] || '') : '',
     };
   }
   return out;
@@ -325,11 +327,12 @@ async function syncHiresWorkbook(spreadsheetId, tabs) {
     await sheets.spreadsheets.batchUpdate({ spreadsheetId, requestBody: { requests: orderReq } });
   }
 
-  // 5) 각 탭 clear 후 값 쓰기 (수기 표시 보존 적용)
+  // 5) 각 탭 clear 후 값 쓰기 (수기 입력 보존 — 입사안내/건강검진/퇴사)
   const data = tabs.map((t) => {
     const h = t.headers;
     const ni = h.indexOf('성명'), pi = h.indexOf('연락처');
     const noticeI = h.indexOf('입사안내'), healthI = h.indexOf('건강검진 영수증');
+    const resignI = h.indexOf('퇴사');
     const marks = marksByTab[t.name] || {};
     const rows = t.rows.map((r) => {
       const row = r.slice();
@@ -338,6 +341,7 @@ async function syncHiresWorkbook(spreadsheetId, tabs) {
       if (mk) {
         if (noticeI >= 0 && !row[noticeI]) row[noticeI] = mk.notice || '';
         if (healthI >= 0 && !row[healthI]) row[healthI] = mk.health || '';
+        if (resignI >= 0 && !row[resignI]) row[resignI] = mk.resign || '';
       }
       return row;
     });
@@ -505,15 +509,24 @@ async function openGmailAttachment(messageId, filename, attachmentId) {
 async function listCalendar(timeMin, timeMax, calendarId = 'primary') {
   const auth = buildClient();
   const cal = google.calendar({ version: 'v3', auth });
-  const r = await cal.events.list({
-    calendarId,
-    timeMin,
-    timeMax,
-    singleEvents: true,
-    orderBy: 'startTime',
-    maxResults: 250,
-  });
-  return (r.data.items || []).map((e) => ({
+  // 전체 페이지네이션 — 한 페이지(250)만 읽으면 이벤트가 많은 캘린더에서 뒤쪽 이벤트를 놓쳐
+  // "기존 이벤트 없음"으로 오판 → 중복 재생성 악순환이 생긴다. (입사 캘린더 중복 버그 원인)
+  const items = [];
+  let pageToken;
+  do {
+    const r = await cal.events.list({
+      calendarId,
+      timeMin,
+      timeMax,
+      singleEvents: true,
+      orderBy: 'startTime',
+      maxResults: 250,
+      pageToken,
+    });
+    items.push(...(r.data.items || []));
+    pageToken = r.data.nextPageToken;
+  } while (pageToken && items.length < 5000);
+  return items.map((e) => ({
     id: e.id,
     summary: e.summary || '',
     description: e.description || '',
