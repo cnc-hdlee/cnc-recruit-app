@@ -8,7 +8,8 @@ async function auth(){const t=JSON.parse(fs.readFileSync(path.join(__dirname,'.d
 const SRC='1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY';
 const TARGETS=[
  {ID:'1QEvFEWjnXC1CNw6qAZ4ooFQUIxh36ow_9EL3hnM6ZoI', TAB:'입사예정(형도)'}, // 형도 (지원일 컬럼 있음)
- {ID:'1LGwwI6917vhONjXNqhgfibgrK6gUwzYWzDuRuVZyUqc', TAB:'채용예정'},        // 상현 (지원일 없음, 옛 구조 — 안 건드림)
+ // 상현 시트(1LGwwI '채용예정')는 삭제되어 존재하지 않음(2026-08-07 확인) → 매 실행 "not found" 에러로 sync가 죽고 스냅샷 스킵됨.
+ // 형도님 "내것만 신경쓰면 돼" → 형도 전용으로 제거. 상현 시트 부활 시 다시 추가.
 ];
 const HD_ID='1QEvFEWjnXC1CNw6qAZ4ooFQUIxh36ow_9EL3hnM6ZoI';
 const LINE=['생산1팀','생산2팀','생산3팀'];
