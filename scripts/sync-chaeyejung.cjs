@@ -145,7 +145,11 @@ async function syncOne(s, ID, TAB, srcList, TD, mjPath){
    const nmv=(await s.spreadsheets.values.get({spreadsheetId:ID,range:`'${TAB}'!${colL(c.성명)}1:${colL(c.성명)}2000`})).data.values||[];
    let lastD=first; for(let i=first;i<nmv.length;i++){ if(nmv[i]&&String(nmv[i][0]||'').trim()) lastD=i+1; }
    const rf=`=IFERROR(COUNTIFS($${Nl}:$${Nl},INDIRECT("${Nl}"&ROW()),$${Ml}:$${Ml},"입사완료")/(COUNTIFS($${Nl}:$${Nl},INDIRECT("${Nl}"&ROW()),$${Ml}:$${Ml},"입사완료")+COUNTIFS($${Nl}:$${Nl},INDIRECT("${Nl}"&ROW()),$${Ml}:$${Ml},"입사취소")),0)`;
-   const startRow=first+1, oform=[]; for(let r=startRow;r<=lastD;r++) oform.push([rf]);
+   const startRow=first+1;
+   // 수동 보호: 형도님이 직접 입력한 환산인원(숫자값)은 보존. 빈칸·기존 자동수식인 행만 자동수식으로 채움.
+   const curO=(await s.spreadsheets.values.get({spreadsheetId:ID,range:`'${TAB}'!${Ol}${startRow}:${Ol}${lastD}`,valueRenderOption:'FORMULA'})).data.values||[];
+   const oform=[]; for(let r=startRow;r<=lastD;r++){ const cv=(curO[r-startRow]&&curO[r-startRow][0]); const cs=String(cv==null?'':cv).trim();
+     oform.push([ (cs!=='' && !cs.startsWith('=')) ? cv : rf ]); }
    if(oform.length) await s.spreadsheets.values.update({spreadsheetId:ID,range:`'${TAB}'!${Ol}${startRow}:${Ol}${lastD}`,valueInputOption:'USER_ENTERED',requestBody:{values:oform}}); }
  // 입사여부 드롭다운
  const ddList=isHD?['지원자','입사완료','입사예정','입사취소']:['입사완료','입사예정','입사취소'];
