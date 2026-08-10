@@ -38,8 +38,10 @@ function extract(rows){
  // 3-0) self-heal: 과거/중복 날짜 행 제거(첫 등장만 유지) → "하루 1줄" 영구 보장. K~AE만 손댐(왼쪽표·17행 김범준표 무관)
  {
    const kae=(await s.spreadsheets.values.get({spreadsheetId:F,range:`'${SUM}'!K${DATA_START}:AE400`,valueRenderOption:'UNFORMATTED_VALUE'})).data.values||[];
-   const seen=new Set(), keep=[]; let nonEmpty=0;
-   for(const r of kae){ if(!r||r[0]===''||r[0]==null) break; nonEmpty++; const dv=Math.round(Number(r[0])); if(seen.has(dv)) continue; seen.add(dv); keep.push(r); }
+   const best=new Map(), order=[]; let nonEmpty=0; const cnt=r=>r.filter(x=>x!==''&&x!=null).length;
+   for(const r of kae){ if(!r||r[0]===''||r[0]==null) break; nonEmpty++; const dv=Math.round(Number(r[0]));
+     if(!best.has(dv)){ best.set(dv,r); order.push(dv); } else if(cnt(r)>cnt(best.get(dv))){ best.set(dv,r); } }
+   const keep=order.map(dv=>best.get(dv));
    if(keep.length<nonEmpty){
      const rows=keep.map(r=>{const a=r.slice(0,21); while(a.length<21)a.push(''); return a;});
      await s.spreadsheets.values.update({spreadsheetId:F,range:`'${SUM}'!K${DATA_START}:AE${DATA_START+rows.length-1}`,valueInputOption:'USER_ENTERED',requestBody:{values:rows}});

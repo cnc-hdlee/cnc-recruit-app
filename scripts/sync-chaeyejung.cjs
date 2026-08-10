@@ -16,7 +16,7 @@ const LINE=['생산1팀','생산2팀','생산3팀'];
 const DOG_LOC={'생산1팀':'퍼플','생산2팀':'그린','생산3팀':'3공장'};
 const norm=d=>{const t=String(d||'').trim();if(!t)return '';const m=t.match(/(\d{4})\D+(\d{1,2})\D+(\d{1,2})/);if(m)return `${m[1]}-${String(m[2]).padStart(2,'0')}-${String(m[3]).padStart(2,'0')}`;return t.slice(0,10);};
 const today=()=>new Date().toISOString().slice(0,10);
-const mapStat=v=>{const t=String(v||'').trim();if(t==='입사포기')return '입사취소';if(['지원자','입사예정','입사완료','입사취소'].includes(t))return t;return '';};
+const mapStat=v=>{const t=String(v||'').trim();if(t==='입사포기')return '입사취소';if(['지원자','입사예정','입사완료','입사취소','보류'].includes(t))return t;return '';};
 const idx=(H,names)=>{for(const n of names){const i=(H||[]).findIndex(x=>String(x||'').replace(/\s/g,'')===n);if(i>=0)return i;}return -1;};
 const colL=i=>{let s='',x=i+1;while(x>0){const m=(x-1)%26;s=String.fromCharCode(65+m)+s;x=Math.floor((x-1)/26);}return s;};
 
@@ -153,7 +153,7 @@ async function syncOne(s, ID, TAB, srcList, TD, mjPath){
      oform.push([ (cs!=='' && !cs.startsWith('=')) ? cv : rf ]); }
    if(oform.length) await s.spreadsheets.values.update({spreadsheetId:ID,range:`'${TAB}'!${Ol}${startRow}:${Ol}${lastD}`,valueInputOption:'USER_ENTERED',requestBody:{values:oform}}); }
  // 입사여부 드롭다운
- const ddList=isHD?['지원자','입사완료','입사예정','입사취소']:['입사완료','입사예정','입사취소'];
+ const ddList=isHD?['지원자','입사완료','입사예정','입사취소','보류']:['입사완료','입사예정','입사취소'];
  await s.spreadsheets.batchUpdate({spreadsheetId:ID,requestBody:{requests:[{setDataValidation:{range:{sheetId:sid,startRowIndex:first,endRowIndex:Math.max(last,first)+300,startColumnIndex:c.입사여부,endColumnIndex:c.입사여부+1},rule:{condition:{type:'ONE_OF_LIST',values:ddList.map(x=>({userEnteredValue:x}))},showCustomUi:true,strict:false}}}]}});
  console.log(`  (${ID.slice(0,8)}) 적용완료`);
 }
