@@ -327,24 +327,56 @@ function parseInterviewTitle(title: string): {
   // 같은 형식이 흔하다. 단순 `[가-힣]{2,4}` greedy 매칭은 "구성원경험팀"에서 "구성원경"을
   // 후보자로 잘못 잡으므로, (1) dash 뒤 이름 우선 (2) 팀/실/센터 suffix 토큰 제외 후 첫 한글.
   if (!t.includes('/')) {
+    // 표시용 부가정보 (매니저 캘린더 "(면접) 직무 이름 HH:MM (장소)" 포맷 대응)
+    const timeM = t.match(/(\d{1,2}:\d{2})/);
+    const mTime = timeM ? timeM[1] : '';
+    const mSite = SITE_KEYWORDS.find((s) => t.includes(s)) || '';
+    const roomM = t.match(ROOM_KEYWORDS);
+    const mRoom = roomM ? roomM[0] : '';
+    // 직무/차수/시설 suffix — 이름이 될 수 없는 토큰
+    const isName = (tk: string) =>
+      tk.length >= 2 && tk.length <= 4 &&
+      !NOT_NAME_KEYWORDS.test(tk) &&
+      !/(팀|실|센터|본부|장|분석|보안|운영|관리|구매|담당|회계|법무|기획|전략|생산|영업|재무|인사|품질|물류|개발|디자인)$/.test(tk) &&
+      !/^(면접|회의|미팅|일정|장소|예약|대기|후보|차수)$/.test(tk) &&
+      !/^\d?차$/.test(tk);
+
+    // ① 매니저 포맷: 이름은 시간(HH:MM) 직전의 마지막 한글 2-4자 토큰 (직무·차수는 앞에 옴)
+    //    예: "(면접) 원가분석 임소현 10:00 (퍼플-미팅2)" → 임소현
+    if (timeM) {
+      const ko = t.slice(0, timeM.index).match(/[가-힣]{2,4}/g) || [];
+      for (let i = ko.length - 1; i >= 0; i--) {
+        if (isName(ko[i])) return { ...empty, candidate: ko[i], time: mTime, site: mSite, room: mRoom };
+      }
+    }
+    // ② "(면접) …" 포맷인데 시간 없음 → 끝 (장소) 괄호 제거 후 마지막 이름 토큰
+    //    예: "(면접) 재무회계팀장 1차 조정연 (퍼플-대)" → 조정연
+    if (/^[(（]\s*면접\s*[)）]/.test(t)) {
+      const ko = t.replace(/\s*[(（][^)）]*[)）]\s*$/, '').match(/[가-힣]{2,4}/g) || [];
+      for (let i = ko.length - 1; i >= 0; i--) {
+        if (isName(ko[i])) return { ...empty, candidate: ko[i], time: mTime, site: mSite, room: mRoom };
+      }
+    }
+
+    // ③ (기존) 회의실 sync "○○팀 면접 - 박은성" dash 포맷
     const dashIdx = t.search(/[-—–]/);
     if (dashIdx >= 0) {
       const afterDash = t.slice(dashIdx + 1).match(/[가-힣]{2,4}/);
       if (afterDash && !NOT_NAME_KEYWORDS.test(afterDash[0]) && !/팀$|실$|센터$|본부$/.test(afterDash[0])) {
-        return { ...empty, candidate: afterDash[0] };
+        return { ...empty, candidate: afterDash[0], time: mTime, site: mSite, room: mRoom };
       }
     }
-    // 한글 연속 토큰들로 분리한 뒤, 팀/실/센터 suffix 또는 회의/면접/일정 같은 키워드 토큰은 제외
+    // ④ (기존) 한글 연속 토큰 fallback — 팀/실/센터 suffix·회의/면접 키워드 제외
     const tokens = t.match(/[가-힣]+/g) || [];
     for (const tk of tokens) {
       if (tk.length < 2) continue;
       if (NOT_NAME_KEYWORDS.test(tk)) continue;
       if (/팀$|실$|센터$|본부$/.test(tk)) continue;
       if (/^(면접|회의|미팅|일정|장소|예약)/.test(tk)) continue;
-      if (tk.length <= 4) return { ...empty, candidate: tk };
+      if (tk.length <= 4) return { ...empty, candidate: tk, time: mTime, site: mSite, room: mRoom };
       // 5자 이상 한글 단어는 보통 합성어 → 부분 매칭 위험. 빈 candidate 유지하고 계속 탐색.
     }
-    return { ...empty, candidate: t };
+    return { ...empty, candidate: t, time: mTime, site: mSite, room: mRoom };
   }
 
   const parts = t.split('/').map((p) => p.trim()).filter(Boolean);
