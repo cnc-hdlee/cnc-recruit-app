@@ -7,6 +7,10 @@ export const SHARED_CAL = {
   interview: 'c_d2a3298862ba8bba109c13c83c2cc7c1ac85560bdc12a305c40c79f6964c65a2@group.calendar.google.com',
   // 면접 (shim@이 만든 보조) — read-only로 구독, 일부 면접 일정 여기 들어감
   interviewAlt: 'c_711021d8db3140f0fa36874c11e98a449ee5528637e020d891cf903cd4b8c443@group.calendar.google.com',
+  // 면접 (bjkim4@ 등 채용매니저가 운영하는 팀 면접 캘린더) — read-only 구독.
+  // 남이 만들어 hdlee를 초대한 면접이 primary 초대로만 들어와 앱에 누락되던 문제(2026-08) 해결.
+  // hdlee reader 권한 확인됨. 여기 이벤트는 isInterviewKind에서 면접으로 신뢰.
+  interviewMgr: 'c_21d3c76327cd3e4ab66cb7f7cfdb6f1a7c63500dd0d8af17212640edee2c5459@group.calendar.google.com',
   // 입사 (메인 — 노란색) — colorId 5 (banana). shim@이 owner → hdlee write 권한 없음 (reader)
   onboardingMain: 'c_e006d0f491165344836f40c2589456a597676d6d551c00a477e5fe6c46a8804f@group.calendar.google.com',
   // 입사 (자동 등록 master — 노란색) — hdlee가 owner라 앱이 직접 쓸 수 있는 유일한 입사 캘린더.
@@ -21,9 +25,12 @@ export const SHARED_CAL = {
 // 입사 보조(빨간색 c_1ff0...)는 2026-05-06 사용자 요청으로 polling 제외 — 메인만 사용.
 // 동일 이벤트가 중복되지 않도록 ID로 dedup.
 export const READ_CALENDAR_IDS: string[] = [
-  'primary',
+  // 면접 공유 캘린더들을 primary보다 앞에 — 남이 초대한 면접이 primary 초대본으로 dedup되어
+  // calendarId='primary'로 태깅되면 면접 신뢰 경로를 못 타므로, 원본 면접 캘린더가 우선 이기게 함.
   SHARED_CAL.interview,
   SHARED_CAL.interviewAlt,
+  SHARED_CAL.interviewMgr,
+  'primary',
   SHARED_CAL.onboardingMain,
   SHARED_CAL.offboarding,
 ];

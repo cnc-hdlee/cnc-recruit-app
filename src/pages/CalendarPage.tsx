@@ -417,6 +417,11 @@ function isInterviewKind(summary: string, colorId: string | null, calendarId: st
   if (calendarId === SHARED_CAL.interview && colorId === '3') {
     return true;
   }
+  // 채용매니저 팀 면접 캘린더(interviewMgr) = 전용 면접 캘린더 → 색/제목 무관 면접으로 신뢰.
+  // 남이 만들어 hdlee를 초대한 면접이 primary 초대로만 들어와 앱에 누락되던 문제(2026-08) 해결.
+  if (calendarId === SHARED_CAL.interviewMgr) {
+    return true;
+  }
   // 입사(colorId 5)·퇴사·휴가·행사 명시적으로 제외
   if (colorId === '5') return false; // 노란색 = 입사
   if (/입사|퇴사|퇴직|휴가|연차|반차|생일|워크샵|워크샾|행사|회식|점심|런치|MT\b|OT\b|교육|세미나|컨퍼런스|타운홀|townhall|holiday|off\b|박람회|일자리센터/i.test(summary)) {
