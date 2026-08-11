@@ -25,12 +25,13 @@ export const SHARED_CAL = {
 // 입사 보조(빨간색 c_1ff0...)는 2026-05-06 사용자 요청으로 polling 제외 — 메인만 사용.
 // 동일 이벤트가 중복되지 않도록 ID로 dedup.
 export const READ_CALENDAR_IDS: string[] = [
-  // 면접 공유 캘린더들을 primary보다 앞에 — 남이 초대한 면접이 primary 초대본으로 dedup되어
-  // calendarId='primary'로 태깅되면 면접 신뢰 경로를 못 타므로, 원본 면접 캘린더가 우선 이기게 함.
+  // primary 우선 — 남이 만들어 hdlee를 초대한 면접은 primary 사본에만 제목이 있다.
+  // 공유 면접 캘린더(interviewMgr 등)를 reader로 직접 읽으면 private이라 제목이 빈 채로 오므로,
+  // dedup에서 반드시 primary 사본이 이겨야 이름/소속이 보인다. interviewMgr는 보조로만 유지.
+  'primary',
   SHARED_CAL.interview,
   SHARED_CAL.interviewAlt,
   SHARED_CAL.interviewMgr,
-  'primary',
   SHARED_CAL.onboardingMain,
   SHARED_CAL.offboarding,
 ];

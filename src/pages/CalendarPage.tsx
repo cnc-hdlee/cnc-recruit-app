@@ -341,20 +341,32 @@ function parseInterviewTitle(title: string): {
       !/^(면접|회의|미팅|일정|장소|예약|대기|후보|차수)$/.test(tk) &&
       !/^\d?차$/.test(tk);
 
+    // 직무(소속칸 표시용) = (면접)·끝(장소)·시간·N차·이름 제거하고 남은 문자열
+    //   예: "(면접) 원가분석 임소현 10:00 (퍼플-미팅2)" → "원가분석" / "재무회계팀장 1차" → "재무회계팀장"
+    const jobOf = (name: string) => t
+      .replace(/^[(（]\s*면접\s*[)）]\s*/, '')
+      .replace(/\s*[(（][^)）]*[)）]\s*$/, '')
+      .replace(/\d{1,2}:\d{2}/g, '')
+      .replace(/\d+\s*차/g, '')
+      .replace(name, '')
+      .replace(/[·／/]+/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+
     // ① 매니저 포맷: 이름은 시간(HH:MM) 직전의 마지막 한글 2-4자 토큰 (직무·차수는 앞에 옴)
-    //    예: "(면접) 원가분석 임소현 10:00 (퍼플-미팅2)" → 임소현
+    //    예: "(면접) 원가분석 임소현 10:00 (퍼플-미팅2)" → 임소현 / 소속=원가분석
     if (timeM) {
       const ko = t.slice(0, timeM.index).match(/[가-힣]{2,4}/g) || [];
       for (let i = ko.length - 1; i >= 0; i--) {
-        if (isName(ko[i])) return { ...empty, candidate: ko[i], time: mTime, site: mSite, room: mRoom };
+        if (isName(ko[i])) return { ...empty, candidate: ko[i], team: jobOf(ko[i]), time: mTime, site: mSite, room: mRoom };
       }
     }
     // ② "(면접) …" 포맷인데 시간 없음 → 끝 (장소) 괄호 제거 후 마지막 이름 토큰
-    //    예: "(면접) 재무회계팀장 1차 조정연 (퍼플-대)" → 조정연
+    //    예: "(면접) 재무회계팀장 1차 조정연 (퍼플-대)" → 조정연 / 소속=재무회계팀장
     if (/^[(（]\s*면접\s*[)）]/.test(t)) {
       const ko = t.replace(/\s*[(（][^)）]*[)）]\s*$/, '').match(/[가-힣]{2,4}/g) || [];
       for (let i = ko.length - 1; i >= 0; i--) {
-        if (isName(ko[i])) return { ...empty, candidate: ko[i], time: mTime, site: mSite, room: mRoom };
+        if (isName(ko[i])) return { ...empty, candidate: ko[i], team: jobOf(ko[i]), time: mTime, site: mSite, room: mRoom };
       }
     }
 
@@ -435,6 +447,9 @@ function parseInterviewTitle(title: string): {
 const TODO_ACTION_KEYWORDS = /(안내|발송|확인|준비|작성|기안|상신|회신|보고|공유|체크|정리|등록|기입|결재|점검|결제|구매|받기|챙기기|제출|신청|수령|반납|발급|취소|기획|품의|시안|크리닝|스크리닝|마감|개시|마감|기록|통보|업데이트)/;
 
 function isInterviewKind(summary: string, colorId: string | null, calendarId: string | null = null): boolean {
+  // 제목 없는 이벤트 제외 — 공유 면접 캘린더를 reader로 읽으면 private이라 제목이 빈 채로 온다.
+  // 그 빈 사본이 카드로 뜨면 이름·소속 공란이 되므로 원천 차단(제목 있는 primary 사본만 카드화).
+  if (!summary || !summary.trim()) return false;
   // 면접 취소/포기/보류 키워드 — 카드에서 제외 (이력에서 사라짐).
   //   예: "(면접포기)수원/16:20/정예원/Base Lab"
   // 불참/노쇼는 제외하지 않고 줄긋기로만 표시 — 이력 보존 (누가 안 왔는지 기록 가치 있음).
