@@ -3,7 +3,8 @@ const fs=require('node:fs'),crypto=require('node:crypto'),{execFileSync}=require
 const DIR='C:/Users/user/AppData/Roaming/cnc-recruit-app';
 function dpapiUnprotect(buf){
   const ps=`$b=[Convert]::FromBase64String('${buf.toString('base64')}');Add-Type -AssemblyName System.Security;[Convert]::ToBase64String([System.Security.Cryptography.ProtectedData]::Unprotect($b,$null,[System.Security.Cryptography.DataProtectionScope]::CurrentUser))`;
-  return Buffer.from(execFileSync('powershell.exe',['-NoProfile','-NonInteractive','-Command',ps],{encoding:'utf8'}).trim(),'base64');
+  // windowsHide: PowerShell 콘솔이 순간적으로 깜빡이지 않도록 (기본값 false)
+  return Buffer.from(execFileSync('powershell.exe',['-NoProfile','-NonInteractive','-Command',ps],{encoding:'utf8',windowsHide:true}).trim(),'base64');
 }
 function getKey(){
   const ls=JSON.parse(fs.readFileSync(DIR+'/Local State','utf8'));

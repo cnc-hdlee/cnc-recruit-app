@@ -166,6 +166,7 @@ function parseEvent(ev) {
   const cal = await calendarClient();
   const seenEventKey = new Set();
   const parsed = [];
+  let calFailures = 0;
 
   for (const calId of INTERVIEW_CALS) {
     let pageToken;
@@ -178,7 +179,9 @@ function parseEvent(ev) {
           orderBy: 'startTime', maxResults: 2500, pageToken,
         });
       } catch (e) {
-        log(`WARN 캘린더 읽기 실패 ${calId.slice(0, 12)}…: ${e.message}`);
+        calFailures++;
+        const quota = /Quota exceeded|rateLimit|userRateLimit/i.test(e.message || '');
+        log(`WARN 캘린더 읽기 실패 ${calId.slice(0, 12)}…: ${quota ? '구글 캘린더 API 분당 한도 초과 (앱과 같은 프로젝트를 공유합니다)' : e.message}`);
         break;
       }
       for (const ev of res.data.items || []) {
@@ -194,7 +197,15 @@ function parseEvent(ev) {
       }
       pageToken = res.data.nextPageToken;
     } while (pageToken);
-    log(`캘린더 ${calId.slice(0, 10)}… → 대상 ${count}건`);
+    // "CAL " prefix = 진행 로그. 수동 실행 팝업(mirror-interviews-now.vbs)에서 걸러낸다.
+    log(`CAL ${calId.slice(0, 10)}… → 대상 ${count}건`);
+  }
+
+  // 캘린더를 하나도 못 읽었으면 "변경 없음"이 아니라 실패다 — 조용히 넘어가면 누락을 못 알아챈다.
+  if (calFailures === INTERVIEW_CALS.length) {
+    log('캘린더를 하나도 읽지 못했습니다. 1~2분 뒤 다시 실행해 주세요. (시트는 건드리지 않았습니다)');
+    process.exitCode = 1;
+    return;
   }
 
   // 같은 후보자가 여러 날짜에 잡혀 있으면 가장 이른 면접일 1건만 (시트는 후보자 1명 = 1행)
