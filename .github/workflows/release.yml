@@ -41,14 +41,28 @@ jobs:
       - name: Install
         run: npm ci
 
+      # 시크릿을 스크립트 본문에 직접 보간하면 JSON 안의 따옴표/특수문자로 조용히 깨진다.
+      # (2.0.53 릴리스가 client ID/secret/시트설정이 전부 비어있는 채로 배포된 원인)
+      # env: 블록으로 넘겨 인용 문제를 원천 차단하고, 비어 있으면 즉시 실패시킨다.
       - name: Restore .env.production from secrets
         shell: pwsh
+        env:
+          CID: ${{ secrets.VITE_DEFAULT_GOOGLE_CLIENT_ID }}
+          CSEC: ${{ secrets.VITE_DEFAULT_GOOGLE_CLIENT_SECRET }}
+          SHEETS: ${{ secrets.VITE_DEFAULT_SHEETS_CONFIG }}
         run: |
-          @"
-          VITE_DEFAULT_GOOGLE_CLIENT_ID=${{ secrets.VITE_DEFAULT_GOOGLE_CLIENT_ID }}
-          VITE_DEFAULT_GOOGLE_CLIENT_SECRET=${{ secrets.VITE_DEFAULT_GOOGLE_CLIENT_SECRET }}
-          VITE_DEFAULT_SHEETS_CONFIG=${{ secrets.VITE_DEFAULT_SHEETS_CONFIG }}
-          "@ | Out-File -FilePath .env.production -Encoding utf8 -NoNewline
+          if ([string]::IsNullOrWhiteSpace($env:CID))    { throw "secret VITE_DEFAULT_GOOGLE_CLIENT_ID 가 비어 있음" }
+          if ([string]::IsNullOrWhiteSpace($env:CSEC))   { throw "secret VITE_DEFAULT_GOOGLE_CLIENT_SECRET 가 비어 있음" }
+          if ([string]::IsNullOrWhiteSpace($env:SHEETS)) { throw "secret VITE_DEFAULT_SHEETS_CONFIG 가 비어 있음" }
+          $lines = @(
+            "VITE_DEFAULT_GOOGLE_CLIENT_ID=$($env:CID)",
+            "VITE_DEFAULT_GOOGLE_CLIENT_SECRET=$($env:CSEC)",
+            "VITE_DEFAULT_SHEETS_CONFIG=$($env:SHEETS)"
+          )
+          $utf8NoBom = New-Object System.Text.UTF8Encoding $false
+          [System.IO.File]::WriteAllLines("$PWD\.env.production", $lines, $utf8NoBom)
+          # 값은 로그에 남기지 않고 길이만 확인
+          Write-Host "env written: CID=$($env:CID.Length) SECRET=$($env:CSEC.Length) SHEETS=$($env:SHEETS.Length) chars"
 
       - name: Skip if commit is auto version bump
         id: skipcheck
@@ -70,14 +84,33 @@ jobs:
           echo "version=$newVer" >> $env:GITHUB_OUTPUT
           echo "Bumped to v$newVer"
 
-      - name: Build & Publish to GitHub Releases
+      - name: Build renderer
+        if: steps.skipcheck.outputs.skip == 'false'
+        shell: pwsh
+        run: npm run build
+
+      # 인증정보가 번들에 실제로 박혔는지 확인. 하나라도 없으면 릴리스 중단.
+      # 이 게이트가 없어서 로그인 불가 버전이 팀에 그대로 배포됐다.
+      - name: Verify credentials are baked into bundle
+        if: steps.skipcheck.outputs.skip == 'false'
+        shell: pwsh
+        run: |
+          $js = (Get-ChildItem dist/assets/*.js | Get-Content -Raw) -join "`n"
+          $missing = @()
+          if ($js -notmatch 'apps\.googleusercontent\.com') { $missing += 'GOOGLE_CLIENT_ID' }
+          if ($js -notmatch 'GOCSPX-')                      { $missing += 'GOOGLE_CLIENT_SECRET' }
+          if ($js -notmatch 'spreadsheetId')                { $missing += 'SHEETS_CONFIG' }
+          if ($missing.Count -gt 0) {
+            throw "번들에 인증정보가 없습니다: $($missing -join ', ') — 이 상태로 배포하면 팀원이 로그인할 수 없습니다."
+          }
+          Write-Host "OK: client ID / secret / sheets config 모두 번들에 포함됨"
+
+      - name: Publish to GitHub Releases
         if: steps.skipcheck.outputs.skip == 'false'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         shell: pwsh
-        run: |
-          npm run build
-          npx electron-builder --win nsis --x64 --publish always
+        run: npx electron-builder --win nsis --x64 --publish always
 
       - name: Commit version bump back to main
         if: steps.skipcheck.outputs.skip == 'false'
