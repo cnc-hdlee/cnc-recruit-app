@@ -1,6 +1,6 @@
 {
   "name": "cnc-recruit-app",
-  "version": "2.0.53",
+  "version": "2.0.54",
   "description": "CNC 채용 커맨드센터 — React + Electron",
   "type": "module",
   "main": "electron/main.cjs",
@@ -50,6 +50,8 @@
   "build": {
     "appId": "com.cnccosmetic.recruit",
     "productName": "CNC 채용",
+    "npmRebuild": false,
+    "buildDependenciesFromSource": false,
     "directories": {
       "output": "release"
     },
