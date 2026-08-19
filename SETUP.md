@@ -153,8 +153,25 @@ Slack에서 모니터링할 채널마다:
 
 ## 4. 문제 해결
 
-### "Access blocked: This app's request is invalid"
-→ OAuth 동의 화면 Test users에 본인 이메일이 없음. 1-3-4 단계 확인.
+### 팀원이 Google 로그인에서 "액세스 차단됨 (Access blocked)"
+
+게시 상태가 **테스트(Testing)** 인 동안은 등록된 테스트 사용자만 로그인 가능.
+클라이언트 유형은 데스크톱 앱이라 loopback(`http://127.0.0.1:포트/oauth2callback`)은
+어떤 포트든 허용되므로 redirect_uri 문제는 아님 → **사용자 허용 문제**다.
+
+**권장: 대상(Audience)을 "내부(Internal)"로 전환** — cnccosmetic.com Workspace 조직
+소속 프로젝트면 가능. `console.cloud.google.com/auth/audience?project=634320343074`
+→ 사용자 인증 정보 유형 **내부** → 저장.
+- @cnccosmetic.com 계정 전원 자동 허용 (테스트 사용자 등록 불필요)
+- Google 앱 확인(verification) 불필요
+- **refresh token 7일 만료가 사라짐** ← 테스트 모드의 가장 큰 함정
+
+**차선: 테스트 사용자 추가** — 같은 페이지 하단 **테스트 사용자 → Add users**
+에 팀원 이메일 추가 (최대 100명). 단 테스트 모드에서는 refresh token이 7일 후
+만료되어 팀원이 매주 재로그인해야 한다.
+
+어느 쪽이든 팀원 화면에 "이 앱은 Google에서 확인하지 않았습니다"가 뜨면
+**고급 → (앱 이름)(안전하지 않음)으로 이동** 을 눌러야 동의 화면으로 넘어간다.
 
 ### "Quota exceeded for quota metric 'Read requests'"
 → Google API 무료 할당량 초과. 일반적으로 사내 2-3명이 쓰면 충분하지만, 폴링 주기를 늘리거나 GCP에서 quota 증가 신청.
