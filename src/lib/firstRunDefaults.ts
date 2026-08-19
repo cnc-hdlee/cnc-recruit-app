@@ -40,13 +40,33 @@ export async function applyFirstRunDefaultsIfNeeded(): Promise<{ needsLogin: boo
       const status = await api.google.status();
       const alreadyHasCreds = status.ok && status.data?.hasClient;
       const alreadyAuthed = status.ok && status.data?.authed;
-      if (!alreadyHasCreds) {
+
+      // 저장된 Client ID가 이 빌드의 기본값과 다르면 = 옛 배포본에서 넘어온 잘못된 값.
+      // (2.0.53 처럼 인증정보가 빠진 채 빌드된 버전을 쓰다 온 경우)
+      // 그대로 두면 "401 invalid_client / The OAuth client was not found" 로 영원히 로그인 불가.
+      // NSIS가 deleteAppDataOnUninstall:false 라 재설치해도 설정이 안 지워지므로 앱이 직접 고쳐야 한다.
+      let staleClient = false;
+      if (alreadyHasCreds) {
+        try {
+          const sec = await api.google.revealSecrets();
+          const storedId = (sec.ok ? sec.data?.clientId : '') || '';
+          staleClient = storedId.trim() !== DEFAULT_CLIENT_ID.trim();
+        } catch {
+          // 확인 불가하면 건드리지 않음
+        }
+      }
+
+      if (!alreadyHasCreds || staleClient) {
         await api.google.setCreds({ clientId: DEFAULT_CLIENT_ID, clientSecret: DEFAULT_CLIENT_SECRET });
+        if (staleClient) {
+          // 다른 client로 발급된 토큰은 무효 — 지우고 재로그인시킨다
+          await api.google.signOut();
+        }
         // eslint-disable-next-line no-console
-        console.info('[first-run] OAuth Client 기본값 적용 완료');
+        console.info(`[first-run] OAuth Client 기본값 적용 완료${staleClient ? ' (옛 설정 자동 교체)' : ''}`);
       }
       // 로그인이 한 번도 안 된 상태면 자동으로 OAuth 시작 — 팀원이 버튼 찾을 필요 X
-      if (!alreadyAuthed) {
+      if (!alreadyAuthed || staleClient) {
         needsLogin = true;
       }
     } catch {
