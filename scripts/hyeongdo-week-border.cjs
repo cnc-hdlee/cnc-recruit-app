@@ -1,4 +1,4 @@
-// 대시보드(형도_작업중) — 현재 주/월 열에 빨간 테두리 자동 이동.
+// 대시보드(형도) 탭 — 현재 주/월 열에 빨간 테두리 자동 이동.
 //   1QEvFE… / gid 475576684
 //
 // 현재 열 판정: 날짜 기준은 "충원 예정" 행으로 통일한다.
@@ -14,8 +14,9 @@
 const fs = require('node:fs'), path = require('node:path'), { google } = require('googleapis');
 
 const ID = '1QEvFEWjnXC1CNw6qAZ4ooFQUIxh36ow_9EL3hnM6ZoI';
+// 탭은 sheetId 로 잡고 이름은 실행 시점에 조회한다.
+// 이름을 하드코딩하면 탭명이 바뀔 때(작업중 → _NEW) 조용히 깨진다.
 const SID = 475576684;
-const TAB = '대시보드(형도_작업중)';
 const SCAN = 80;                 // 라벨 탐색 범위
 const COL0 = 1, COL1 = 16;       // B~P (0-indexed, end exclusive)
 const DRY = process.argv.includes('--dry');
@@ -36,6 +37,14 @@ async function auth() {
 
 (async () => {
   const s = await auth();
+
+  // ---- 0) sheetId → 현재 탭 이름 ----
+  const props = (await s.spreadsheets.get({
+    spreadsheetId: ID, fields: 'sheets(properties(sheetId,title))',
+  })).data.sheets.map((x) => x.properties).find((p) => p.sheetId === SID);
+  if (!props) { log(`sheetId ${SID} 탭을 못 찾음 — 중단`); process.exitCode = 1; return; }
+  const TAB = props.title;
+  log(`대상 탭: "${TAB}" (gid ${SID})`);
 
   // ---- 1) 표 범위 탐지 (A열 라벨 기준) ----
   const A = (await s.spreadsheets.values.get({
