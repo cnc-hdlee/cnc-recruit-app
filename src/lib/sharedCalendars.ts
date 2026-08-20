@@ -11,6 +11,10 @@ export const SHARED_CAL = {
   // 남이 만들어 hdlee를 초대한 면접이 primary 초대로만 들어와 앱에 누락되던 문제(2026-08) 해결.
   // hdlee reader 권한 확인됨. 여기 이벤트는 isInterviewKind에서 면접으로 신뢰.
   interviewMgr: 'c_21d3c76327cd3e4ab66cb7f7cfdb6f1a7c63500dd0d8af17212640edee2c5459@group.calendar.google.com',
+  // 면접 (4번째 — "서울(4E회의실)/…" 포맷으로 OBM/디자인/연구 직군 면접이 등록되는 캘린더).
+  // hdlee가 구독(selected)까지 해놨는데 앱 READ 목록에 빠져 있어서 구글 캘린더엔 보이지만
+  // 앱에는 통째로 안 뜨던 누락 원인(2026-08-20 확인, 120일 창에서 14건 중 9건이 앱에 없음).
+  interviewX: 'c_bebeafad40540c7c46a8b75315ef413571d6f9fb13ef74c0f31cca541bd93587@group.calendar.google.com',
   // 입사 (메인 — 노란색) — colorId 5 (banana). shim@이 owner → hdlee write 권한 없음 (reader)
   onboardingMain: 'c_e006d0f491165344836f40c2589456a597676d6d551c00a477e5fe6c46a8804f@group.calendar.google.com',
   // 입사 (자동 등록 master — 노란색) — hdlee가 owner라 앱이 직접 쓸 수 있는 유일한 입사 캘린더.
@@ -27,11 +31,26 @@ export const SHARED_CAL = {
 export const READ_CALENDAR_IDS: string[] = [
   // primary 우선 — 남이 만들어 hdlee를 초대한 면접은 primary 사본에만 제목이 있다.
   // 공유 면접 캘린더(interviewMgr 등)를 reader로 직접 읽으면 private이라 제목이 빈 채로 오므로,
-  // dedup에서 반드시 primary 사본이 이겨야 이름/소속이 보인다. interviewMgr는 보조로만 유지.
+  // 제목은 반드시 primary 사본이 이겨야 이름/소속이 보인다.
+  // ※ 단, dedup은 "먼저 온 사본이 전부 이김"이 아니라 mergeCalendarCopies()로 필드별 병합한다.
+  //   (제목=primary, calendarId/colorId=공유 면접 캘린더 → 보라색 신뢰 룰이 죽지 않게)
   'primary',
   SHARED_CAL.interview,
   SHARED_CAL.interviewAlt,
   SHARED_CAL.interviewMgr,
+  SHARED_CAL.interviewX,
   SHARED_CAL.onboardingMain,
   SHARED_CAL.offboarding,
 ];
+
+// 면접 전용 캘린더 — 여기 있는 이벤트는 색/제목 포맷과 무관하게 "면접"으로 신뢰한다.
+export const INTERVIEW_CAL_IDS: string[] = [
+  SHARED_CAL.interview,
+  SHARED_CAL.interviewAlt,
+  SHARED_CAL.interviewMgr,
+  SHARED_CAL.interviewX,
+];
+
+export function isInterviewCalendar(calendarId: string | null | undefined): boolean {
+  return !!calendarId && INTERVIEW_CAL_IDS.includes(calendarId);
+}

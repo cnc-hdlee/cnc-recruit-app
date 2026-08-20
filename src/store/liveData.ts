@@ -7,7 +7,7 @@ import { api } from '../lib/api';
 import { rowsToObjects, suggestKind, type SheetMappings, type TabKind, type TabMappingEntry } from '../lib/sheetMapping';
 import { IS_VIEWER, SNAPSHOT_URL } from '../lib/mode';
 import { isSnapshot, type Snapshot, type SnapshotCalendarEvent } from '../lib/snapshot';
-import { READ_CALENDAR_IDS, SHARED_CAL } from '../lib/sharedCalendars';
+import { READ_CALENDAR_IDS, SHARED_CAL, isInterviewCalendar } from '../lib/sharedCalendars';
 
 interface SheetSnapshot {
   title: string;
@@ -270,15 +270,51 @@ export async function refreshCalendarFromGoogle() {
         }
       })
     );
-    // ID 기준 dedup — 첫 캘린더 우선
-    const seen = new Set<string>();
-    const merged: { calId: string; e: typeof results[number]['items'][number] }[] = [];
+    // ID 기준 dedup — "먼저 온 사본이 전부 이김"이 아니라 필드별로 병합한다.
+    //
+    // 왜: 같은 면접이 (1) primary 초대 사본 (2) 공유 면접 캘린더 원본 두 벌로 들어온다.
+    //   · 제목은 primary 사본에만 있다 (공유 캘린더를 reader로 읽으면 private → 빈 제목).
+    //   · 반대로 colorId(보라 '3')와 "어느 캘린더 소속인지"는 공유 캘린더 사본에만 있다.
+    //   예전 로직은 primary 사본이 통째로 이겨서 calendarId='primary', colorId=null이 되고,
+    //   그 결과 "면접 캘린더 + 보라색이면 무조건 면접" 신뢰 룰이 발동을 못 했다.
+    //   → 제목 파싱에만 의존하게 되어 "16:00 / 그린 / 조성현 (PM) / 포장2팀" 같은 실제 면접이
+    //     분류 실패로 카드에서 통째로 사라졌다. (2026-08-20 누락 신고 원인 #2)
+    //
+    // 병합 규칙: 제목/설명/장소/참석자 = 내용이 있는 사본 우선(=primary),
+    //           calendarId/colorId = 면접·입사·퇴사 공유 캘린더 사본 우선.
+    const byId = new Map<string, { calId: string; e: typeof results[number]['items'][number] }[]>();
     for (const { calId, items } of results) {
       for (const e of items) {
-        if (!e.id || seen.has(e.id)) continue;
-        seen.add(e.id);
-        merged.push({ calId, e });
+        if (!e.id) continue;
+        const arr = byId.get(e.id);
+        if (arr) arr.push({ calId, e });
+        else byId.set(e.id, [{ calId, e }]);
       }
+    }
+    const merged: { calId: string; e: typeof results[number]['items'][number] }[] = [];
+    for (const copies of byId.values()) {
+      // 내용(제목)이 있는 사본을 본문으로 — READ 순서상 primary가 앞이므로 자연히 primary 우선
+      const base = copies.find((c) => (c.e.summary || '').trim()) || copies[0];
+      // 소속 캘린더는 공유 캘린더 사본이 있으면 그쪽을 채택 (primary는 초대 사본일 뿐)
+      const shared = copies.find((c) => c.calId !== 'primary');
+      const calId = shared ? shared.calId : base.calId;
+      const colorId = (shared && shared.e.colorId) || base.e.colorId || null;
+      // 제목·설명·장소는 base, 없으면 다른 사본에서라도 보강
+      const pick = (get: (x: typeof base.e) => string | null | undefined) =>
+        (get(base.e) || '').trim() || copies.map((c) => (get(c.e) || '').trim()).find(Boolean) || '';
+      merged.push({
+        calId,
+        e: {
+          ...base.e,
+          colorId,
+          summary: pick((x) => x.summary),
+          description: pick((x) => x.description),
+          location: pick((x) => x.location),
+          attendees: base.e.attendees?.length
+            ? base.e.attendees
+            : copies.map((c) => c.e.attendees).find((a) => a && a.length) || base.e.attendees,
+        },
+      });
     }
     // 비공개 채용은 클라이언트 단에서도 한 번 더 필터 (이중 안전망)
     const filtered = merged.filter(
@@ -479,6 +515,8 @@ function classifyEventKind(summary: string, colorId: string | null, calendarId: 
   // 면접 캘린더(SHARED_CAL.interview) + colorId='3'(보라) 명시 등록 = 무조건 면접
   // (장성민 같은 직무명만 쓴 케이스 — 제목에 "면접" 단어 없어도 통과)
   if (calendarId === SHARED_CAL.interview && colorId === '3') return '면접';
+  // 면접 전용 공유 캘린더(interviewAlt/Mgr/X)에 있는 이벤트는 색/제목과 무관하게 면접
+  if (isInterviewCalendar(calendarId)) return '면접';
   // 입사 (colorId=5 노란색 또는 제목에 입사)
   if (colorId === '5' || /입사/.test(summary)) return '입사';
   if (/퇴사|퇴직/.test(summary)) return '퇴사';

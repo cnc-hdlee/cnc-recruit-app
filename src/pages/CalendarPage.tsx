@@ -3,7 +3,7 @@ import { useData, getTodayStr } from '../store';
 import { useLiveData, liveCalendarEventsNormalized, liveByKindOrScan, refreshCalendarFromGoogle, refreshNow } from '../store/liveData';
 import { api } from '../lib/api';
 import type { GCalListEntry } from '../lib/api';
-import { SHARED_CAL } from '../lib/sharedCalendars';
+import { SHARED_CAL, isInterviewCalendar } from '../lib/sharedCalendars';
 import { gmailMessageUrl } from '../lib/gmail';
 import { classifyResourceCalendar, findResourceEmailByLocation, type RoomMeta } from '../lib/meetingRooms';
 
@@ -309,6 +309,11 @@ function diffDays(a: string, b: string): number {
 const SITE_KEYWORDS = ['퍼플', '그린', '수원', '오산', '위워크', '온라인', '본사', '판교', '강남'];
 const ROOM_KEYWORDS = /회의실|미팅룸|VIP|대회의|소회의|Meet|Zoom|구글|줌|구내식당|식당|카페|로비|라운지|휴게실|강당|세미나실/i;
 const TEAM_KEYWORDS = /팀$|본부$|실$|센터$|매니저|기획|개발|디자이너|마케터|연구원|PM|MD|엔지니어|직무|채용/;
+// 괄호 안 부연설명 제거 — "김승우(PM)" / "최현아 (원료)" 처럼 이름 뒤에 직무가 붙는 포맷에서
+// TEAM_KEYWORDS(PM·MD·기획 …)가 괄호 안 글자에 걸려 후보자를 팀명으로 오분류하던 버그 방지.
+// (2026-08-20: "15:00 / 퍼플 / 김승우(PM) / 생산1팀" → 후보자가 "생산"으로 표시되던 문제)
+const withoutParens = (s: string) => s.replace(/[(（][^)）]*[)）]/g, ' ').replace(/\s+/g, ' ').trim();
+
 // 후보자 이름이 절대 될 수 없는 단어 (장소/시설명) — 한글 2-4자라도 이름 매칭에서 제외
 const NOT_NAME_KEYWORDS = /^(구내식당|식당|카페|로비|라운지|휴게실|강당|세미나실|회의실|미팅룸|대회의|소회의|본사|퍼플|그린|수원|판교|강남|온라인|위워크|VIP룸|VIP|회의|미팅|면접|일정|장소)/;
 
@@ -375,7 +380,15 @@ function parseInterviewTitle(title: string): {
     if (dashIdx >= 0) {
       const afterDash = t.slice(dashIdx + 1).match(/[가-힣]{2,4}/);
       if (afterDash && !NOT_NAME_KEYWORDS.test(afterDash[0]) && !/팀$|실$|센터$|본부$/.test(afterDash[0])) {
-        return { ...empty, candidate: afterDash[0], time: mTime, site: mSite, room: mRoom };
+        // 소속 = dash 앞에서 "면접" 단어를 뺀 부분 ("생산1팀 면접 - 김승우(PM)" → 생산1팀).
+        // 부서가 비면 카드에서 소속이 사라져 누락처럼 보이므로 반드시 채운다.
+        const beforeDash = t
+          .slice(0, dashIdx)
+          .replace(/\d{1,2}:\d{2}/g, '')
+          .replace(/면접/g, '')
+          .replace(/\s+/g, ' ')
+          .trim();
+        return { ...empty, candidate: afterDash[0], team: beforeDash, time: mTime, site: mSite, room: mRoom };
       }
     }
     // ④ (기존) 한글 연속 토큰 fallback — 팀/실/센터 suffix·회의/면접 키워드 제외
@@ -411,7 +424,7 @@ function parseInterviewTitle(title: string): {
     // 후보자: 토큰 시작이 한글 2-4자 (이태호(제조2팀) 같은 형태도 잡음)
     if (!candidate) {
       const nm = p.match(/^([가-힣]{2,4})(?:$|\(|\s)/);
-      if (nm && !NOT_NAME_KEYWORDS.test(nm[1]) && !TEAM_KEYWORDS.test(p)) {
+      if (nm && !NOT_NAME_KEYWORDS.test(nm[1]) && !TEAM_KEYWORDS.test(withoutParens(p))) {
         candidate = nm[1]; continue;
       }
       // 영문 이름 단독 토큰 (외국인 후보자) — site/room/팀 키워드 제외
@@ -421,7 +434,7 @@ function parseInterviewTitle(title: string): {
         candidate = en[1]; continue;
       }
     }
-    if (!team && TEAM_KEYWORDS.test(p)) { team = p; continue; }
+    if (!team && TEAM_KEYWORDS.test(withoutParens(p))) { team = p; continue; }
     leftover.push(p);
   }
 
@@ -464,9 +477,9 @@ function isInterviewKind(summary: string, colorId: string | null, calendarId: st
   if (calendarId === SHARED_CAL.interview && colorId === '3') {
     return true;
   }
-  // 채용매니저 팀 면접 캘린더(interviewMgr) = 전용 면접 캘린더 → 색/제목 무관 면접으로 신뢰.
+  // 면접 전용 공유 캘린더(interviewAlt / interviewMgr / interviewX) = 색/제목 무관 면접으로 신뢰.
   // 남이 만들어 hdlee를 초대한 면접이 primary 초대로만 들어와 앱에 누락되던 문제(2026-08) 해결.
-  if (calendarId === SHARED_CAL.interviewMgr) {
+  if (isInterviewCalendar(calendarId)) {
     return true;
   }
   // 입사(colorId 5)·퇴사·휴가·행사 명시적으로 제외
@@ -488,7 +501,7 @@ function isInterviewKind(summary: string, colorId: string | null, calendarId: st
     const hasName = parts.some((p) => {
       // 한글 이름 (2-4자)
       const ko = p.match(/(?:^|\s)([가-힣]{2,4})(?:\s|\(|$)/);
-      if (ko && !NOT_NAME_KEYWORDS.test(ko[1]) && !TEAM_KEYWORDS.test(p)) return true;
+      if (ko && !NOT_NAME_KEYWORDS.test(ko[1]) && !TEAM_KEYWORDS.test(withoutParens(p))) return true;
       // 영문 이름 (단독 토큰, 2자 이상) — site/room/팀 키워드 제외
       const en = p.match(/^([A-Za-z][A-Za-z0-9.\-]{1,})$/);
       if (en) {
@@ -1286,6 +1299,29 @@ export function CalendarPage() {
     });
   }, [live.calendarEvents, today]);
 
+  // 제목 비공개 면접 — 면접 전용 캘린더에 슬롯은 잡혀 있는데 제목이 빈 채로 내려오는 이벤트.
+  // 원인: 그 이벤트의 visibility가 private이고 hdlee는 reader라 제목/참석자를 볼 권한이 없음.
+  //       (primary 초대 사본조차 없으면 앱은 이름을 알 방법이 전혀 없다.)
+  // 빈 제목으로 카드를 만들면 이름·소속 공란 카드가 되므로 카드에는 못 올리지만,
+  // "그 시간에 면접이 있다"는 사실 자체는 반드시 보여야 한다 → 별도 안내 줄로 노출.
+  const hiddenTitleInterviews = useMemo(() => {
+    const todayMs = Date.parse(`${today}T00:00:00+09:00`);
+    return liveCalendarEventsNormalized()
+      .filter((e) => isInterviewCalendar(e.raw.calendarId))
+      // interviewMgr는 hdlee가 구독조차 안 된 free/busy 전용 캘린더 —
+      // 제목·참석자·주최자가 전부 null인 불투명 blocker라 "면접"이라 단정할 근거가 없다.
+      // (실제로 1on1·팀미팅 시간대와도 겹침) → 안내줄에서는 제외해 노이즈를 만들지 않는다.
+      // 이 캘린더의 진짜 면접은 primary 초대 사본으로 제목이 들어와 정상 카드로 뜬다.
+      .filter((e) => e.raw.calendarId !== SHARED_CAL.interviewMgr)
+      .filter((e) => !(e.title || '').trim())
+      .filter((e) => {
+        if (showPast) return true;
+        const startMs = e.raw.start ? Date.parse(e.raw.start) : NaN;
+        return !Number.isFinite(startMs) || startMs >= todayMs;
+      })
+      .sort((a, b) => `${a.dt} ${a.tm}`.localeCompare(`${b.dt} ${b.tm}`));
+  }, [live.calendarEvents, today, showPast]);
+
   // 미아 이벤트 일괄 정리 — dry-run preview confirm 후 각각 삭제
   const handleCleanupOrphans = async () => {
     if (orphanInterviews.length === 0) return;
@@ -1552,6 +1588,31 @@ export function CalendarPage() {
           />
           <span className="text-xs text-slate-700 font-semibold">{filtered.length}건</span>
         </div>
+        {/* 제목 비공개 면접 — 카드로는 못 만들지만 "슬롯이 존재한다"는 사실은 반드시 노출 */}
+        {hiddenTitleInterviews.length > 0 && (
+          <div className="mt-2 rounded-lg border border-slate-300 bg-slate-50 p-2">
+            <div className="text-[11px] font-bold text-slate-900 flex items-center gap-1">
+              🔒 제목 비공개 면접 {hiddenTitleInterviews.length}건
+              <span className="font-normal text-slate-700">
+                — 면접 캘린더에 시간은 잡혀 있으나 비공개(private) 일정이라 앱이 제목·후보자를 읽을 수 없습니다. 구글 캘린더에서 확인하세요.
+              </span>
+            </div>
+            <div className="mt-1 flex flex-wrap gap-1 max-h-24 overflow-y-auto">
+              {hiddenTitleInterviews.map((e) => (
+                <a
+                  key={e.id}
+                  href={e.htmlLink || '#'}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-2 py-0.5 rounded-md bg-white border border-slate-300 text-[11px] font-mono text-slate-900 hover:bg-slate-100"
+                  title="구글 캘린더에서 열기"
+                >
+                  {e.dt.slice(5)} {e.tm}
+                </a>
+              ))}
+            </div>
+          </div>
+        )}
         {/* 진단 배지 — 시트 행 수 / 일정 추출 수 / 스냅샷 키 수 */}
         <div className="mt-1 flex flex-wrap gap-1 text-[10px]">
           {(() => {

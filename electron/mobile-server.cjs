@@ -52,13 +52,17 @@ const VIEWER_DIR_CANDIDATES = [
   path.join(process.resourcesPath || '', 'dist-viewer'),
 ];
 
-// Calendars to merge into the snapshot — same as src/lib/sharedCalendars.ts.
+// Calendars to merge into the snapshot.
+// ※ src/lib/sharedCalendars.ts 의 READ_CALENDAR_IDS와 반드시 동일하게 유지할 것.
+//   (여기가 뒤처져서 폰 화면에만 면접이 통째로 안 뜨던 이력 있음 — 2026-08-20)
 const READ_CALENDAR_IDS = [
   'primary',
-  'c_d2a3298862ba8bba109c13c83c2cc7c1ac85560bdc12a305c40c79f6964c65a2@group.calendar.google.com',
-  'c_711021d8db3140f0fa36874c11e98a449ee5528637e020d891cf903cd4b8c443@group.calendar.google.com',
-  'c_e006d0f491165344836f40c2589456a597676d6d551c00a477e5fe6c46a8804f@group.calendar.google.com',
-  'c_6b893ca53cb3b057d4e04928dffae5408a3b4c81332b561668190094bf09c2a7@group.calendar.google.com',
+  'c_d2a3298862ba8bba109c13c83c2cc7c1ac85560bdc12a305c40c79f6964c65a2@group.calendar.google.com', // 면접 (메인)
+  'c_711021d8db3140f0fa36874c11e98a449ee5528637e020d891cf903cd4b8c443@group.calendar.google.com', // 면접 (shim 보조)
+  'c_21d3c76327cd3e4ab66cb7f7cfdb6f1a7c63500dd0d8af17212640edee2c5459@group.calendar.google.com', // 면접 (채용매니저)
+  'c_bebeafad40540c7c46a8b75315ef413571d6f9fb13ef74c0f31cca541bd93587@group.calendar.google.com', // 면접 (서울 4E 등)
+  'c_e006d0f491165344836f40c2589456a597676d6d551c00a477e5fe6c46a8804f@group.calendar.google.com', // 입사
+  'c_6b893ca53cb3b057d4e04928dffae5408a3b4c81332b561668190094bf09c2a7@group.calendar.google.com', // 퇴사
 ];
 
 const CONFIDENTIAL_PATTERNS = [
@@ -128,22 +132,43 @@ async function fetchCalendarEvents() {
   try {
     const timeMin = new Date(now - 30 * 86400e3).toISOString();
     const timeMax = new Date(now + 90 * 86400e3).toISOString();
-    const seen = new Set();
-    const events = [];
+    // 같은 이벤트가 primary 초대 사본 + 공유 캘린더 원본 두 벌로 들어온다.
+    // 제목은 primary 사본에만, colorId/소속 캘린더는 공유 사본에만 있으므로 필드별로 병합한다.
+    // (src/store/liveData.ts refreshCalendarFromGoogle과 동일 규칙)
+    const byId = new Map();
     for (const calId of READ_CALENDAR_IDS) {
       try {
         const items = await google.listCalendar(timeMin, timeMax, calId);
         for (const e of items) {
-          if (!e.id || seen.has(e.id)) continue;
+          if (!e.id) continue;
           if (isConfidential(e.summary, e.description, e.location)) continue;
-          seen.add(e.id);
+          const arr = byId.get(e.id);
+          if (arr) arr.push({ calId, e });
+          else byId.set(e.id, [{ calId, e }]);
+        }
+      } catch {
+        // single-calendar failure is non-fatal
+      }
+    }
+    const events = [];
+    {
+      for (const copies of byId.values()) {
+        const base = copies.find((c) => (c.e.summary || '').trim()) || copies[0];
+        const shared = copies.find((c) => c.calId !== 'primary');
+        const pick = (get) =>
+          (get(base.e) || '').trim() ||
+          copies.map((c) => (get(c.e) || '').trim()).find(Boolean) ||
+          '';
+        {
+          const e = base.e;
+          const calId = shared ? shared.calId : base.calId;
           events.push({
             id: e.id,
             calendarId: calId,
-            summary: e.summary || '',
-            description: e.description || '',
-            location: e.location || '',
-            colorId: e.colorId,
+            summary: pick((x) => x.summary),
+            description: pick((x) => x.description),
+            location: pick((x) => x.location),
+            colorId: (shared && shared.e.colorId) || e.colorId || null,
             allDay: e.allDay,
             start: e.start || null,
             end: e.end || null,
@@ -160,8 +185,6 @@ async function fetchCalendarEvents() {
             updated: null,
           });
         }
-      } catch {
-        // single-calendar failure is non-fatal
       }
     }
     lastCalendar = {
