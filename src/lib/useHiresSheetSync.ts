@@ -32,11 +32,26 @@ async function runHiresSheetSync(force = false): Promise<void> {
   lastSig = sig;
   syncLock = (async () => {
     try {
-      const toRow = (r: HireRow): string[] => [
-        r.date, r.bonbu, r.team, r.job, r.rank, r.career, r.name, r.gender, r.site, '', r.jikgu, r.phone, '',
-        // 마지막 '비고' 컬럼 — 입사포기/결재중/결재완료 상태. unknown('-')은 빈칸으로.
-        r.approval === 'unknown' ? '' : approvalLabel(r.approval),
-      ];
+      // 헤더 순서에 맞춰 행을 만든다 — 컬럼을 추가·이동해도 HIRES_SHEET_HEADERS만 고치면 된다.
+      // 수기 컬럼(입사안내/제출서류/퇴사)은 항상 빈칸으로 보내고, 백엔드가 기존 값을 복원한다.
+      const toRow = (r: HireRow): string[] => {
+        const byHeader: Record<string, string> = {
+          '입사예정일': r.date,
+          '본부명': r.bonbu,
+          '팀명': r.team,
+          '직무': r.job,
+          '직급': r.rank,
+          '신입/경력': r.career,
+          '성명': r.name,
+          '성별': r.gender,
+          '근무지': r.site,
+          '직/간접분류': r.jikgu,
+          '연락처': r.phone,
+          // '비고' 컬럼 — 입사포기/결재중/결재완료 상태. unknown('-')은 빈칸으로.
+          '비고': r.approval === 'unknown' ? '' : approvalLabel(r.approval),
+        };
+        return HIRES_SHEET_HEADERS.map((h) => byHeader[h] ?? '');
+      };
       const sorted = [...rows].sort((a, b) => a.date.localeCompare(b.date) || a.team.localeCompare(b.team));
       const byDate = new Map<string, HireRow[]>();
       for (const r of sorted) {
@@ -51,8 +66,12 @@ async function runHiresSheetSync(force = false): Promise<void> {
       if (declined.length > 0) {
         tabs.push({ name: '입사포기', headers: HIRES_SHEET_HEADERS, rows: declined.map(toRow) });
       }
-      for (const [date, list] of byDate) {
-        tabs.push({ name: `입사 ${date}`, headers: HIRES_SHEET_HEADERS, rows: list.map(toRow) });
+      // 날짜 탭은 최신 입사일이 앞으로 오도록 내림차순 배치 —
+      // 오름차순이면 새로 생긴 탭이 항상 맨 끝으로 밀려서 매번 스크롤해야 한다.
+      // (탭 실제 위치는 백엔드 syncHiresWorkbook이 이 배열 순서대로 재정렬한다.)
+      const datesDesc = [...byDate.keys()].sort((a, b) => b.localeCompare(a));
+      for (const date of datesDesc) {
+        tabs.push({ name: `입사 ${date}`, headers: HIRES_SHEET_HEADERS, rows: byDate.get(date)!.map(toRow) });
       }
       const idRes = await api.cfg.get<string>('incomingHiresSheetId');
       const existingId = idRes.ok && typeof idRes.data === 'string' && idRes.data ? idRes.data : null;

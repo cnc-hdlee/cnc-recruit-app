@@ -233,27 +233,40 @@ async function createSheetWithData(title, headers, rows) {
   };
 }
 
-// 기존 탭 값에서 (성명|연락처) -> {입사안내, 건강검진, 퇴사} 수기 입력 보존맵 생성.
+// 수기 입력(체크) 컬럼 — 앱이 절대 자동으로 채우지 않고 기존 시트 값을 그대로 되살리는 칸.
+// src/pages/IncomingHires.tsx 의 HIRES_MANUAL_COLUMNS 와 동일하게 유지할 것.
+// 여기에 이름만 추가하면 새 제출서류 항목도 자동으로 보존된다.
+const HIRES_MANUAL_COLUMNS = [
+  '입사안내',
+  '건강검진 영수증',
+  '등본',
+  '채용검진표',
+  '계좌사본',
+  '학력/성적증명서',
+  '외국인등록증',
+  '퇴사',
+];
+
+// 기존 탭 값에서 (성명|연락처) -> { 컬럼명: 수기값 } 보존맵 생성.
+// 헤더 이름으로 찾으므로 컬럼 순서가 바뀌어도(신규 컬럼이 중간에 끼어도) 값이 밀리지 않는다.
 function markMapFromValues(values) {
   const out = {};
   if (!values || values.length === 0) return out;
   const head = values[0].map((c) => String(c == null ? '' : c).trim());
   const ni = head.indexOf('성명');
   const pi = head.indexOf('연락처');
-  const noticeI = head.indexOf('입사안내');
-  const healthI = head.indexOf('건강검진 영수증');
-  const resignI = head.indexOf('퇴사');
   if (ni === -1) return out;
+  const manualIdx = HIRES_MANUAL_COLUMNS
+    .map((name) => ({ name, i: head.indexOf(name) }))
+    .filter((x) => x.i >= 0);
   for (let i = 1; i < values.length; i++) {
     const row = values[i] || [];
     const nm = String(row[ni] == null ? '' : row[ni]).trim();
     if (!nm) continue;
     const key = nm + '|' + String(pi >= 0 ? (row[pi] || '') : '').replace(/[^0-9]/g, '');
-    out[key] = {
-      notice: noticeI >= 0 ? (row[noticeI] || '') : '',
-      health: healthI >= 0 ? (row[healthI] || '') : '',
-      resign: resignI >= 0 ? (row[resignI] || '') : '',
-    };
+    const marks = {};
+    for (const { name, i: ci } of manualIdx) marks[name] = row[ci] || '';
+    out[key] = marks;
   }
   return out;
 }
@@ -331,17 +344,19 @@ async function syncHiresWorkbook(spreadsheetId, tabs) {
   const data = tabs.map((t) => {
     const h = t.headers;
     const ni = h.indexOf('성명'), pi = h.indexOf('연락처');
-    const noticeI = h.indexOf('입사안내'), healthI = h.indexOf('건강검진 영수증');
-    const resignI = h.indexOf('퇴사');
+    // 수기 컬럼은 헤더 이름으로 매칭 — 컬럼을 새로 끼워넣어도 값이 옆칸으로 밀리지 않는다.
+    const manualIdx = HIRES_MANUAL_COLUMNS
+      .map((name) => ({ name, i: h.indexOf(name) }))
+      .filter((x) => x.i >= 0);
     const marks = marksByTab[t.name] || {};
     const rows = t.rows.map((r) => {
       const row = r.slice();
       const key = String(row[ni] || '') + '|' + String(pi >= 0 ? (row[pi] || '') : '').replace(/[^0-9]/g, '');
       const mk = marks[key];
       if (mk) {
-        if (noticeI >= 0 && !row[noticeI]) row[noticeI] = mk.notice || '';
-        if (healthI >= 0 && !row[healthI]) row[healthI] = mk.health || '';
-        if (resignI >= 0 && !row[resignI]) row[resignI] = mk.resign || '';
+        for (const { name, i } of manualIdx) {
+          if (!row[i] && mk[name]) row[i] = mk[name];
+        }
       }
       return row;
     });
