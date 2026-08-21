@@ -307,6 +307,19 @@ async function syncHiresWorkbook(spreadsheetId, tabs) {
     });
   }
 
+  // 3b) 모든 탭의 수기 표시를 (성명|연락처) 기준으로 하나로 합친다.
+  //     날짜별 탭에 친 O가 '전체(날짜순)'·'입사포기' 탭에도 그대로 보이도록(양방향 미러링).
+  //     같은 사람이 여러 탭에 있으면 값이 있는 쪽이 이긴다.
+  const globalMarks = {};
+  for (const tabName of Object.keys(marksByTab)) {
+    for (const [key, marks] of Object.entries(marksByTab[tabName])) {
+      const cur = globalMarks[key] || (globalMarks[key] = {});
+      for (const [col, val] of Object.entries(marks)) {
+        if (val && !cur[col]) cur[col] = val;
+      }
+    }
+  }
+
   // 4) 탭 추가/삭제 (우리가 만든 자동탭 + 기본 Sheet1/시트1 만 정리)
   const requests = [];
   for (const name of wantTitles) {
@@ -352,11 +365,11 @@ async function syncHiresWorkbook(spreadsheetId, tabs) {
     const rows = t.rows.map((r) => {
       const row = r.slice();
       const key = String(row[ni] || '') + '|' + String(pi >= 0 ? (row[pi] || '') : '').replace(/[^0-9]/g, '');
-      const mk = marks[key];
-      if (mk) {
-        for (const { name, i } of manualIdx) {
-          if (!row[i] && mk[name]) row[i] = mk[name];
-        }
+      // 같은 탭 값 우선, 없으면 다른 탭(날짜별 탭 ↔ 전체 탭)에서 친 표시를 끌어온다.
+      const mk = marks[key] || {};
+      const gk = globalMarks[key] || {};
+      for (const { name, i } of manualIdx) {
+        if (!row[i]) row[i] = mk[name] || gk[name] || '';
       }
       return row;
     });
