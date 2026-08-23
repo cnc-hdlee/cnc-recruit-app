@@ -341,11 +341,15 @@ export function buildHireDateDescription(rows: HireRow[], declined: HireRow[] = 
   const dateLabel = rows[0]?.date ? rows[0].date.slice(5).replace('-', '/') : '';
   const approvedN = rows.filter((r) => r.approval === 'approved').length;
   const pendingN = rows.filter((r) => r.approval === 'pending').length;
-  const statusLabel = pendingN === 0
+  // 비고 빈칸(unknown)도 시트 인원 그대로 미러링하므로 상태 요약에 정직하게 표기한다.
+  const unknownN = rows.length - approvedN - pendingN;
+  const statusLabel = pendingN === 0 && unknownN === 0
     ? '정규직 · 결재완료'
-    : approvedN === 0
-      ? '정규직 · 결재중'
-      : `정규직 · 결재완료 ${approvedN} / 결재중 ${pendingN}`;
+    : [
+        approvedN > 0 ? `결재완료 ${approvedN}` : '',
+        pendingN > 0 ? `결재중 ${pendingN}` : '',
+        unknownN > 0 ? `비고 미기재 ${unknownN}` : '',
+      ].filter(Boolean).join(' / ').replace(/^/, '정규직 · ');
   const lines: string[] = [];
   lines.push(`<h3>${dateLabel} 입사자 ${rows.length}명 (${statusLabel})</h3><br>`);
   // 본부 + 팀으로 그룹핑

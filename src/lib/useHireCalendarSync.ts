@@ -111,10 +111,12 @@ async function runHireCalendarSync(): Promise<void> {
       const calRes = await api.google.listCalendar(calStart, calEnd, hireCalId);
       const onboardingEvents = (calRes.ok && calRes.data) ? calRes.data : [];
 
-      // 등록 대상: 결재완료(approved) + 결재중(pending) + 미래 입사 + dismiss 안 됨.
-      // 2026-06-04 사용자 결정: 결재중도 자동 등록(김승화 6/4 케이스). 단 상신예정/빈칸(unknown)은 제외.
+      // 등록 대상: 입사포기(declined)를 뺀 시트의 모든 입사예정자 + 미래 입사 + dismiss 안 됨.
+      // 2026-06-04: 결재중(pending)도 등록.
+      // 2026-08-23: 비고 빈칸(unknown)도 등록 — 시트엔 있는데 캘린더 인원이 모자란 문제
+      //   (8/24 시트 7명인데 캘린더 6명, 김가경 비고 빈칸으로 누락). 사용자 지시: 시트 인원을 정확히 미러링.
       const eligible = rows.filter((r) => {
-        if (r.approval !== 'approved' && r.approval !== 'pending') return false;
+        if (r.approval === 'declined') return false;
         if (r.date < today) return false;
         if (dismissed.has(`${r.date}|${r.name.trim()}`)) return false;
         return true;
@@ -138,6 +140,30 @@ async function runHireCalendarSync(): Promise<void> {
       }
 
       let changed = false;
+
+      // ── 레거시 정리: primary에 남아 있는 옛 자동 입사 이벤트 삭제 ──
+      // 예전 버전이 primary에 직접 썼는데, master가 c_1ff0(입사 캘린더)로 옮겨간 뒤로도
+      // primary 사본이 갱신 없이 남아 날짜마다 인원이 다른 유령 중복이 됐다.
+      //   (2026-08-23 확인: 8/24 "입사 3명" vs 실제 7명, 8/18 "2명" vs 23명 등 9개 날짜 중복)
+      // 우리 마커가 붙은 노란색 이벤트만 지운다 — 남이 만든 입사 안내 이벤트는 건드리지 않음.
+      // 옛 버전이 쓰던 마커 문구까지 함께 인식해야 실제로 지워진다.
+      const AUTO_MARKERS = [HIRE_AUTO_MARKER, '입사예정(정규직)DB 시트 기준', '시트 미확인 (자동 동기화 시점)'];
+      try {
+        // 과거분까지 정리 — primary 사본은 갱신이 멈춘 유령이라 이력 가치가 없다(원본은 입사 캘린더에 보존).
+        const sweepStart = addDaysIso(today, -180) + 'T00:00:00+09:00';
+        const primRes = await api.google.listCalendar(sweepStart, calEnd, 'primary');
+        const legacy = (primRes.ok && primRes.data ? primRes.data : []).filter(
+          (e) => e.colorId === '5' && AUTO_MARKERS.some((m) => (e.description || '').includes(m))
+        );
+        for (const e of legacy) {
+          try {
+            await api.google.deleteCalEvent('primary', e.id, 'none');
+            changed = true;
+            // eslint-disable-next-line no-console
+            console.info('[hire-cal-sync] primary 레거시 입사 이벤트 삭제:', (e.start || '').slice(0, 10), e.summary);
+          } catch { /* 다음 polling 재시도 */ }
+        }
+      } catch { /* ignore */ }
 
       // 우리가 만든(노란색+마커) 이벤트를 날짜별로 그룹핑.
       const ourByDate = new Map<string, typeof onboardingEvents>();
