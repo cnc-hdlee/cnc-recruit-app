@@ -106,7 +106,9 @@ async function runHireCalendarSync(): Promise<void> {
       const dismissed = await getDismissed();
 
       // hireCalId 이벤트는 READ_CALENDAR_IDS에 없으니 직접 fetch.
-      const calStart = `${today}T00:00:00+09:00`;
+      // 과거분까지 읽는다 — 중복 정리는 지난 날짜에도 적용해야 "날짜당 1개"가 보장된다.
+      // (등록/갱신/취소는 아래에서 오늘 이후만 수행 — 지난 입사 기록은 그대로 보존.)
+      const calStart = `${addDaysIso(today, -180)}T00:00:00+09:00`;
       const calEnd = '2027-01-01T00:00:00+09:00';
       const calRes = await api.google.listCalendar(calStart, calEnd, hireCalId);
       const onboardingEvents = (calRes.ok && calRes.data) ? calRes.data : [];
@@ -165,20 +167,30 @@ async function runHireCalendarSync(): Promise<void> {
         }
       } catch { /* ignore */ }
 
-      // 우리가 만든(노란색+마커) 이벤트를 날짜별로 그룹핑.
+      // 우리가 만든 입사 이벤트를 날짜별로 그룹핑.
+      // 사용자 규칙(2026-08-23): "절대 추가하지 말고 기존 것을 수정" —
+      //   마커가 지워졌거나 옛 포맷이어도 우리 것으로 인식해야 새로 만들지 않는다.
+      //   입사 캘린더는 앱 전용이므로 '노란색 + 입사로 시작하는 제목'이면 우리 것으로 본다.
+      const isOurHireEvent = (e: typeof onboardingEvents[number]) =>
+        (e.description || '').includes(HIRE_AUTO_MARKER) ||
+        (e.colorId === '5' && /^입사\s*[-\d]/.test((e.summary || '').trim()));
       const ourByDate = new Map<string, typeof onboardingEvents>();
       for (const e of onboardingEvents) {
-        if (e.colorId !== '5' || !(e.description || '').includes(HIRE_AUTO_MARKER)) continue;
+        if (!isOurHireEvent(e)) continue;
         const dt = (e.start || '').slice(0, 10);
         if (!dt) continue;
         if (!ourByDate.has(dt)) ourByDate.set(dt, []);
         ourByDate.get(dt)!.push(e);
       }
+      // 마커가 살아있는 사본을 대표로 — 나머지를 지운다 (설명·이력이 가장 온전한 쪽을 남김).
+      for (const list of ourByDate.values()) {
+        list.sort((a, b) => Number((b.description || '').includes(HIRE_AUTO_MARKER)) - Number((a.description || '').includes(HIRE_AUTO_MARKER)));
+      }
 
       // 중복 자동 삭제(self-heal): 같은 날짜에 우리 이벤트가 2개 이상이면 1개만 남기고 삭제.
-      // (과거 버그로 같은 날짜가 수십 개까지 쌓였던 문제를 매 polling마다 스스로 정리.)
+      // 지난 날짜에도 적용 — "날짜당 1개" 불변식을 과거까지 보장한다.
       for (const [dt, dups] of ourByDate) {
-        if (dt < today || dups.length <= 1) continue;
+        if (dups.length <= 1) continue;
         for (const extra of dups.slice(1)) {
           try {
             await api.google.deleteCalEvent(hireCalId, extra.id, 'none');
@@ -235,9 +247,7 @@ async function runHireCalendarSync(): Promise<void> {
 
       // 취소: 우리가 만든 마커 이벤트 중, 시트에 더 이상 결재완료 입사자가 없는 날짜는 삭제.
       const validDates = new Set(eligible.map((r) => r.date));
-      const ourEvents = onboardingEvents.filter(
-        (e) => e.colorId === '5' && (e.description || '').includes(HIRE_AUTO_MARKER)
-      );
+      const ourEvents = onboardingEvents.filter(isOurHireEvent);
       for (const e of ourEvents) {
         const dt = (e.start || '').slice(0, 10);
         if (!dt || dt < today) continue; // 과거 입사는 이력 보존
