@@ -400,6 +400,45 @@ async function syncHiresWorkbook(spreadsheetId, tabs) {
   }
   if (fmt.length) await sheets.spreadsheets.batchUpdate({ spreadsheetId, requestBody: { requests: fmt } });
 
+  // 6b) 입사포기 행 회색 처리 — '비고' 컬럼에 "포기"가 들어간 행 전체.
+  //     새로 생기는 날짜 탭에도 매번 붙도록 동기화 때마다 재적용한다(기존 규칙은 지우고 1개만 유지).
+  try {
+    const cfMeta = await sheets.spreadsheets.get({
+      spreadsheetId,
+      fields: 'sheets(properties(sheetId,title,gridProperties(columnCount)),conditionalFormats)',
+    });
+    const want = new Set(tabs.map((t) => t.name));
+    const noteIdx = (tabs[0] && tabs[0].headers ? tabs[0].headers.indexOf('비고') : -1);
+    if (noteIdx >= 0) {
+      const col = String.fromCharCode(65 + noteIdx); // 예: T
+      const cfReq = [];
+      for (const s of cfMeta.data.sheets) {
+        const { sheetId, title, gridProperties } = s.properties;
+        if (!want.has(title)) continue;
+        const existing = (s.conditionalFormats || []).length;
+        for (let i = existing - 1; i >= 0; i--) cfReq.push({ deleteConditionalFormatRule: { sheetId, index: i } });
+        cfReq.push({
+          addConditionalFormatRule: {
+            index: 0,
+            rule: {
+              ranges: [{ sheetId, startRowIndex: 1, endRowIndex: 1000, startColumnIndex: 0, endColumnIndex: Math.max(noteIdx + 2, gridProperties.columnCount || 21) }],
+              booleanRule: {
+                condition: { type: 'CUSTOM_FORMULA', values: [{ userEnteredValue: `=REGEXMATCH($${col}2&"","포기")` }] },
+                format: {
+                  backgroundColor: { red: 0.85, green: 0.85, blue: 0.86 },
+                  textFormat: { foregroundColor: { red: 0.42, green: 0.44, blue: 0.48 }, strikethrough: true },
+                },
+              },
+            },
+          },
+        });
+      }
+      if (cfReq.length) await sheets.spreadsheets.batchUpdate({ spreadsheetId, requestBody: { requests: cfReq } });
+    }
+  } catch (e) {
+    // 조건부 서식 실패는 동기화 자체를 막지 않는다.
+  }
+
   return { spreadsheetId, url: `https://docs.google.com/spreadsheets/d/${spreadsheetId}/edit` };
 }
 
