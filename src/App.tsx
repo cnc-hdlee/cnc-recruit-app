@@ -19,7 +19,6 @@ import { RecruitFunnel } from './pages/RecruitFunnel';
 import { MeetingRooms } from './pages/MeetingRooms';
 import { JobCenters } from './pages/JobCenters';
 import { CandidateLookup } from './pages/CandidateLookup';
-import { MailLog } from './pages/MailLog';
 import { EmailToolsPage } from './pages/EmailToolsPage';
 import { EducationPage } from './pages/EducationPage';
 import { Settings } from './pages/Settings';
@@ -36,7 +35,6 @@ const PAGE_TITLES: Record<PageId, string> = {
   rooms: '회의실 예약',
   jobcenters: '일자리센터',
   lookup: '후보자 검색',
-  mail: '메일 / 커뮤니케이션',
   comms: '후보자 안내 메일',
   education: '채용 교육 / 세미나',
   settings: '설정 / 연동',
@@ -106,7 +104,6 @@ export default function App() {
           {page === 'rooms' && <MeetingRooms />}
           {page === 'jobcenters' && <JobCenters />}
           {page === 'lookup' && <CandidateLookup />}
-          {page === 'mail' && <MailLog />}
           {page === 'comms' && <EmailToolsPage />}
           {page === 'education' && <EducationPage />}
           {page === 'settings' && <Settings />}

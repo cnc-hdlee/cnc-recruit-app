@@ -844,7 +844,7 @@ function RecentMail({
     <div>
       <div className="flex items-center justify-between mb-1.5">
         <h4 className="font-bold text-[12px] text-slate-800">✉️ 최근 메일</h4>
-        <button className="text-[10px] text-indigo-600 hover:underline" onClick={() => onNavigate('mail')}>
+        <button className="text-[10px] text-indigo-600 hover:underline" onClick={() => onNavigate('comms')}>
           전체 →
         </button>
       </div>
