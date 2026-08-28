@@ -78,7 +78,10 @@ export function CampusRecruiting() {
     for (const e of liveCalendarEventsNormalized()) {
       const haystack = `${e.title} ${e.location} ${e.raw.description || ''}`;
       if (!CAMPUS_RE.test(haystack)) continue;
-      if (EXCLUDE_RE.test(haystack)) continue;
+      // 일자리센터/박람회 제외는 '캠리'라고 명시되지 않은 건에만 적용한다.
+      // ("캠리 아주대학교(취업박람회)" 처럼 캠리인데 박람회 단어가 들어간 건이 통째로 빠지던 문제)
+      const isExplicitCampus = /캠리|캠퍼스\s*리[쿠크]르?팅|캠퍼스\s*리크루팅/i.test(e.title);
+      if (!isExplicitCampus && EXCLUDE_RE.test(haystack)) continue;
       if (TASK_RE.test(e.title)) continue; // 준비/제작 업무는 학교 일정이 아님
       // 학교명이 실제로 잡히는 일정만 남긴다 — 대학교 이름이 없으면 캠리 일정이 아님
       const school = pickSchool(`${e.title} ${e.raw.description || ''}`);
@@ -99,15 +102,19 @@ export function CampusRecruiting() {
     return out;
   }, [live.calendarEvents]);
 
-  // 같은 학교 + 같은 날짜는 한 카드로 묶는다 (종일 일정 + 차량 예약이 따로 잡혀 있는 경우가 많음)
+  // 같은 학교 + 같은 날짜는 한 카드로 묶는다 (종일 일정 + 차량 예약이 따로 잡혀 있는 경우가 많음).
+  // '경희대'와 '경희대학교'가 서로 다른 그룹으로 쪼개지지 않도록 접미사를 떼고 묶는다.
   const groups = useMemo<CampusGroup[]>(() => {
     const map = new Map<string, CampusGroup>();
     for (const e of allEvents) {
-      const key = `${e.school}|${e.dt}`;
+      const canon = e.school.replace(/(여자대학교|대학교|대학|대)$/, '');
+      const key = `${canon}|${e.dt}`;
       let g = map.get(key);
       if (!g) {
         g = { key, school: e.school, dt: e.dt, events: [], timeLabel: '', places: [], vehicles: [], attendees: [] };
         map.set(key, g);
+      } else if (e.school.length > g.school.length) {
+        g.school = e.school; // 더 온전한 표기('경희대학교')를 대표 이름으로
       }
       g.events.push(e);
     }
@@ -125,17 +132,23 @@ export function CampusRecruiting() {
 
   const schools = useMemo(() => [...new Set(groups.map((g) => g.school))].sort(), [groups]);
 
-  const visible = useMemo(() => {
+  // 학교 필터를 뺀 기준 목록 — 칩에 표시하는 숫자는 전부 여기서 센다.
+  // (예전엔 '전체' 숫자만 다른 배열에서 세서 화면에 그려진 카드 수와 안 맞았다)
+  const base = useMemo(() => {
     const q = query.trim().toLowerCase();
     return groups
       .filter((g) => showPast || g.dt >= today)
-      .filter((g) => schoolFilter === '전체' || g.school === schoolFilter)
       .filter((g) => {
         if (!q) return true;
         const hay = `${g.school} ${g.events.map((e) => `${e.title} ${e.location} ${e.description}`).join(' ')}`.toLowerCase();
         return hay.includes(q);
       });
-  }, [groups, showPast, schoolFilter, today, query]);
+  }, [groups, showPast, today, query]);
+
+  const visible = useMemo(
+    () => base.filter((g) => schoolFilter === '전체' || g.school === schoolFilter),
+    [base, schoolFilter]
+  );
 
   // 타임라인은 월 단위로 끊어서 보여준다
   const monthBlocks = useMemo(() => {
@@ -191,13 +204,17 @@ export function CampusRecruiting() {
       <div className="card p-3">
         <div className="flex flex-wrap items-center gap-2">
           <Pill active={schoolFilter === '전체'} onClick={() => setSchoolFilter('전체')}>
-            전체 ({upcomingCount})
+            전체 ({base.length})
           </Pill>
-          {schools.map((s) => (
-            <Pill key={s} active={schoolFilter === s} onClick={() => setSchoolFilter(s)}>
-              {s}
-            </Pill>
-          ))}
+          {schools.map((s) => {
+            const n = base.filter((g) => g.school === s).length;
+            if (n === 0) return null; // 지금 조건에 하나도 없는 학교는 칩도 안 띄운다
+            return (
+              <Pill key={s} active={schoolFilter === s} onClick={() => setSchoolFilter(s)}>
+                {s} ({n})
+              </Pill>
+            );
+          })}
           <label className="flex items-center gap-1 text-sm font-semibold text-slate-900 ml-auto">
             <input type="checkbox" checked={showPast} onChange={(e) => setShowPast(e.target.checked)} />
             지난 일정 포함
