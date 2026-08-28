@@ -11,10 +11,22 @@ import { api } from './api';
 export type TemplateRecipient = 'candidate' | 'manager';
 export type TemplateStage =
   | 'interview_1st' // 1차 면접 안내 (후보자)
-  | 'cpi' // CPI 인성검사 안내 (후보자)
-  | 'reject' // 불합격 안내 (후보자)
+  | 'pass' // 1차 면접 합격 안내 (후보자)
   | 'offer' // 처우협의 안내 (후보자, 잠금)
+  | 'onboarding' // 최종 입사 안내 (후보자)
+  | 'reject' // 불합격 안내 (후보자)
   | 'custom'; // 사용자 정의
+
+// 실제 채용 흐름 순서 그대로. (CPI 인성검사는 폐지되어 제거 · 2차 면접은 아직 미구현)
+export const STAGE_ORDER: TemplateStage[] = ['interview_1st', 'pass', 'offer', 'onboarding', 'reject', 'custom'];
+export const STAGE_LABEL: Record<TemplateStage, string> = {
+  interview_1st: '1차 면접 안내',
+  pass: '1차 합격 안내',
+  offer: '처우협의 안내',
+  onboarding: '최종 입사 안내',
+  reject: '불합격 안내',
+  custom: '기타',
+};
 
 export interface EmailTemplate {
   id: string;
@@ -25,6 +37,11 @@ export interface EmailTemplate {
   body: string;
   // {{이름}} 같은 표시용 변수 키 목록. 자동 추출도 가능하지만 명시적으로 두면 에디터에서 표시 편리.
   variables: string[];
+  // 사업장 전용 양식이면 사이트 id ('purple' | 'yongin'), 전 사업장 공통이면 null/undefined.
+  // 퍼플카운티/용인은 장소·일정·처우 문구가 달라 양식을 따로 고를 수 있어야 한다는 요구(2026-08).
+  siteId?: string | null;
+  // 본부 전용 양식이면 본부 id ('prod' | 'sales' | 'rnd' | 'csol'), 전 본부 공통이면 null/undefined.
+  hqId?: string | null;
   builtin: boolean; // 코드에 박힌 기본 양식이면 true (덮어쓰지 않고 수정본은 별도 ID로)
   // 사용자가 수정한 빌트인 양식은 modifiedAt 기록
   modifiedAt?: number;
@@ -59,22 +76,20 @@ const DEFAULTS: EmailTemplate[] = [
     createdAt: 0,
   },
   {
-    id: 'builtin-cpi',
-    name: '1차 면접 합격 → CPI 인성검사 안내',
+    id: 'builtin-pass',
+    name: '1차 면접 합격 안내',
     recipient: 'candidate',
-    stage: 'cpi',
-    subject: '[(주)씨앤씨인터내셔널] 1차 면접 합격 및 CPI 인성검사 안내 - {{이름}}님',
+    stage: 'pass',
+    subject: '[(주)씨앤씨인터내셔널] 1차 면접 결과 안내 - {{이름}}님',
     body: `안녕하세요 {{이름}}님,
 (주)씨앤씨인터내셔널 채용팀입니다.
 
 1차 면접 합격을 축하드립니다.
-다음 전형은 CPI 검사이며,
 
-이력서에 기재된 메일로 CPI 인성 검사를 발송해 드렸습니다.
+이어서 처우협의 안내 드릴 예정이며,
+처우 관련 내용은 별도 메일로 다시 안내드리겠습니다.
 
-확인을 부탁드립니다.
-
-이어서 처우협의 안내도 같이 드리겠습니다.
+궁금하신 내용은 편히 연락 부탁드립니다.
 
 감사합니다.`,
     variables: ['이름'],
@@ -134,6 +149,34 @@ const DEFAULTS: EmailTemplate[] = [
     builtin: true,
     createdAt: 0,
   },
+  {
+    id: 'builtin-onboarding',
+    name: '최종 입사 안내 (결재 완료 후)',
+    recipient: 'candidate',
+    stage: 'onboarding',
+    subject: '[(주)씨앤씨인터내셔널] 최종 입사 안내 - {{이름}}님',
+    body: `안녕하세요. {{이름}}님,
+(주)씨앤씨인터내셔널 채용팀 이형도입니다.
+
+내부 결재가 완료되어 최종 입사 안내 드립니다.
+
+1. 입사일 : {{입사일}}
+2. 부서 : {{부서}}
+3. 직무 : {{직무}}
+4. 출근 시간 : {{출근시간}}
+5. 장소 : {{입사장소}}{{장소안내}}
+
+입사 당일 구비 서류는 아래와 같습니다.
+{{구비서류}}
+
+궁금하신 내용은 편히 연락 부탁드립니다.
+입사를 진심으로 환영합니다.
+
+감사합니다.`,
+    variables: ['이름', '입사일', '부서', '직무', '출근시간', '입사장소', '장소안내', '구비서류'],
+    builtin: true,
+    createdAt: 0,
+  },
 ];
 
 const STORE_KEY = 'emailTemplates';
@@ -144,7 +187,11 @@ export async function loadTemplates(): Promise<EmailTemplate[]> {
   if (!api?.cfg) return DEFAULTS;
   try {
     const r = await api.cfg.get<EmailTemplate[]>(STORE_KEY);
-    const userList = r.ok && Array.isArray(r.data) ? r.data : [];
+    // CPI 인성검사 폐지(2026-08) — 저장소에 남아있는 옛 양식은 로드 시 걸러낸다.
+    const raw = r.ok && Array.isArray(r.data) ? r.data : [];
+    const userList = raw
+      .filter((t) => t.id !== 'builtin-cpi')
+      .map((t) => ((t.stage as string) === 'cpi' ? { ...t, stage: 'custom' as TemplateStage } : t));
     const userById = new Map(userList.map((t) => [t.id, t]));
     const merged: EmailTemplate[] = [];
     // 기본 양식 — 사용자 수정본이 있으면 그걸로 대체

@@ -36,6 +36,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     createSheet: (title, headers, rows) => invoke('g:createSheet', title, headers, rows),
     syncHiresSheet: (spreadsheetId, tabs) => invoke('g:syncHiresSheet', spreadsheetId, tabs),
     listGmail: (q, max) => invoke('g:listGmail', q, max),
+    // Gmail WRITE — 사용자가 [발송] 버튼을 누른 경우에만 호출
+    sendGmail: (payload) => invoke('g:sendGmail', payload),
     openAttachment: (messageId, filename, attachmentId) => invoke('g:openAttachment', messageId, filename, attachmentId),
     fetchAttachmentBase64: (messageId, filename, attachmentId) => invoke('g:fetchAttachmentBase64', messageId, filename, attachmentId),
     listCalendar: (min, max, id) => invoke('g:listCalendar', min, max, id),

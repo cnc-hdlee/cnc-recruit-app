@@ -45,6 +45,7 @@ function register() {
   // 입사자 관리 워크북 동기화 — 앱이 만든 새 시트에 날짜별 탭 생성/갱신 (drive.file). 기존 시트 안 건드림.
   safeHandle('g:syncHiresSheet', async (spreadsheetId, tabs) => google.syncHiresWorkbook(spreadsheetId, tabs));
   safeHandle('g:listGmail', async (q, max) => google.listGmail(q, max));
+  safeHandle('g:sendGmail', async (payload) => google.sendGmail(payload));
   safeHandle('g:openAttachment', async (messageId, filename, attachmentId) =>
     google.openGmailAttachment(messageId, filename, attachmentId));
   // 앱 내 inline 표시용 — base64 raw 반환, 렌더러에서 Blob URL로 변환 후 iframe.

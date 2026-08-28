@@ -317,7 +317,7 @@ const withoutParens = (s: string) => s.replace(/[(（][^)）]*[)）]/g, ' ').rep
 // 후보자 이름이 절대 될 수 없는 단어 (장소/시설명) — 한글 2-4자라도 이름 매칭에서 제외
 const NOT_NAME_KEYWORDS = /^(구내식당|식당|카페|로비|라운지|휴게실|강당|세미나실|회의실|미팅룸|대회의|소회의|본사|퍼플|그린|수원|판교|강남|온라인|위워크|VIP룸|VIP|회의|미팅|면접|일정|장소)/;
 
-function parseInterviewTitle(title: string): {
+export function parseInterviewTitle(title: string): {
   candidate: string;
   site: string;
   team: string;
@@ -459,7 +459,7 @@ function parseInterviewTitle(title: string): {
 // to-do/업무 액션 동사 — "OOO 발송", "OOO 확인", "그리팅 시안 확인", "채용품의 상신" 등을 면접에서 제외
 const TODO_ACTION_KEYWORDS = /(안내|발송|확인|준비|작성|기안|상신|회신|보고|공유|체크|정리|등록|기입|결재|점검|결제|구매|받기|챙기기|제출|신청|수령|반납|발급|취소|기획|품의|시안|크리닝|스크리닝|마감|개시|마감|기록|통보|업데이트)/;
 
-function isInterviewKind(summary: string, colorId: string | null, calendarId: string | null = null): boolean {
+export function isInterviewKind(summary: string, colorId: string | null, calendarId: string | null = null): boolean {
   // 제목 없는 이벤트 제외 — 공유 면접 캘린더를 reader로 읽으면 private이라 제목이 빈 채로 온다.
   // 그 빈 사본이 카드로 뜨면 이름·소속 공란이 되므로 원천 차단(제목 있는 primary 사본만 카드화).
   if (!summary || !summary.trim()) return false;

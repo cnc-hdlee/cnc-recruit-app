@@ -467,6 +467,34 @@ function collectAttachmentNames(payload, detailed) {
   return out;
 }
 
+// 후보자 안내 메일 발송 (gmail.send).
+// 사용자가 앱에서 [발송]을 눌렀을 때만 호출된다 — 자동/폴링 발송 경로 없음.
+// 한글 제목은 RFC2047 base64로, 본문은 UTF-8 base64 quoted 없이 그대로 보낸다.
+async function sendGmail({ to, subject, body, cc, bcc }) {
+  if (!to || !String(to).trim()) throw new Error('NO_RECIPIENT');
+  const auth = buildClient();
+  const gmail = google.gmail({ version: 'v1', auth });
+  const b64 = (str) => Buffer.from(String(str), 'utf8').toString('base64');
+  const encSubject = '=?UTF-8?B?' + b64(subject || '') + '?=';
+  const headers = [
+    `To: ${to}`,
+    cc ? `Cc: ${cc}` : null,
+    bcc ? `Bcc: ${bcc}` : null,
+    `Subject: ${encSubject}`,
+    'MIME-Version: 1.0',
+    'Content-Type: text/plain; charset="UTF-8"',
+    'Content-Transfer-Encoding: base64',
+  ].filter(Boolean);
+  const CRLF = String.fromCharCode(13, 10);
+  const raw = Buffer.from(headers.join(CRLF) + CRLF + CRLF + b64(body || ''), 'utf8')
+    .toString('base64')
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/, '');
+  const res = await gmail.users.messages.send({ userId: 'me', requestBody: { raw } });
+  return { id: res.data.id, threadId: res.data.threadId };
+}
+
 async function listGmail(query, max = 30) {
   const auth = buildClient();
   const gmail = google.gmail({ version: 'v1', auth });

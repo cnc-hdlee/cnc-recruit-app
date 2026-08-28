@@ -1,9 +1,17 @@
-// Phase 1 — 양식 보관 + 후보자 안내 메일 발송.
-// 향후 Phase 2: 부서장 동시 발송 + 캘린더 이벤트 자동 생성
-// 향후 Phase 3: 회의실 자동 예약
+// 후보자 안내 메일 — 면접 캘린더 일정 기준 발송.
+//
+// 흐름: 사업장(퍼플카운티/용인) → 본부(생산/영업/연구소/크솔) → 단계 양식 선택
+//       → 면접 캘린더에 잡힌 후보자 목록에서 상대 메일 주소만 넣고 [발송]
+// 발송은 Gmail API 직접 발송(gmail.send). 사용자가 버튼을 누른 경우에만 나간다 — 자동 발송 경로 없음.
+// 처우협의(offer)만 예외로 잠금 유지: 자동 prefill 금지 + 2단계 확인.
+//
+// 단계: 1차 면접 안내 → 1차 합격 → 처우협의 → 최종 입사 안내 (+불합격)
+//       CPI 인성검사는 폐지(2026-08)되어 제거. 2차 면접은 아직 미구현.
 
 import { useEffect, useMemo, useState } from 'react';
-import { liveByKindOrScan, useLiveData } from '../store/liveData';
+import { useLiveData, liveCalendarEventsNormalized } from '../store/liveData';
+import { isInterviewKind, parseInterviewTitle } from './CalendarPage';
+import { api } from '../lib/api';
 import {
   loadTemplates,
   saveTemplate,
@@ -17,269 +25,565 @@ import {
   loadSendLog,
   loadEmailCache,
   saveEmail,
+  STAGE_ORDER,
+  STAGE_LABEL,
   type EmailTemplate,
+  type TemplateStage,
   type SendLogEntry,
 } from '../lib/emailTemplates';
+import {
+  loadSites,
+  saveSites,
+  loadHqs,
+  saveHqs,
+  loadHqOverrides,
+  saveHqOverride,
+  inferHq,
+  inferSite,
+  HQ_UNSET,
+  type MailSite,
+  type MailHq,
+} from '../lib/mailPresets';
 
-function pickFromRow(row: Record<string, string>, keys: string[]): string {
-  for (const k of keys) {
-    for (const key of Object.keys(row)) {
-      if (key.replace(/\s+/g, '').includes(k.replace(/\s+/g, ''))) {
-        return (row[key] || '').trim();
-      }
-    }
-  }
-  return '';
+const DAY = ['일', '월', '화', '수', '목', '금', '토'];
+
+function whenLabel(dt: string, tm: string): string {
+  if (!dt) return '';
+  const [y, mo, d] = dt.split('-').map(Number);
+  const date = new Date(y, (mo || 1) - 1, d || 1);
+  const [h, mi] = (tm || '').split(':');
+  const time = h ? ` ${Number(h)}시 ${mi || '00'}분` : '';
+  return `${mo}월 ${d}일(${DAY[date.getDay()]})${time}`;
 }
 
-function parseInterviewDt(note: string): { display: string } | null {
-  const m = (note || '').match(/(\d{4})[-./]\s?(\d{1,2})[-./]\s?(\d{1,2})\s+(\d{1,2}):(\d{2})/);
-  if (!m) return null;
-  const [, y, mo, d, h, mi] = m;
-  const date = new Date(+y, +mo - 1, +d, +h, +mi);
-  const dayNames = ['일', '월', '화', '수', '목', '금', '토'];
-  const display = `${+mo}월 ${+d}일(${dayNames[date.getDay()]}) ${+h}시 ${mi}분`;
-  return { display };
+function todayStr(): string {
+  const n = new Date();
+  return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}-${String(n.getDate()).padStart(2, '0')}`;
 }
 
-interface Candidate {
+interface CalCandidate {
+  key: string;
   name: string;
-  dept: string;
-  job: string;
-  email: string;
-  interviewAt: string;
+  team: string;
+  dt: string;
+  tm: string;
+  when: string;
+  siteId: string | null;
+  hqId: string;
   location: string;
-  resultStatus: string;
+  email: string;
 }
 
 export function EmailToolsPage() {
-  const live = useLiveData();
-  void live;
+  useLiveData(); // 캘린더 폴링 갱신에 재렌더
+
+  const [sites, setSites] = useState<MailSite[]>([]);
+  const [hqs, setHqs] = useState<MailHq[]>([]);
+  const [hqOverrides, setHqOverrides] = useState<Record<string, string>>({});
   const [templates, setTemplates] = useState<EmailTemplate[]>([]);
   const [emailMap, setEmailMap] = useState<Record<string, string>>({});
   const [log, setLog] = useState<SendLogEntry[]>([]);
-  const [selectedTpl, setSelectedTpl] = useState<string | null>(null);
+
+  const [siteId, setSiteId] = useState<string>('purple');
+  const [hqId, setHqId] = useState<string>('all');
+  const [stage, setStage] = useState<TemplateStage>('interview_1st');
+  const [tplId, setTplId] = useState<string | null>(null);
+  const [onlyUpcoming, setOnlyUpcoming] = useState(true);
+  const [search, setSearch] = useState('');
+  const [draftEmail, setDraftEmail] = useState<Record<string, string>>({});
+  const [busy, setBusy] = useState<string | null>(null);
+
   const [editingTpl, setEditingTpl] = useState<EmailTemplate | null>(null);
-  const [sendModal, setSendModal] = useState<{ template: EmailTemplate; candidate: Candidate } | null>(null);
+  const [modal, setModal] = useState<{ template: EmailTemplate; candidate: CalCandidate } | null>(null);
+  const [showSettings, setShowSettings] = useState(false);
+  const [showLog, setShowLog] = useState(false);
 
   useEffect(() => {
-    loadTemplates().then((t) => {
-      setTemplates(t);
-      if (t.length > 0 && !selectedTpl) setSelectedTpl(t[0].id);
-    });
+    loadSites().then(setSites);
+    loadHqs().then(setHqs);
+    loadHqOverrides().then(setHqOverrides);
+    loadTemplates().then(setTemplates);
     loadEmailCache().then(setEmailMap);
     loadSendLog().then(setLog);
   }, []);
 
-  // 후보자 (시트 office_interview)
-  const candidates = useMemo<Candidate[]>(() => {
-    const rows = liveByKindOrScan('office_interview');
-    return rows
-      .map((row): Candidate | null => {
-        const name = pickFromRow(row, ['성명', '이름']);
-        if (!name) return null;
-        const note = pickFromRow(row, ['비고', 'note']);
-        const parsed = parseInterviewDt(note);
-        return {
-          name,
-          dept: pickFromRow(row, ['지원부서', '부서']),
-          job: pickFromRow(row, ['지원구분', '직무']),
-          email: pickFromRow(row, ['이메일', '메일', 'email', 'e-mail']) || emailMap[name] || '',
-          interviewAt: parsed?.display || '',
-          location: pickFromRow(row, ['장소', 'location', '면접장소']) || '씨앤씨인터내셔널 퍼플카운티 (경기도 화성시 삼성1로 5길 39)',
-          resultStatus: pickFromRow(row, ['결과', '단계', '전형', '상태']),
-        };
-      })
-      .filter((c): c is Candidate => c !== null);
-  }, [emailMap]);
+  const site = sites.find((s) => s.id === siteId) || sites[0] || null;
 
-  const currentTpl = templates.find((t) => t.id === selectedTpl) || null;
+  // ── 면접 캘린더 → 후보자 목록 (캘린더 페이지와 동일한 분류기/파서 사용)
+  const allCandidates = useMemo<CalCandidate[]>(() => {
+    if (hqs.length === 0) return [];
+    const out = new Map<string, CalCandidate>();
+    for (const e of liveCalendarEventsNormalized()) {
+      if (!isInterviewKind(e.title, e.raw.colorId ?? null, e.raw.calendarId ?? null)) continue;
+      const p = parseInterviewTitle(e.title);
+      const name = (p.candidate || '').trim();
+      if (!name || name.length > 5) continue;
+      const tm = e.tm || p.time || '';
+      const key = `${e.dt}|${tm}|${name}`;
+      if (out.has(key)) continue; // 캘린더 사본 중복 제거
+      const teamText = [p.team, p.room, e.location].filter(Boolean).join(' ');
+      out.set(key, {
+        key,
+        name,
+        team: p.team || '',
+        dt: e.dt,
+        tm,
+        when: whenLabel(e.dt, tm),
+        siteId: inferSite([p.site, e.location, e.title].filter(Boolean).join(' '), sites),
+        hqId: hqOverrides[name] || inferHq(teamText, hqs),
+        location: e.location || '',
+        email: emailMap[name] || '',
+      });
+    }
+    return [...out.values()].sort((a, b) => (a.dt + a.tm).localeCompare(b.dt + b.tm));
+  }, [sites, hqs, hqOverrides, emailMap]);
+
+  const today = todayStr();
+  const candidates = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return allCandidates.filter((c) => {
+      if (onlyUpcoming && c.dt < today) return false;
+      // 사업장 — 일정에서 사업장을 못 읽은 건은 항상 보여준다(누락 방지)
+      if (c.siteId && c.siteId !== siteId) return false;
+      if (hqId !== 'all' && c.hqId !== hqId) return false;
+      if (q && !(c.name.toLowerCase().includes(q) || c.team.toLowerCase().includes(q))) return false;
+      return true;
+    });
+  }, [allCandidates, onlyUpcoming, today, siteId, hqId, search]);
+
+  // 본부 탭 카운트 (사업장·기간 필터까지 반영한 수)
+  const hqCounts = useMemo(() => {
+    const base = allCandidates.filter(
+      (c) => (!onlyUpcoming || c.dt >= today) && (!c.siteId || c.siteId === siteId)
+    );
+    const m: Record<string, number> = { all: base.length };
+    for (const c of base) m[c.hqId] = (m[c.hqId] || 0) + 1;
+    return m;
+  }, [allCandidates, onlyUpcoming, today, siteId]);
+
+  // ── 양식: 사업장/본부 전용이 있으면 우선, 없으면 공통
+  const stageTemplates = useMemo(() => {
+    const fits = (t: EmailTemplate) =>
+      (!t.siteId || t.siteId === siteId) && (!t.hqId || hqId === 'all' || t.hqId === hqId);
+    return templates.filter((t) => t.stage === stage && fits(t));
+  }, [templates, stage, siteId, hqId]);
+
+  const currentTpl = useMemo(() => {
+    if (stageTemplates.length === 0) return null;
+    const picked = stageTemplates.find((t) => t.id === tplId);
+    if (picked) return picked;
+    // 전용 > 공통 순으로 자동 선택
+    const score = (t: EmailTemplate) => (t.siteId ? 2 : 0) + (t.hqId ? 1 : 0);
+    return [...stageTemplates].sort((a, b) => score(b) - score(a))[0];
+  }, [stageTemplates, tplId]);
+
+  const availableStages = useMemo(() => {
+    const set = new Set(templates.map((t) => t.stage));
+    return STAGE_ORDER.filter((s) => set.has(s));
+  }, [templates]);
+
+  // ── 변수 자동 채움
+  function autoVars(c: CalCandidate, tpl: EmailTemplate): Record<string, string> {
+    if (tpl.stage === 'offer') return { 이름: c.name }; // 처우협의는 숫자 자동 채움 금지
+    const address = site?.address || c.location || '';
+    return {
+      이름: c.name,
+      면접일시: c.when,
+      면접장소: address,
+      입사장소: address,
+      장소안내: site?.guide || '',
+      사전질문지URL: 'https://forms.gle/Kss5nvQf78QNmWMa8',
+      지원직무: c.team || '지원',
+      부서: c.team || '',
+      직무: c.team || '',
+    };
+  }
 
   async function refreshTemplates() {
-    const t = await loadTemplates();
-    setTemplates(t);
+    setTemplates(await loadTemplates());
   }
 
-  function handleAddTemplate() {
-    setEditingTpl(createBlankTemplate());
+  // ── 발송 (Gmail API 직접 발송)
+  async function send(
+    c: CalCandidate,
+    tpl: EmailTemplate,
+    to: string,
+    vars: Record<string, string>
+  ): Promise<boolean> {
+    const rendered = renderTemplate(tpl, vars);
+    if (!api?.google?.sendGmail) {
+      // Electron이 아닌 환경(모바일 뷰어 등) — Gmail 작성 창으로 폴백
+      window.open(gmailComposeUrl({ to, subject: rendered.subject, body: rendered.body }), '_blank');
+      return true;
+    }
+    setBusy(c.key);
+    try {
+      const r = await api.google.sendGmail({ to, subject: rendered.subject, body: rendered.body });
+      if (!r.ok) {
+        alert(`발송 실패: ${r.error || '알 수 없는 오류'}`);
+        return false;
+      }
+      await appendSendLog({
+        templateId: tpl.id,
+        templateName: tpl.name,
+        to,
+        subject: rendered.subject,
+        variables: vars,
+      });
+      setLog(await loadSendLog());
+      await saveEmail(c.name, to);
+      setEmailMap((p) => ({ ...p, [c.name]: to }));
+      return true;
+    } finally {
+      setBusy(null);
+    }
   }
 
-  function handleEditTemplate(tpl: EmailTemplate) {
-    setEditingTpl({ ...tpl });
+  // 목록에서 바로 발송 — 비어있는 변수가 있거나 처우협의면 확인 창을 먼저 띄운다
+  async function quickSend(c: CalCandidate) {
+    if (!currentTpl) return;
+    const to = (draftEmail[c.key] ?? c.email).trim();
+    if (!to) {
+      alert('상대 메일 주소를 먼저 입력해주세요.');
+      return;
+    }
+    const vars = autoVars(c, currentTpl);
+    const rendered = renderTemplate(currentTpl, vars);
+    const missing = findMissingVars(`${rendered.subject}\n${rendered.body}`);
+    if (currentTpl.stage === 'offer' || missing.length > 0) {
+      setModal({ template: currentTpl, candidate: { ...c, email: to } });
+      return;
+    }
+    const ok = window.confirm(
+      `${c.name}님께 아래 메일을 발송합니다.\n\n수신: ${to}\n양식: ${currentTpl.name}\n제목: ${rendered.subject}`
+    );
+    if (!ok) return;
+    if (await send(c, currentTpl, to, vars)) {
+      setDraftEmail((p) => ({ ...p, [c.key]: to }));
+    }
   }
 
-  async function handleSaveTemplate(tpl: EmailTemplate) {
-    // 변수 자동 추출
-    const detected = extractVariables(tpl.subject + ' ' + tpl.body);
-    tpl.variables = detected;
-    await saveTemplate(tpl);
-    await refreshTemplates();
-    setSelectedTpl(tpl.id);
-    setEditingTpl(null);
-  }
-
-  async function handleDeleteTemplate(id: string) {
-    if (!confirm('이 양식을 삭제할까요? (빌트인 양식은 기본값으로 리셋됩니다)')) return;
-    await deleteTemplate(id);
-    await refreshTemplates();
-    if (selectedTpl === id) setSelectedTpl(templates[0]?.id || null);
-  }
+  const hqLabel = (id: string) => hqs.find((h) => h.id === id)?.label || HQ_UNSET.label;
 
   return (
-    <div className="space-y-4 text-slate-900">
-      <div className="card p-3 bg-blue-50 border-l-4 border-blue-400">
-        <div className="text-sm text-slate-800">
-          <strong>📨 후보자 안내 메일 — Phase 1</strong>
-          <span className="ml-2 text-slate-600">
-            양식 보관 · 후보자별 발송 · Gmail 발송 창은 외부 브라우저에서 열림 (최종 [보내기]는 직접 클릭)
-          </span>
+    <div className="space-y-3 text-slate-900">
+      {/* ── 1) 사업장 · 본부 선택 ─────────────────────────── */}
+      <div className="card p-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-sm font-bold text-slate-900">사업장</span>
+          {sites.map((s) => (
+            <button
+              key={s.id}
+              onClick={() => setSiteId(s.id)}
+              className={`px-3 py-1.5 rounded-lg text-sm font-semibold border ${
+                siteId === s.id
+                  ? 'bg-accent-purple text-white border-accent-purple'
+                  : 'bg-white text-slate-900 border-slate-300 hover:bg-slate-100'
+              }`}
+            >
+              {s.label}
+              {!s.address && <span className="ml-1 text-red-600">·주소 미입력</span>}
+            </button>
+          ))}
+          <button
+            onClick={() => setShowSettings(true)}
+            className="px-2 py-1.5 rounded-lg text-sm border border-slate-300 bg-white text-slate-900 hover:bg-slate-100"
+          >
+            ⚙ 설정
+          </button>
         </div>
-        <div className="text-xs text-slate-600 mt-1">
-          Phase 2 예정: 부서장 동시 발송 + 캘린더 면접 이벤트 자동 생성 · Phase 3 예정: 회의실 자동 예약
+
+        <div className="flex flex-wrap items-center gap-2 mt-2 pt-2 border-t border-slate-200">
+          <span className="text-sm font-bold text-slate-900">본부</span>
+          {[{ id: 'all', label: '전체' }, ...hqs, HQ_UNSET].map((h) => (
+            <button
+              key={h.id}
+              onClick={() => setHqId(h.id)}
+              className={`px-3 py-1.5 rounded-lg text-sm font-semibold border ${
+                hqId === h.id
+                  ? 'bg-slate-900 text-white border-slate-900'
+                  : 'bg-white text-slate-900 border-slate-300 hover:bg-slate-100'
+              }`}
+            >
+              {h.label}
+              <span className="ml-1 text-xs">{hqCounts[h.id] || 0}</span>
+            </button>
+          ))}
         </div>
       </div>
 
-      <div className="grid lg:grid-cols-[320px_1fr] gap-4">
-        {/* 좌: 양식 리스트 */}
-        <div className="card p-3">
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="font-semibold text-slate-900">📋 보관된 양식</h3>
+      {/* ── 2) 단계 양식 선택 ─────────────────────────────── */}
+      <div className="card p-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-sm font-bold text-slate-900">양식</span>
+          {availableStages.map((s) => (
             <button
-              onClick={handleAddTemplate}
-              className="px-2 py-1 rounded bg-accent-purple text-white text-xs font-semibold hover:bg-accent-purple/90"
+              key={s}
+              onClick={() => {
+                setStage(s);
+                setTplId(null);
+              }}
+              className={`px-3 py-1.5 rounded-lg text-sm font-semibold border ${
+                stage === s
+                  ? 'bg-accent-purple text-white border-accent-purple'
+                  : 'bg-white text-slate-900 border-slate-300 hover:bg-slate-100'
+              }`}
             >
-              + 새 양식
+              {s === 'offer' && '🔒 '}
+              {STAGE_LABEL[s]}
+            </button>
+          ))}
+          {stageTemplates.length > 1 && (
+            <select
+              value={currentTpl?.id || ''}
+              onChange={(e) => setTplId(e.target.value)}
+              className="px-2 py-1.5 rounded-lg border border-slate-300 bg-white text-sm text-slate-900"
+            >
+              {stageTemplates.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.name}
+                  {t.siteId ? ` · ${sites.find((s) => s.id === t.siteId)?.label || t.siteId}` : ''}
+                  {t.hqId ? ` · ${hqLabel(t.hqId)}` : ''}
+                </option>
+              ))}
+            </select>
+          )}
+          <div className="ml-auto flex items-center gap-1">
+            {currentTpl && (
+              <>
+                <button
+                  onClick={() => setEditingTpl({ ...currentTpl })}
+                  className="px-2 py-1.5 rounded-lg border border-slate-300 bg-white text-sm text-slate-900 hover:bg-slate-100"
+                >
+                  ✎ 수정
+                </button>
+                <button
+                  onClick={() =>
+                    setEditingTpl({
+                      ...currentTpl,
+                      id: `custom-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+                      name: `${currentTpl.name} (${site?.label || ''} 전용)`,
+                      siteId,
+                      hqId: hqId === 'all' ? null : hqId,
+                      builtin: false,
+                      modifiedAt: undefined,
+                      createdAt: Date.now(),
+                    })
+                  }
+                  className="px-2 py-1.5 rounded-lg border border-slate-300 bg-white text-sm text-slate-900 hover:bg-slate-100"
+                >
+                  ⧉ 사업장 전용으로 복제
+                </button>
+              </>
+            )}
+            <button
+              onClick={() => setEditingTpl({ ...createBlankTemplate(), stage, siteId, hqId: hqId === 'all' ? null : hqId })}
+              className="px-2 py-1.5 rounded-lg border border-slate-300 bg-white text-sm text-slate-900 hover:bg-slate-100"
+            >
+              ＋ 새 양식
             </button>
           </div>
-          <div className="space-y-1 max-h-[600px] overflow-auto">
-            {templates.map((t) => (
-              <button
-                key={t.id}
-                onClick={() => setSelectedTpl(t.id)}
-                className={`w-full text-left px-3 py-2 rounded text-sm border transition-colors ${
-                  selectedTpl === t.id
-                    ? 'bg-accent-purple/10 border-accent-purple text-slate-900'
-                    : 'bg-white border-slate-200 hover:bg-slate-50 text-slate-800'
-                }`}
-              >
-                <div className="font-medium">
-                  {t.recipient === 'manager' && <span className="mr-1">👔</span>}
-                  {t.stage === 'offer' && <span className="mr-1">🔒</span>}
-                  {t.name}
-                </div>
-                <div className="text-[10px] text-slate-500 mt-0.5">
-                  {t.builtin ? '빌트인' : '사용자'} · 변수 {t.variables.length}개
-                  {t.modifiedAt && <span className="ml-1 text-amber-600">· 수정됨</span>}
-                </div>
-              </button>
-            ))}
-          </div>
         </div>
 
-        {/* 우: 양식 상세 + 발송 */}
-        <div className="space-y-3">
-          {currentTpl ? (
-            <>
-              <div className="card p-4">
-                <div className="flex items-center justify-between mb-3">
-                  <h3 className="font-semibold text-slate-900">{currentTpl.name}</h3>
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => handleEditTemplate(currentTpl)}
-                      className="px-3 py-1 rounded border border-slate-300 text-xs hover:bg-slate-50"
-                    >
-                      ✎ 양식 수정
-                    </button>
-                    {!currentTpl.builtin && (
-                      <button
-                        onClick={() => handleDeleteTemplate(currentTpl.id)}
-                        className="px-3 py-1 rounded border border-red-300 text-red-700 text-xs hover:bg-red-50"
+        {currentTpl ? (
+          <details className="mt-2">
+            <summary className="cursor-pointer text-sm font-semibold text-slate-900">
+              {currentTpl.subject} <span className="text-slate-700">— 본문 보기</span>
+            </summary>
+            <pre className="mt-2 whitespace-pre-wrap font-sans text-sm text-slate-900 leading-relaxed bg-slate-50 border border-slate-300 rounded p-3 max-h-64 overflow-auto">
+              {currentTpl.body}
+            </pre>
+          </details>
+        ) : (
+          <div className="mt-2 text-sm text-slate-900">
+            이 사업장/본부에 맞는 양식이 없습니다. [＋ 새 양식]으로 추가하세요.
+          </div>
+        )}
+      </div>
+
+      {/* ── 3) 면접 캘린더 후보자 → 메일 주소만 넣고 발송 ──── */}
+      <div className="card p-3">
+        <div className="flex flex-wrap items-center gap-2 mb-2">
+          <h3 className="text-sm font-bold text-slate-900">
+            면접 캘린더 후보자 <span className="text-slate-900">{candidates.length}명</span>
+          </h3>
+          <label className="flex items-center gap-1 text-sm text-slate-900">
+            <input type="checkbox" checked={onlyUpcoming} onChange={(e) => setOnlyUpcoming(e.target.checked)} />
+            예정 일정만
+          </label>
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="이름·소속 검색"
+            className="ml-auto px-3 py-1.5 border border-slate-300 rounded-lg text-sm text-slate-900 w-56"
+          />
+        </div>
+
+        <div className="overflow-auto rounded-lg border border-slate-300 max-h-[420px]">
+          <table className="w-full text-sm">
+            <thead className="sticky top-0 bg-slate-100">
+              <tr>
+                {['면접일시', '이름', '소속', '본부', '상대 메일 주소', ''].map((h) => (
+                  <th key={h} className="px-3 py-2 text-left text-xs font-bold text-slate-900 border-b border-slate-300">
+                    {h}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {candidates.map((c) => {
+                const to = draftEmail[c.key] ?? c.email;
+                const sent = log.find((l) => l.variables?.['이름'] === c.name && l.templateId === currentTpl?.id);
+                return (
+                  <tr key={c.key} className="border-b border-slate-200 hover:bg-slate-50">
+                    <td className="px-3 py-2 text-slate-900 whitespace-nowrap">{c.when}</td>
+                    <td className="px-3 py-2 font-bold text-slate-900 whitespace-nowrap">{c.name}</td>
+                    <td className="px-3 py-2 text-slate-900">{c.team || '-'}</td>
+                    <td className="px-3 py-2 whitespace-nowrap">
+                      <select
+                        value={c.hqId}
+                        onChange={async (e) => {
+                          await saveHqOverride(c.name, e.target.value);
+                          setHqOverrides((p) => ({ ...p, [c.name]: e.target.value }));
+                        }}
+                        className="px-1 py-0.5 border border-slate-300 rounded text-xs text-slate-900 bg-white"
                       >
-                        삭제
+                        {[...hqs, HQ_UNSET].map((h) => (
+                          <option key={h.id} value={h.id}>
+                            {h.label}
+                          </option>
+                        ))}
+                      </select>
+                    </td>
+                    <td className="px-3 py-2">
+                      <input
+                        value={to}
+                        onChange={(e) => setDraftEmail((p) => ({ ...p, [c.key]: e.target.value }))}
+                        placeholder="candidate@example.com"
+                        className="w-56 px-2 py-1 border border-slate-300 rounded text-sm text-slate-900"
+                      />
+                    </td>
+                    <td className="px-3 py-2 whitespace-nowrap">
+                      <button
+                        onClick={() => quickSend(c)}
+                        disabled={!currentTpl || busy === c.key}
+                        className="px-3 py-1 rounded bg-accent-purple text-white text-xs font-bold disabled:opacity-40 hover:bg-accent-purple/90"
+                      >
+                        {busy === c.key ? '발송 중…' : '✉ 발송'}
                       </button>
-                    )}
-                  </div>
-                </div>
-                <div className="rounded border border-slate-300 bg-slate-50 p-3 text-sm">
-                  <div className="font-semibold pb-2 mb-2 border-b border-slate-200 text-slate-900">
-                    {currentTpl.subject}
-                  </div>
-                  <pre className="whitespace-pre-wrap font-sans text-slate-800 leading-relaxed max-h-[280px] overflow-auto">
-                    {currentTpl.body}
-                  </pre>
-                </div>
-                <div className="mt-2 text-xs text-slate-600">
-                  변수: {currentTpl.variables.map((v) => `{{${v}}}`).join(', ') || '없음'}
-                </div>
-              </div>
-
-              {/* 후보자 선택 */}
-              <CandidatePicker
-                candidates={candidates}
-                template={currentTpl}
-                onPick={(c) => setSendModal({ template: currentTpl, candidate: c })}
-              />
-            </>
-          ) : (
-            <div className="card p-8 text-center text-slate-500">양식을 선택하거나 추가하세요</div>
-          )}
-
-          {/* 발송 로그 */}
-          <div className="card p-4">
-            <h3 className="font-semibold text-slate-900 mb-2">📜 최근 발송 로그</h3>
-            <div className="overflow-auto rounded-lg border border-bg-line max-h-[240px]">
-              <table className="w-full text-sm">
-                <thead className="sticky top-0">
-                  <tr>
-                    {['시각', '양식', '수신', '제목'].map((h) => (
-                      <th key={h} className="table-head text-left">{h}</th>
-                    ))}
+                      <button
+                        onClick={() => currentTpl && setModal({ template: currentTpl, candidate: { ...c, email: to } })}
+                        disabled={!currentTpl}
+                        className="ml-1 px-2 py-1 rounded border border-slate-300 bg-white text-xs text-slate-900 hover:bg-slate-100"
+                      >
+                        미리보기
+                      </button>
+                      {sent && <span className="ml-1 text-xs font-bold text-green-700">발송됨</span>}
+                    </td>
                   </tr>
-                </thead>
-                <tbody>
-                  {log.slice(0, 30).map((e) => (
-                    <tr key={e.id} className="hover:bg-bg-hover/30">
-                      <td className="table-cell font-mono text-xs whitespace-nowrap text-slate-700">
-                        {new Date(e.at).toLocaleString('ko-KR', { hour12: false })}
-                      </td>
-                      <td className="table-cell text-xs text-slate-800">{e.templateName}</td>
-                      <td className="table-cell text-xs text-slate-700 whitespace-nowrap">{e.to}</td>
-                      <td className="table-cell text-xs max-w-[400px] truncate text-slate-700">{e.subject}</td>
-                    </tr>
-                  ))}
-                  {log.length === 0 && (
-                    <tr>
-                      <td colSpan={4} className="text-center py-6 text-slate-500 text-sm">발송 기록 없음</td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
+                );
+              })}
+              {candidates.length === 0 && (
+                <tr>
+                  <td colSpan={6} className="text-center py-6 text-sm text-slate-900">
+                    조건에 맞는 면접 일정이 없습니다.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
         </div>
+      </div>
+
+      {/* ── 4) 발송 기록 (접힘) ───────────────────────────── */}
+      <div className="card p-3">
+        <button onClick={() => setShowLog((v) => !v)} className="text-sm font-bold text-slate-900">
+          {showLog ? '▾' : '▸'} 발송 기록 {log.length}건
+        </button>
+        {showLog && (
+          <div className="mt-2 overflow-auto rounded-lg border border-slate-300 max-h-64">
+            <table className="w-full text-sm">
+              <thead className="sticky top-0 bg-slate-100">
+                <tr>
+                  {['시각', '양식', '수신', '제목'].map((h) => (
+                    <th key={h} className="px-3 py-2 text-left text-xs font-bold text-slate-900 border-b border-slate-300">
+                      {h}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {log.slice(0, 50).map((e) => (
+                  <tr key={e.id} className="border-b border-slate-200">
+                    <td className="px-3 py-1.5 font-mono text-xs text-slate-900 whitespace-nowrap">
+                      {new Date(e.at).toLocaleString('ko-KR', { hour12: false })}
+                    </td>
+                    <td className="px-3 py-1.5 text-xs text-slate-900">{e.templateName}</td>
+                    <td className="px-3 py-1.5 text-xs text-slate-900 whitespace-nowrap">{e.to}</td>
+                    <td className="px-3 py-1.5 text-xs text-slate-900 truncate max-w-[380px]">{e.subject}</td>
+                  </tr>
+                ))}
+                {log.length === 0 && (
+                  <tr>
+                    <td colSpan={4} className="text-center py-4 text-sm text-slate-900">
+                      발송 기록 없음
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
 
       {editingTpl && (
         <TemplateEditor
           template={editingTpl}
-          onSave={handleSaveTemplate}
+          sites={sites}
+          hqs={hqs}
           onClose={() => setEditingTpl(null)}
+          onSave={async (t) => {
+            t.variables = extractVariables(`${t.subject} ${t.body}`);
+            await saveTemplate(t);
+            await refreshTemplates();
+            setStage(t.stage);
+            setTplId(t.id);
+            setEditingTpl(null);
+          }}
+          onDelete={async (id) => {
+            if (!confirm('이 양식을 삭제할까요? (기본 양식은 초기값으로 되돌아갑니다)')) return;
+            await deleteTemplate(id);
+            await refreshTemplates();
+            setTplId(null);
+            setEditingTpl(null);
+          }}
         />
       )}
 
-      {sendModal && (
+      {modal && (
         <SendModal
-          template={sendModal.template}
-          candidate={sendModal.candidate}
-          onClose={() => setSendModal(null)}
-          onSent={async (entry) => {
-            await appendSendLog(entry);
-            setLog(await loadSendLog());
-            setSendModal(null);
+          template={modal.template}
+          candidate={modal.candidate}
+          initialVars={autoVars(modal.candidate, modal.template)}
+          onClose={() => setModal(null)}
+          onSend={async (to, vars) => {
+            const ok = await send(modal.candidate, modal.template, to, vars);
+            if (ok) setModal(null);
           }}
-          onEmailCache={async (name, email) => {
-            await saveEmail(name, email);
-            setEmailMap((prev) => ({ ...prev, [name]: email }));
+        />
+      )}
+
+      {showSettings && (
+        <SettingsModal
+          sites={sites}
+          hqs={hqs}
+          onClose={() => setShowSettings(false)}
+          onSave={async (s, h) => {
+            await saveSites(s);
+            await saveHqs(h);
+            setSites(s);
+            setHqs(h);
+            setShowSettings(false);
           }}
         />
       )}
@@ -288,256 +592,41 @@ export function EmailToolsPage() {
 }
 
 // ─────────────────────────────────────────────────────────────
-// 후보자 선택 영역
-// ─────────────────────────────────────────────────────────────
-function CandidatePicker({
-  candidates,
-  template,
-  onPick,
-}: {
-  candidates: Candidate[];
-  template: EmailTemplate;
-  onPick: (c: Candidate) => void;
-}) {
-  const [search, setSearch] = useState('');
-  const filtered = useMemo(() => {
-    if (!search.trim()) return candidates;
-    const q = search.toLowerCase();
-    return candidates.filter(
-      (c) => c.name.toLowerCase().includes(q) || c.dept.toLowerCase().includes(q) || c.job.toLowerCase().includes(q)
-    );
-  }, [candidates, search]);
-
-  return (
-    <div className="card p-4">
-      <div className="flex items-center justify-between mb-3">
-        <h3 className="font-semibold text-slate-900">📤 후보자 선택 → 발송</h3>
-        <input
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="🔍 이름·부서·직무 검색"
-          className="px-3 py-1.5 border border-slate-300 rounded text-sm w-60"
-        />
-      </div>
-      <div className="text-xs text-slate-600 mb-2">
-        시트(office_interview) {candidates.length}명 · {template.recipient === 'manager' ? '⚠ 부서장용 양식 — 수신자 수동 입력 필요' : '후보자에게 발송'}
-      </div>
-      <div className="overflow-auto rounded-lg border border-bg-line max-h-[280px]">
-        <table className="w-full text-sm">
-          <thead className="sticky top-0">
-            <tr>
-              {['이름', '부서/직무', '면접 일시', '이메일', '발송'].map((h) => (
-                <th key={h} className="table-head text-left">{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {filtered.map((c, i) => (
-              <tr key={i} className="hover:bg-bg-hover/30">
-                <td className="table-cell font-semibold text-slate-900">{c.name}</td>
-                <td className="table-cell text-xs text-slate-800">
-                  {c.dept}
-                  {c.job ? ` / ${c.job}` : ''}
-                </td>
-                <td className="table-cell text-xs font-mono text-slate-900">{c.interviewAt || '-'}</td>
-                <td className="table-cell text-xs">
-                  {c.email ? (
-                    <span className="text-slate-800">{c.email}</span>
-                  ) : (
-                    <span className="text-amber-700">발송 시 입력</span>
-                  )}
-                </td>
-                <td className="table-cell">
-                  <button
-                    onClick={() => onPick(c)}
-                    className="px-3 py-1 rounded bg-accent-purple text-white text-xs font-semibold hover:bg-accent-purple/90"
-                  >
-                    ✉️ 발송
-                  </button>
-                </td>
-              </tr>
-            ))}
-            {filtered.length === 0 && (
-              <tr>
-                <td colSpan={5} className="text-center py-6 text-slate-500 text-sm">
-                  {candidates.length === 0 ? '시트 매핑을 확인하세요' : '검색 결과 없음'}
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
-}
-
-// ─────────────────────────────────────────────────────────────
-// 양식 에디터 모달
-// ─────────────────────────────────────────────────────────────
-function TemplateEditor({
-  template,
-  onSave,
-  onClose,
-}: {
-  template: EmailTemplate;
-  onSave: (t: EmailTemplate) => void;
-  onClose: () => void;
-}) {
-  const [t, setT] = useState(template);
-
-  return (
-    <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" onClick={onClose}>
-      <div
-        className="bg-white text-slate-900 rounded-xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-hidden flex flex-col"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="px-5 py-4 border-b border-bg-line flex items-center justify-between">
-          <div>
-            <div className="text-xs text-slate-600">양식 {t.builtin ? '수정 (빌트인)' : '편집'}</div>
-            <div className="text-lg font-semibold">{t.name}</div>
-          </div>
-          <button onClick={onClose} className="w-9 h-9 rounded grid place-items-center text-slate-600 hover:bg-slate-100">✕</button>
-        </div>
-        <div className="flex-1 overflow-y-auto px-5 py-4 space-y-3">
-          <div>
-            <label className="text-xs font-semibold text-slate-700">양식 이름</label>
-            <input
-              value={t.name}
-              onChange={(e) => setT({ ...t, name: e.target.value })}
-              className="mt-1 w-full px-3 py-2 border border-slate-300 rounded text-sm"
-            />
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="text-xs font-semibold text-slate-700">수신자 분류</label>
-              <select
-                value={t.recipient}
-                onChange={(e) => setT({ ...t, recipient: e.target.value as 'candidate' | 'manager' })}
-                className="mt-1 w-full px-3 py-2 border border-slate-300 rounded text-sm bg-white"
-              >
-                <option value="candidate">후보자 (구직자)</option>
-                <option value="manager">현업 부서장</option>
-              </select>
-            </div>
-            <div>
-              <label className="text-xs font-semibold text-slate-700">단계</label>
-              <select
-                value={t.stage}
-                onChange={(e) => setT({ ...t, stage: e.target.value as EmailTemplate['stage'] })}
-                className="mt-1 w-full px-3 py-2 border border-slate-300 rounded text-sm bg-white"
-              >
-                <option value="interview_1st">1차 면접 안내</option>
-                <option value="cpi">CPI 안내</option>
-                <option value="reject">불합격</option>
-                <option value="offer">처우협의 (잠금)</option>
-                <option value="custom">기타</option>
-              </select>
-            </div>
-          </div>
-          <div>
-            <label className="text-xs font-semibold text-slate-700">메일 제목</label>
-            <input
-              value={t.subject}
-              onChange={(e) => setT({ ...t, subject: e.target.value })}
-              className="mt-1 w-full px-3 py-2 border border-slate-300 rounded text-sm font-mono"
-            />
-          </div>
-          <div>
-            <label className="text-xs font-semibold text-slate-700">메일 본문 (변수는 {`{{변수명}}`} 형태로)</label>
-            <textarea
-              value={t.body}
-              onChange={(e) => setT({ ...t, body: e.target.value })}
-              rows={16}
-              className="mt-1 w-full px-3 py-2 border border-slate-300 rounded text-sm font-mono leading-relaxed"
-            />
-          </div>
-          <div className="text-xs text-slate-600 bg-slate-50 border border-slate-200 rounded p-2">
-            자동 인식된 변수:{' '}
-            <span className="font-mono">{extractVariables(t.subject + ' ' + t.body).join(', ') || '(없음)'}</span>
-          </div>
-        </div>
-        <div className="px-5 py-3 border-t border-bg-line flex items-center justify-end gap-2 bg-slate-50">
-          <button onClick={onClose} className="px-4 py-2 rounded border border-slate-300 text-sm hover:bg-white text-slate-900">
-            취소
-          </button>
-          <button
-            onClick={() => onSave(t)}
-            disabled={!t.name || !t.subject || !t.body}
-            className="px-5 py-2 rounded bg-accent-purple text-white text-sm font-semibold disabled:opacity-40 hover:bg-accent-purple/90"
-          >
-            💾 저장
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ─────────────────────────────────────────────────────────────
-// 발송 모달 — 후보자 정보로 변수 채움, 미리보기, Gmail 발송
+// 발송 모달 — 변수 채우기 + 미리보기 + 발송
 // ─────────────────────────────────────────────────────────────
 function SendModal({
   template,
   candidate,
+  initialVars,
   onClose,
-  onSent,
-  onEmailCache,
+  onSend,
 }: {
   template: EmailTemplate;
-  candidate: Candidate;
+  candidate: CalCandidate;
+  initialVars: Record<string, string>;
   onClose: () => void;
-  onSent: (entry: Omit<SendLogEntry, 'id' | 'at'>) => void;
-  onEmailCache: (name: string, email: string) => void;
+  onSend: (to: string, vars: Record<string, string>) => void;
 }) {
   const [to, setTo] = useState(candidate.email);
-  const [vars, setVars] = useState<Record<string, string>>(() => {
-    // 후보자 정보로 자동 prefill
-    const auto: Record<string, string> = {
-      '이름': candidate.name,
-      '면접일시': candidate.interviewAt,
-      '면접장소': candidate.location,
-      '장소안내': candidate.location.includes('퍼플카운티')
-        ? '\n도착하시어 경비실에서 대기해주시면 안내 도와드리겠습니다.'
-        : '',
-      '사전질문지URL': 'https://forms.gle/Kss5nvQf78QNmWMa8',
-      '지원직무': candidate.job || candidate.dept || '지원',
-      '부서': candidate.dept,
-      '직무': candidate.job,
-    };
-    // 처우협의는 자동 prefill 금지 (보안)
-    if (template.stage === 'offer') {
-      return { '이름': candidate.name };
-    }
-    return auto;
-  });
-
+  const [vars, setVars] = useState<Record<string, string>>(initialVars);
   const rendered = renderTemplate(template, vars);
-  const missing = findMissingVars(rendered.subject + '\n' + rendered.body);
+  const missing = findMissingVars(`${rendered.subject}\n${rendered.body}`);
   const isOffer = template.stage === 'offer';
 
-  async function handleSend() {
-    if (missing.length > 0) {
-      const ok = window.confirm(`아직 비어있는 변수가 있습니다: ${missing.join(', ')}\n그대로 Gmail 발송 창을 열까요?`);
-      if (!ok) return;
-    }
+  function handleSend() {
+    if (!to.trim()) return;
+    if (missing.length > 0 && !confirm(`비어있는 항목이 있습니다: ${missing.join(', ')}\n그대로 발송할까요?`)) return;
     if (isOffer) {
-      const ok2 = window.confirm(
-        `[처우협의 최종 확인]\n수신: ${to}\n이름: ${candidate.name}\n연봉: ${vars['연봉'] || '(미입력)'}원\n입사일: ${vars['입사일'] || '(미입력)'}\n\nGmail 발송 창을 엽니까?`
+      const ok = confirm(
+        `[처우협의 최종 확인]\n수신: ${to}\n이름: ${candidate.name}\n연봉: ${vars['연봉'] || '(미입력)'}원\n입사일: ${
+          vars['입사일'] || '(미입력)'
+        }\n\n이대로 발송합니까?`
       );
-      if (!ok2) return;
+      if (!ok) return;
+    } else if (!confirm(`${candidate.name}님께 발송합니다.\n\n수신: ${to}\n제목: ${rendered.subject}`)) {
+      return;
     }
-    window.open(gmailComposeUrl({ to, subject: rendered.subject, body: rendered.body }), '_blank');
-    if (to && to !== candidate.email) {
-      // 사용자가 새로 입력한 이메일 → 캐시
-      onEmailCache(candidate.name, to);
-    }
-    onSent({
-      templateId: template.id,
-      templateName: template.name,
-      to,
-      subject: rendered.subject,
-      variables: vars,
-    });
+    onSend(to.trim(), vars);
   }
 
   return (
@@ -548,64 +637,278 @@ function SendModal({
         }`}
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="px-5 py-4 border-b border-bg-line flex items-center justify-between">
+        <div className="px-5 py-3 border-b border-slate-300 flex items-center justify-between">
           <div>
-            <div className="text-xs text-slate-600">
-              {isOffer ? '🔒 처우협의 (모든 숫자 수기 입력 · 2단계 확인)' : template.name}
+            <div className="text-xs font-semibold text-slate-900">
+              {isOffer ? '🔒 처우협의 — 모든 숫자 수기 입력 · 2단계 확인' : template.name}
             </div>
-            <div className="text-lg font-semibold">{candidate.name}님께 발송</div>
+            <div className="text-lg font-bold text-slate-900">
+              {candidate.name} · {candidate.when}
+            </div>
           </div>
-          <button onClick={onClose} className="w-9 h-9 rounded grid place-items-center text-slate-600 hover:bg-slate-100">✕</button>
+          <button onClick={onClose} className="w-8 h-8 rounded text-slate-900 hover:bg-slate-100">
+            ✕
+          </button>
         </div>
-        <div className="flex-1 overflow-y-auto px-5 py-4 space-y-3">
+
+        <div className="flex-1 overflow-y-auto px-5 py-3 space-y-3">
           <div>
-            <label className="text-xs font-semibold text-slate-700">수신자 이메일</label>
+            <label className="text-xs font-bold text-slate-900">상대 메일 주소</label>
             <input
               value={to}
               onChange={(e) => setTo(e.target.value)}
-              placeholder="후보자 이메일"
-              className="mt-1 w-full px-3 py-2 border border-slate-300 rounded text-sm"
+              placeholder="candidate@example.com"
+              className="mt-1 w-full px-3 py-2 border border-slate-300 rounded text-sm text-slate-900"
             />
-            {!candidate.email && to && (
-              <div className="text-[11px] text-green-700 mt-1">발송 시 이 이메일이 다음번 자동 채움용으로 저장됩니다</div>
-            )}
           </div>
           {template.variables.map((k) => (
             <div key={k}>
-              <label className="text-xs font-semibold text-slate-700">{`{{${k}}}`}</label>
+              <label className="text-xs font-bold text-slate-900">{`{{${k}}}`}</label>
               <input
                 value={vars[k] || ''}
                 onChange={(e) => setVars((p) => ({ ...p, [k]: e.target.value }))}
-                placeholder={isOffer ? '수기 입력 필요' : ''}
-                className="mt-1 w-full px-3 py-2 border border-slate-300 rounded text-sm font-mono"
+                placeholder={isOffer ? '수기 입력' : ''}
+                className="mt-1 w-full px-3 py-2 border border-slate-300 rounded text-sm text-slate-900"
               />
             </div>
           ))}
           <div>
-            <div className="text-xs font-semibold text-slate-700 mb-1">📧 미리보기</div>
-            <div className="rounded border border-slate-300 bg-slate-50 p-3 text-sm">
-              <div className="font-semibold pb-2 mb-2 border-b border-slate-200 text-slate-900">{rendered.subject}</div>
-              <pre className="whitespace-pre-wrap font-sans text-slate-800 leading-relaxed max-h-[260px] overflow-auto">
+            <div className="text-xs font-bold text-slate-900 mb-1">미리보기</div>
+            <div className="rounded border border-slate-300 bg-slate-50 p-3">
+              <div className="font-bold pb-2 mb-2 border-b border-slate-300 text-slate-900">{rendered.subject}</div>
+              <pre className="whitespace-pre-wrap font-sans text-sm text-slate-900 leading-relaxed max-h-64 overflow-auto">
                 {rendered.body}
               </pre>
             </div>
           </div>
           {missing.length > 0 && (
-            <div className="text-sm text-amber-700 font-medium">⚠ 비어있는 변수: {missing.join(', ')}</div>
+            <div className="text-sm font-bold text-red-700">비어있는 항목: {missing.join(', ')}</div>
           )}
         </div>
-        <div className="px-5 py-3 border-t border-bg-line flex items-center justify-end gap-2 bg-slate-50">
-          <button onClick={onClose} className="px-4 py-2 rounded border border-slate-300 text-sm hover:bg-white text-slate-900">
-            취소
+
+        <div className="px-5 py-3 border-t border-slate-300 flex items-center justify-end gap-2 bg-slate-50">
+          <button
+            onClick={() => window.open(gmailComposeUrl({ to, subject: rendered.subject, body: rendered.body }), '_blank')}
+            className="px-3 py-2 rounded border border-slate-300 bg-white text-sm text-slate-900 hover:bg-slate-100"
+          >
+            Gmail 창에서 열기
           </button>
           <button
             onClick={handleSend}
-            disabled={!to}
-            className={`px-5 py-2 rounded text-sm font-semibold disabled:opacity-40 ${
+            disabled={!to.trim()}
+            className={`px-5 py-2 rounded text-sm font-bold disabled:opacity-40 ${
               isOffer ? 'bg-amber-500 text-slate-900 hover:bg-amber-600' : 'bg-accent-purple text-white hover:bg-accent-purple/90'
             }`}
           >
-            {isOffer ? '🔒 Gmail 발송 (2단계 확인)' : '✉️ Gmail 발송 창 열기'}
+            ✉ 바로 발송
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// 양식 편집 — 사업장/본부 전용 지정 포함
+// ─────────────────────────────────────────────────────────────
+function TemplateEditor({
+  template,
+  sites,
+  hqs,
+  onSave,
+  onDelete,
+  onClose,
+}: {
+  template: EmailTemplate;
+  sites: MailSite[];
+  hqs: MailHq[];
+  onSave: (t: EmailTemplate) => void;
+  onDelete: (id: string) => void;
+  onClose: () => void;
+}) {
+  const [t, setT] = useState(template);
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" onClick={onClose}>
+      <div
+        className="bg-white text-slate-900 rounded-xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-hidden flex flex-col"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="px-5 py-3 border-b border-slate-300 flex items-center justify-between">
+          <div className="text-lg font-bold text-slate-900">{t.builtin ? '기본 양식 수정' : '양식 편집'}</div>
+          <button onClick={onClose} className="w-8 h-8 rounded text-slate-900 hover:bg-slate-100">
+            ✕
+          </button>
+        </div>
+        <div className="flex-1 overflow-y-auto px-5 py-3 space-y-3">
+          <div>
+            <label className="text-xs font-bold text-slate-900">양식 이름</label>
+            <input
+              value={t.name}
+              onChange={(e) => setT({ ...t, name: e.target.value })}
+              className="mt-1 w-full px-3 py-2 border border-slate-300 rounded text-sm text-slate-900"
+            />
+          </div>
+          <div className="grid grid-cols-3 gap-3">
+            <div>
+              <label className="text-xs font-bold text-slate-900">단계</label>
+              <select
+                value={t.stage}
+                onChange={(e) => setT({ ...t, stage: e.target.value as TemplateStage })}
+                className="mt-1 w-full px-3 py-2 border border-slate-300 rounded text-sm bg-white text-slate-900"
+              >
+                {STAGE_ORDER.map((s) => (
+                  <option key={s} value={s}>
+                    {STAGE_LABEL[s]}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="text-xs font-bold text-slate-900">사업장</label>
+              <select
+                value={t.siteId || ''}
+                onChange={(e) => setT({ ...t, siteId: e.target.value || null })}
+                className="mt-1 w-full px-3 py-2 border border-slate-300 rounded text-sm bg-white text-slate-900"
+              >
+                <option value="">전 사업장 공통</option>
+                {sites.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.label} 전용
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="text-xs font-bold text-slate-900">본부</label>
+              <select
+                value={t.hqId || ''}
+                onChange={(e) => setT({ ...t, hqId: e.target.value || null })}
+                className="mt-1 w-full px-3 py-2 border border-slate-300 rounded text-sm bg-white text-slate-900"
+              >
+                <option value="">전 본부 공통</option>
+                {hqs.map((h) => (
+                  <option key={h.id} value={h.id}>
+                    {h.label} 전용
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+          <div>
+            <label className="text-xs font-bold text-slate-900">메일 제목</label>
+            <input
+              value={t.subject}
+              onChange={(e) => setT({ ...t, subject: e.target.value })}
+              className="mt-1 w-full px-3 py-2 border border-slate-300 rounded text-sm font-mono text-slate-900"
+            />
+          </div>
+          <div>
+            <label className="text-xs font-bold text-slate-900">본문 (변수는 {`{{변수명}}`} 형태)</label>
+            <textarea
+              value={t.body}
+              onChange={(e) => setT({ ...t, body: e.target.value })}
+              rows={16}
+              className="mt-1 w-full px-3 py-2 border border-slate-300 rounded text-sm font-mono leading-relaxed text-slate-900"
+            />
+          </div>
+          <div className="text-xs text-slate-900 bg-slate-50 border border-slate-300 rounded p-2">
+            자동 인식 변수: <span className="font-mono">{extractVariables(`${t.subject} ${t.body}`).join(', ') || '(없음)'}</span>
+          </div>
+        </div>
+        <div className="px-5 py-3 border-t border-slate-300 flex items-center justify-end gap-2 bg-slate-50">
+          {!t.builtin && (
+            <button
+              onClick={() => onDelete(t.id)}
+              className="mr-auto px-3 py-2 rounded border border-red-400 text-sm font-semibold text-red-700 hover:bg-red-50"
+            >
+              삭제
+            </button>
+          )}
+          <button onClick={onClose} className="px-4 py-2 rounded border border-slate-300 bg-white text-sm text-slate-900 hover:bg-slate-100">
+            취소
+          </button>
+          <button
+            onClick={() => onSave(t)}
+            disabled={!t.name || !t.subject || !t.body}
+            className="px-5 py-2 rounded bg-accent-purple text-white text-sm font-bold disabled:opacity-40 hover:bg-accent-purple/90"
+          >
+            저장
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// 사업장 주소 / 본부 분류 키워드 설정
+// ─────────────────────────────────────────────────────────────
+function SettingsModal({
+  sites,
+  hqs,
+  onSave,
+  onClose,
+}: {
+  sites: MailSite[];
+  hqs: MailHq[];
+  onSave: (sites: MailSite[], hqs: MailHq[]) => void;
+  onClose: () => void;
+}) {
+  const [s, setS] = useState<MailSite[]>(sites);
+  const [h, setH] = useState<MailHq[]>(hqs);
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" onClick={onClose}>
+      <div
+        className="bg-white text-slate-900 rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="px-5 py-3 border-b border-slate-300 text-lg font-bold text-slate-900">사업장 · 본부 설정</div>
+        <div className="flex-1 overflow-y-auto px-5 py-3 space-y-4">
+          <div>
+            <div className="text-sm font-bold text-slate-900 mb-2">사업장 (메일 본문의 장소/오시는 길)</div>
+            {s.map((site, i) => (
+              <div key={site.id} className="mb-3 border border-slate-300 rounded p-3">
+                <div className="text-sm font-bold text-slate-900 mb-1">{site.label}</div>
+                <input
+                  value={site.address}
+                  onChange={(e) => setS(s.map((x, j) => (j === i ? { ...x, address: e.target.value } : x)))}
+                  placeholder="예) (주)씨앤씨인터내셔널 퍼플카운티 (경기도 화성시 삼성1로5길 39)"
+                  className="w-full px-3 py-2 border border-slate-300 rounded text-sm text-slate-900"
+                />
+                <textarea
+                  value={site.guide}
+                  onChange={(e) => setS(s.map((x, j) => (j === i ? { ...x, guide: e.target.value } : x)))}
+                  rows={2}
+                  placeholder="주소 뒤에 붙는 안내 문구 (예: 도착하시어 경비실에서 대기해주시면 안내 도와드리겠습니다.)"
+                  className="mt-1 w-full px-3 py-2 border border-slate-300 rounded text-sm text-slate-900"
+                />
+              </div>
+            ))}
+          </div>
+          <div>
+            <div className="text-sm font-bold text-slate-900 mb-2">본부 자동 분류 키워드 (쉼표 구분)</div>
+            {h.map((hq, i) => (
+              <div key={hq.id} className="flex items-center gap-2 mb-2">
+                <span className="w-24 text-sm font-bold text-slate-900">{hq.label}</span>
+                <input
+                  value={hq.match.join(', ')}
+                  onChange={(e) =>
+                    setH(h.map((x, j) => (j === i ? { ...x, match: e.target.value.split(',').map((v) => v.trim()).filter(Boolean) } : x)))
+                  }
+                  className="flex-1 px-3 py-2 border border-slate-300 rounded text-sm text-slate-900"
+                />
+              </div>
+            ))}
+          </div>
+        </div>
+        <div className="px-5 py-3 border-t border-slate-300 flex justify-end gap-2 bg-slate-50">
+          <button onClick={onClose} className="px-4 py-2 rounded border border-slate-300 bg-white text-sm text-slate-900 hover:bg-slate-100">
+            취소
+          </button>
+          <button onClick={() => onSave(s, h)} className="px-5 py-2 rounded bg-accent-purple text-white text-sm font-bold hover:bg-accent-purple/90">
+            저장
           </button>
         </div>
       </div>

@@ -188,6 +188,8 @@ interface ElectronAPI {
       tabs: { name: string; headers: string[]; rows: string[][] }[]
     ): Promise<Result<{ spreadsheetId: string; url: string }>>;
     listGmail(q: string, max: number): Promise<Result<GmailMsg[]>>;
+    // Gmail WRITE — 후보자 안내 메일 발송. 사용자가 발송 버튼을 눌렀을 때만 호출.
+    sendGmail(payload: { to: string; subject: string; body: string; cc?: string; bcc?: string }): Promise<Result<{ id: string; threadId: string }>>;
     openAttachment(messageId: string, filename: string, attachmentId?: string): Promise<Result<{ path: string }>>;
     fetchAttachmentBase64(messageId: string, filename: string, attachmentId?: string): Promise<Result<{ base64: string; mimeType: string; filename: string }>>;
     listCalendar(min: string, max: string, id?: string): Promise<Result<GCalEvent[]>>;
