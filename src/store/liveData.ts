@@ -61,21 +61,19 @@ const subscribe = (l: () => void) => {
 const getSnapshot = () => state;
 const emit = () => listeners.forEach((l) => l());
 
-let lastErrorClearTimer: ReturnType<typeof setTimeout> | null = null;
 function setState(patch: Partial<LiveState>) {
   state = { ...state, ...patch };
   emit();
-  // lastError 자동 dismiss — 새 에러 들어오면 8초 후 자동 clear (사용자 시각 노이즈 줄이기)
-  if (Object.prototype.hasOwnProperty.call(patch, 'lastError') && patch.lastError) {
-    if (lastErrorClearTimer) clearTimeout(lastErrorClearTimer);
-    lastErrorClearTimer = setTimeout(() => {
-      lastErrorClearTimer = null;
-      if (state.lastError === patch.lastError) {
-        state = { ...state, lastError: null };
-        emit();
-      }
-    }, 8000);
-  }
+}
+
+// 시트별 오류를 따로 들고 있다가, 그 시트가 다시 성공하면 지운다.
+// (예전엔 에러가 뜨면 8초 뒤 무조건 자동 clear → 폴링마다 떴다 사라져 배지가 깜빡였다. 2026-08)
+const sheetErrors = new Map<string, string>();
+function setSheetError(spreadsheetId: string, error: string | null) {
+  if (error) sheetErrors.set(spreadsheetId, error);
+  else sheetErrors.delete(spreadsheetId);
+  const first = sheetErrors.values().next();
+  setState({ lastError: first.done ? null : first.value });
 }
 
 let initialized = false;
@@ -193,15 +191,24 @@ export async function initLiveSync() {
   // Subscribe to push events
   api.sync.onUpdate((payload: { spreadsheetId: string; title: string; modifiedTime: string; tabs: Record<string, string[][]> }) => {
     const snapshots = { ...state.snapshots, [payload.spreadsheetId]: { title: payload.title, modifiedTime: payload.modifiedTime, tabs: payload.tabs } };
-    setState({ snapshots, lastTickAt: Date.now(), hasLive: true, lastError: null });
+    setState({ snapshots, lastTickAt: Date.now(), hasLive: true });
+    setSheetError(payload.spreadsheetId, null);
     // Auto-map any unmapped tabs (non-destructive: only fills in absent kinds)
     void autoFillMappings(payload.spreadsheetId, Object.keys(payload.tabs));
   });
 
-  api.sync.onTick(() => setState({ lastTickAt: Date.now() }));
+  api.sync.onTick((payload: { spreadsheetId: string }) => {
+    setState({ lastTickAt: Date.now() });
+    if (payload?.spreadsheetId) setSheetError(payload.spreadsheetId, null);
+  });
 
   api.sync.onError((payload: { spreadsheetId: string; error: string }) => {
-    setState({ lastError: `${payload.spreadsheetId.slice(0, 8)}…: ${payload.error}` });
+    setSheetError(payload.spreadsheetId, `${payload.spreadsheetId.slice(0, 8)}…: ${payload.error}`);
+  });
+
+  // 메인 프로세스가 재시도에 성공하면 해당 시트 오류 표시를 즉시 내린다
+  api.sync.onRecovered?.((payload: { spreadsheetId: string }) => {
+    setSheetError(payload.spreadsheetId, null);
   });
 
   // Try to start syncing (will no-op if not authed yet)
@@ -372,7 +379,14 @@ export async function setMappings(m: SheetMappings) {
   await api.cfg.set('sheetMappings', m);
 }
 
-export async function refreshNow() {
+// 창 포커스마다 전 시트를 통째로 다시 읽으면 Sheets 할당량(분당 60건)을 금방 태운다.
+// 사용자가 [즉시 동기화]를 누른 경우(force)만 무조건 실행하고, 자동 호출은 60초로 제한한다.
+const REFRESH_MIN_GAP_MS = 60_000;
+let lastRefreshAllAt = 0;
+
+export async function refreshNow(force = false) {
+  if (!force && Date.now() - lastRefreshAllAt < REFRESH_MIN_GAP_MS) return;
+  lastRefreshAllAt = Date.now();
   if (IS_VIEWER) {
     // re-fetch snapshot
     initialized = false;
@@ -402,7 +416,8 @@ export async function refreshNow() {
       const r = await api.sync.fetchOnce(id);
       if (r.ok && r.data) {
         const snap: SheetSnapshot = { title: r.data.title, modifiedTime: r.data.modifiedTime, tabs: r.data.tabs };
-        setState({ snapshots: { ...state.snapshots, [id]: snap }, hasLive: true, lastTickAt: Date.now(), lastError: null });
+        setState({ snapshots: { ...state.snapshots, [id]: snap }, hasLive: true, lastTickAt: Date.now() });
+        setSheetError(id, null);
         anySuccess = true;
       } else if (!r.ok) {
         setState({ lastError: r.error || 'fetch failed' });

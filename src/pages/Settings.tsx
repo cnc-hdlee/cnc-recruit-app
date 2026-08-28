@@ -92,7 +92,7 @@ export function Settings() {
     if (!r.ok) return setError(`인증 실패: ${r.error}`);
     flash('Google 인증 완료 — 시트 동기화 시작');
     // 로그인 직후 sync 엔진을 깨워 박혀있는 기본 시트들 즉시 가져오기 시작
-    try { await refreshNow(); } catch { /* ignore */ }
+    try { await refreshNow(true); } catch { /* ignore */ }
     refresh();
   };
   const addSheet = async () => {
@@ -172,7 +172,7 @@ export function Settings() {
   const saveMappings = async () => {
     await setMappings(mappingsLocal);
     flash('매핑 저장 완료. 자동 동기화 시작.');
-    await refreshNow();
+    await refreshNow(true);
   };
 
   return (
@@ -235,7 +235,7 @@ export function Settings() {
             </h2>
             <div className="flex items-center gap-2">
               <SyncIndicator />
-              <button className="btn" onClick={() => refreshNow()}>🔄 즉시 새로고침</button>
+              <button className="btn" onClick={() => refreshNow(true)}>🔄 즉시 새로고침</button>
             </div>
           </div>
           <p className="text-xs text-slate-400 mb-3">

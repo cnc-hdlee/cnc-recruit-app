@@ -42,8 +42,21 @@ let webContents = null;
 let pollers = new Map(); // spreadsheetId -> { timer, lastModified, mappings }
 let foreground = true;
 
-const POLL_FOREGROUND_MS = 8000;
-const POLL_BACKGROUND_MS = 60000;
+// Google Sheets 읽기 할당량은 사용자당 분당 60건. 시트 3개를 8초마다 돌리면
+// (modifiedTime + 메타 + batchGet) × 3 이 분당 45~60건이라, 스케줄러 스크립트까지 겹치면
+// 429가 상시로 떨어졌다. 20초/120초로 낮추고 429는 backoff로 흡수한다. (2026-08)
+const POLL_FOREGROUND_MS = 20000;
+const POLL_BACKGROUND_MS = 120000;
+
+// 탭 목록은 거의 안 바뀌므로 10분 캐시 — 변경 감지될 때마다 spreadsheets.get 을 다시 치지 않는다.
+const TABS_CACHE_MS = 10 * 60 * 1000;
+
+// 재시도하면 풀리는 오류(할당량/일시 장애/네트워크)는 UI에 바로 띄우지 않는다.
+// 이게 8초마다 떴다 사라지며 "동기화 오류" 배지가 깜빡이던 원인.
+const RETRYABLE = /\b(429|500|502|503|504)\b|quota|rate ?limit|ratelimitexceeded|userratelimitexceeded|backenderror|ECONNRESET|ETIMEDOUT|ENOTFOUND|EAI_AGAIN|socket hang up|network/i;
+const MAX_BACKOFF_MS = 15 * 60 * 1000;
+// 일시 오류는 이 횟수만큼 연속 실패해야 배지를 띄운다 (진짜 장애는 여전히 보임)
+const ERROR_AFTER_FAILS = 4;
 
 function setWindow(wc) {
   webContents = wc;
@@ -90,11 +103,22 @@ async function getModifiedTime(auth, spreadsheetId) {
 
 async function fetchAllTabs(auth, spreadsheetId) {
   const sheets = google.sheets({ version: 'v4', auth });
-  const meta = await sheets.spreadsheets.get({
-    spreadsheetId,
-    fields: 'properties.title,sheets.properties',
-  });
-  const tabs = (meta.data.sheets || []).map((s) => s.properties.title);
+  const st = pollers.get(spreadsheetId);
+  let title;
+  let tabs;
+  // 탭 목록 캐시 — 매 변경마다 spreadsheets.get 을 치면 할당량이 두 배로 든다.
+  if (st && st.tabsCache && Date.now() - st.tabsCache.at < TABS_CACHE_MS) {
+    title = st.tabsCache.title;
+    tabs = st.tabsCache.tabs;
+  } else {
+    const meta = await sheets.spreadsheets.get({
+      spreadsheetId,
+      fields: 'properties.title,sheets.properties',
+    });
+    title = meta.data.properties.title;
+    tabs = (meta.data.sheets || []).map((s) => s.properties.title);
+    if (st) st.tabsCache = { at: Date.now(), title, tabs };
+  }
 
   const ranges = tabs.map((t) => `'${t.replace(/'/g, "''")}'`);
   const data = await sheets.spreadsheets.values.batchGet({
@@ -107,12 +131,14 @@ async function fetchAllTabs(auth, spreadsheetId) {
   (data.data.valueRanges || []).forEach((vr, i) => {
     result[tabs[i]] = vr.values || [];
   });
-  return { title: meta.data.properties.title, tabs: result };
+  return { title, tabs: result };
 }
 
 async function pollOnce(spreadsheetId) {
   const st = pollers.get(spreadsheetId);
   if (!st) return;
+  // 할당량 초과/일시 장애 후 backoff 구간 — 조용히 건너뛴다 (재시도 폭주가 429를 더 키움)
+  if (st.backoffUntil && Date.now() < st.backoffUntil) return;
   try {
     const auth = buildClient();
     const m = await getModifiedTime(auth, spreadsheetId);
@@ -130,8 +156,28 @@ async function pollOnce(spreadsheetId) {
     } else {
       emit('sync:tick', { spreadsheetId, modifiedTime: m.modifiedTime, changed: false });
     }
+    // 성공 — 실패 카운터/backoff 해제 + 렌더러의 이 시트 오류 표시 제거
+    if (st.failCount) {
+      st.failCount = 0;
+      st.backoffUntil = 0;
+      emit('sync:recovered', { spreadsheetId });
+    }
   } catch (e) {
-    emit('sync:error', { spreadsheetId, error: e.message || String(e) });
+    const msg = e.message || String(e);
+    const retryable = RETRYABLE.test(msg);
+    st.failCount = (st.failCount || 0) + 1;
+    if (retryable) {
+      // 지수 backoff: 30s → 1m → 2m → … 최대 15분
+      const wait = Math.min(30000 * Math.pow(2, st.failCount - 1), MAX_BACKOFF_MS);
+      st.backoffUntil = Date.now() + wait;
+    }
+    // 일시 오류는 연속 실패가 쌓였을 때만 배지를 띄운다 — 깜빡임 방지
+    if (!retryable || st.failCount >= ERROR_AFTER_FAILS) {
+      const friendly = /quota|rate ?limit|\b429\b/i.test(msg)
+        ? 'Google API 호출 한도 초과 — 자동으로 잠시 후 다시 시도합니다'
+        : msg;
+      emit('sync:error', { spreadsheetId, error: friendly, retryable });
+    }
   }
 }
 
@@ -144,7 +190,7 @@ function schedule(spreadsheetId, st) {
 async function start(spreadsheetId) {
   if (!spreadsheetId) return;
   if (pollers.has(spreadsheetId)) return;
-  const st = { timer: null, lastModified: null, cache: null };
+  const st = { timer: null, lastModified: null, cache: null, tabsCache: null, failCount: 0, backoffUntil: 0 };
   pollers.set(spreadsheetId, st);
   await pollOnce(spreadsheetId);
   schedule(spreadsheetId, st);

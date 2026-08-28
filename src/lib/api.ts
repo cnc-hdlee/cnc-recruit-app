@@ -283,6 +283,7 @@ interface ElectronAPI {
     onUpdate(cb: (p: SyncPayload) => void): () => void;
     onTick(cb: (p: SyncTick) => void): () => void;
     onError(cb: (p: SyncError) => void): () => void;
+    onRecovered(cb: (p: { spreadsheetId: string }) => void): () => void;
   };
 }
 

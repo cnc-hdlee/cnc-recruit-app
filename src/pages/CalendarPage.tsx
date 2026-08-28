@@ -904,7 +904,7 @@ export function CalendarPage() {
     // 캘린더 + 모든 시트 + 보낸함 이력서 인덱스 + 회의실 booking 강제 fetch.
     await Promise.all([
       refreshCalendarFromGoogle(),
-      refreshNow(),
+      refreshNow(true),
       refreshResumeShareIndex(),
       refreshRoomBookings(),
     ]);

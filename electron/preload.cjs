@@ -88,5 +88,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
     onUpdate: (cb) => subscribe('sync:update', cb),
     onTick: (cb) => subscribe('sync:tick', cb),
     onError: (cb) => subscribe('sync:error', cb),
+    onRecovered: (cb) => subscribe('sync:recovered', cb),
   },
 });
