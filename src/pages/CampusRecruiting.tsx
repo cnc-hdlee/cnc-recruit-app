@@ -39,14 +39,17 @@ interface CampusGroup {
   attendees: string[];
 }
 
-/** 제목/설명에서 학교명 추출 — "캠퍼스리쿠르팅(경희대학교)" → 경희대학교 */
+/**
+ * 제목/설명에서 학교명 추출 — "캠퍼스리쿠르팅(경희대학교)" → 경희대학교.
+ * 못 뽑으면 빈 문자열. ('학교 미기재' 같은 가짜 버킷을 만들지 않는다 — 이벤트 제목을 그대로 쓴다)
+ */
 function pickSchool(text: string): string {
   const t = (text || '').replace(/\s+/g, ' ');
   const full = t.match(/([가-힣A-Za-z]{2,12}(?:대학교|여자대학교|대학))/);
   if (full) return full[1];
   const short = t.match(/([가-힣]{2,6})대(?![학가-힣])/);
   if (short) return `${short[1]}대`;
-  return '학교 미기재';
+  return '';
 }
 
 function diffDays(a: string, b: string): number {
@@ -78,7 +81,8 @@ export function CampusRecruiting() {
         dt: e.dt,
         tm: e.tm,
         title: e.title,
-        school: pickSchool(`${e.title} ${e.raw.description || ''}`),
+        // 학교명을 못 뽑으면 이벤트 제목을 그대로 라벨로 쓴다
+        school: pickSchool(`${e.title} ${e.raw.description || ''}`) || e.title,
         location: e.location || '',
         description: (e.raw.description || '').replace(/<[^>]+>/g, ' ').slice(0, 300),
         attendees: e.attendees,
@@ -126,6 +130,24 @@ export function CampusRecruiting() {
         return hay.includes(q);
       });
   }, [groups, showPast, schoolFilter, today, query]);
+
+  // 타임라인은 월 단위로 끊어서 보여준다
+  const monthBlocks = useMemo(() => {
+    const map = new Map<string, CampusGroup[]>();
+    for (const g of visible) {
+      const m = g.dt.slice(0, 7);
+      const arr = map.get(m);
+      if (arr) arr.push(g);
+      else map.set(m, [g]);
+    }
+    return [...map.entries()]
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .map(([month, items]) => ({
+        month,
+        label: `${Number(month.slice(0, 4))}년 ${Number(month.slice(5, 7))}월`,
+        items,
+      }));
+  }, [visible]);
 
   const upcomingCount = groups.filter((g) => g.dt >= today).length;
   const nextGroup = groups.find((g) => g.dt >= today) || null;
@@ -183,67 +205,9 @@ export function CampusRecruiting() {
         </div>
       </div>
 
-      {/* 일정 목록 */}
-      <div className="card p-3">
-        <div className="space-y-2 max-h-[620px] overflow-y-auto pr-1">
-          {visible.map((g) => {
-            const dd = diffDays(g.dt, today);
-            const past = dd < 0;
-            return (
-              <div
-                key={g.key}
-                className={`border rounded-lg p-3 ${past ? 'border-slate-200 bg-slate-50' : 'border-slate-300 bg-white'}`}
-              >
-                <div className="flex flex-wrap items-baseline gap-2">
-                  <span className="text-base font-black text-slate-900">{g.school}</span>
-                  <span className="text-sm font-bold text-slate-900">
-                    {g.dt.replace(/-/g, '.')}({dowLabel(g.dt)}) {g.timeLabel}
-                  </span>
-                  {!past && (
-                    <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-indigo-100 text-indigo-900 border border-indigo-200">
-                      {dd === 0 ? 'D-Day' : `D-${dd}`}
-                    </span>
-                  )}
-                  {past && (
-                    <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-slate-200 text-slate-900">완료</span>
-                  )}
-                  {g.vehicles.length > 0 && (
-                    <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-900 border border-emerald-200">
-                      🚗 차량 {g.vehicles.join(', ')}
-                    </span>
-                  )}
-                </div>
-
-                {g.places.length > 0 && (
-                  <div className="text-sm text-slate-900 mt-1">📍 {g.places.join(' / ')}</div>
-                )}
-                {g.attendees.length > 0 && (
-                  <div className="text-sm text-slate-900 mt-1">
-                    👥 {g.attendees.map((a) => a.split('@')[0]).join(', ')}
-                  </div>
-                )}
-
-                <div className="mt-2 space-y-1">
-                  {g.events.map((e) => (
-                    <div key={e.id} className="flex items-center gap-2 text-sm text-slate-900">
-                      <span className="font-mono text-xs w-12 shrink-0">{e.tm}</span>
-                      <span className="truncate">{e.title}</span>
-                      {e.htmlLink && (
-                        <a
-                          href={e.htmlLink}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="ml-auto text-xs font-bold text-indigo-700 hover:underline shrink-0"
-                        >
-                          캘린더 ↗
-                        </a>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            );
-          })}
+      {/* 타임라인 */}
+      <div className="card p-4">
+        <div className="max-h-[640px] overflow-y-auto pr-1">
           {visible.length === 0 && (
             <div className="text-center py-10 text-sm text-slate-900">
               {groups.length === 0
@@ -251,6 +215,104 @@ export function CampusRecruiting() {
                 : '조건에 맞는 일정이 없습니다.'}
             </div>
           )}
+
+          {monthBlocks.map((block) => (
+            <div key={block.month} className="mb-5 last:mb-0">
+              {/* 월 헤더 */}
+              <div className="flex items-baseline gap-2 mb-2">
+                <span className="text-lg font-black text-slate-900">{block.label}</span>
+                <span className="text-sm font-bold text-slate-900">{block.items.length}건</span>
+              </div>
+
+              {/* 세로 레일 + 노드 */}
+              <div className="relative pl-[86px]">
+                <div className="absolute left-[68px] top-1 bottom-1 w-px bg-slate-300" />
+
+                {block.items.map((g) => {
+                  const dd = diffDays(g.dt, today);
+                  const past = dd < 0;
+                  const isNext = nextGroup?.key === g.key;
+                  return (
+                    <div key={g.key} className="relative mb-3 last:mb-0">
+                      {/* 날짜 라벨 (레일 왼쪽) */}
+                      <div className="absolute -left-[86px] top-2 w-[56px] text-right">
+                        <div className={`text-lg font-black leading-none ${past ? 'text-slate-500' : 'text-slate-900'}`}>
+                          {Number(g.dt.slice(8, 10))}
+                        </div>
+                        <div className={`text-[11px] font-bold ${past ? 'text-slate-500' : 'text-slate-900'}`}>
+                          {dowLabel(g.dt)}요일
+                        </div>
+                      </div>
+
+                      {/* 노드 점 */}
+                      <span
+                        className={`absolute -left-[24px] top-3 w-3 h-3 rounded-full border-2 border-white ring-2 ${
+                          past ? 'bg-slate-300 ring-slate-300' : isNext ? 'bg-indigo-600 ring-indigo-300' : 'bg-slate-900 ring-slate-400'
+                        }`}
+                      />
+
+                      {/* 카드 */}
+                      <div
+                        className={`rounded-xl border p-3 ${
+                          past
+                            ? 'border-slate-200 bg-slate-50'
+                            : isNext
+                              ? 'border-indigo-300 bg-indigo-50/60 shadow-sm'
+                              : 'border-slate-300 bg-white'
+                        }`}
+                      >
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="text-base font-black text-slate-900">{g.school}</span>
+                          <span className="text-sm font-bold text-slate-900">{g.timeLabel}</span>
+                          {!past && (
+                            <span className="px-2 py-0.5 rounded-full text-xs font-black bg-indigo-600 text-white">
+                              {dd === 0 ? 'D-DAY' : `D-${dd}`}
+                            </span>
+                          )}
+                          {past && (
+                            <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-slate-200 text-slate-900">완료</span>
+                          )}
+                          {g.vehicles.length > 0 && (
+                            <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-900 border border-emerald-200">
+                              🚗 {g.vehicles.join(', ')}
+                            </span>
+                          )}
+                        </div>
+
+                        {(g.places.length > 0 || g.attendees.length > 0) && (
+                          <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1 text-sm text-slate-900">
+                            {g.places.length > 0 && <span>📍 {g.places.join(' / ')}</span>}
+                            {g.attendees.length > 0 && (
+                              <span>👥 {g.attendees.map((a) => a.split('@')[0]).join(', ')}</span>
+                            )}
+                          </div>
+                        )}
+
+                        <div className="mt-2 pt-2 border-t border-slate-200 space-y-1">
+                          {g.events.map((e) => (
+                            <div key={e.id} className="flex items-center gap-2 text-sm text-slate-900">
+                              <span className="font-mono text-xs w-11 shrink-0 font-bold">{e.tm}</span>
+                              <span className="truncate">{e.title}</span>
+                              {e.htmlLink && (
+                                <a
+                                  href={e.htmlLink}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="ml-auto text-xs font-bold text-indigo-700 hover:underline shrink-0"
+                                >
+                                  캘린더 ↗
+                                </a>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
         </div>
       </div>
     </div>
