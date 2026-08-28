@@ -13,6 +13,8 @@ export interface MailSite {
   address: string;
   /** 주소 뒤에 붙는 안내 문구 ({{장소안내}}) — 줄바꿈 포함 가능 */
   guide: string;
+  /** 캘린더 제목/장소에서 이 사업장을 알아보는 별칭 (면접 캘린더는 '퍼플/그린/수원'으로 적힘) */
+  aliases?: string[];
 }
 
 export interface MailHq {
@@ -26,19 +28,28 @@ const SITE_KEY = 'mailSites';
 const HQ_KEY = 'mailHqs';
 const HQ_OVERRIDE_KEY = 'mailHqOverrides'; // 후보자 이름 → 본부 id 수동 지정
 
+// 주소는 형도님 메일 서명 기준 (2026-08 확인).
 export const DEFAULT_SITES: MailSite[] = [
   {
     id: 'purple',
     label: '퍼플카운티',
-    address: '(주)씨앤씨인터내셔널 퍼플카운티 (경기도 화성시 삼성1로5길 39)',
+    address: '(주)씨앤씨인터내셔널 퍼플카운티 (경기도 화성시 삼성1로 5길 39, 우편번호 18449)',
     guide: '\n도착하시어 경비실에서 대기해주시면 안내 도와드리겠습니다.',
+    aliases: ['퍼플', '퍼플카운티', '동탄', '화성'],
   },
   {
     id: 'yongin',
-    label: '용인',
-    // 주소는 형도님이 [⚙ 사업장 설정]에서 한 번 입력하면 이후 자동으로 채워짐.
-    address: '',
-    guide: '',
+    label: '그린카운티(용인)',
+    address: '(주)씨앤씨인터내셔널 그린카운티 (경기도 용인시 처인구 이동읍 덕성산단1로28번길 12-1, 우편번호 17130)',
+    guide: '\n도착하시어 경비실에서 대기해주시면 안내 도와드리겠습니다.',
+    aliases: ['그린', '그린카운티', '용인'],
+  },
+  {
+    id: 'suwon',
+    label: 'R&I센터(수원)',
+    address: '(주)씨앤씨인터내셔널 R&I센터 (경기도 수원시 영통구 신원로 198번길 15-13, 우편번호 16676)',
+    guide: '\n도착하시어 경비실에서 대기해주시면 안내 도와드리겠습니다.',
+    aliases: ['수원', 'R&I', 'RI센터', '영통'],
   },
 ];
 
@@ -74,9 +85,13 @@ export async function loadSites(): Promise<MailSite[]> {
     const r = await api.cfg.get<MailSite[]>(SITE_KEY);
     const saved = r.ok && Array.isArray(r.data) ? r.data : [];
     if (saved.length === 0) return DEFAULT_SITES;
-    // 기본 사업장은 항상 남기고, 저장본이 있으면 그 값으로 덮어씀
+    // 기본 사업장은 항상 남기고, 저장본이 있으면 그 값으로 덮어씀.
+    // aliases는 UI에서 편집하지 않으므로 저장본에 없으면 기본값을 유지한다(사업장 인식 깨짐 방지).
     const byId = new Map(saved.map((s) => [s.id, s]));
-    const merged = DEFAULT_SITES.map((d) => byId.get(d.id) || d);
+    const merged = DEFAULT_SITES.map((d) => {
+      const s = byId.get(d.id);
+      return s ? { ...d, ...s, aliases: s.aliases && s.aliases.length > 0 ? s.aliases : d.aliases } : d;
+    });
     for (const s of saved) if (!merged.find((m) => m.id === s.id)) merged.push(s);
     return merged;
   } catch {
@@ -142,13 +157,15 @@ export function inferHq(text: string, hqs: MailHq[]): string {
   return HQ_UNSET.id;
 }
 
-/** 캘린더 제목/장소에서 사업장 id 추론 (퍼플 → purple, 용인 → yongin) */
+/** 캘린더 제목/장소에서 사업장 id 추론 (퍼플 → purple, 그린/용인 → yongin, 수원 → suwon) */
 export function inferSite(text: string, sites: MailSite[]): string | null {
-  const t = (text || '').replace(/\s+/g, '');
+  const t = (text || '').replace(/\s+/g, '').toUpperCase();
   if (!t) return null;
   for (const s of sites) {
-    // 라벨 전체("퍼플카운티") 또는 앞 두 글자("퍼플")로 매칭
-    if (t.includes(s.label) || (s.label.length >= 2 && t.includes(s.label.slice(0, 2)))) return s.id;
+    const keys = s.aliases && s.aliases.length > 0 ? s.aliases : [s.label];
+    for (const k of keys) {
+      if (k && t.includes(k.replace(/\s+/g, '').toUpperCase())) return s.id;
+    }
   }
   return null;
 }

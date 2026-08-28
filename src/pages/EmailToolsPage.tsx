@@ -191,6 +191,7 @@ export function EmailToolsPage() {
       면접일시: c.when,
       면접장소: address,
       입사장소: address,
+      근무지: site?.label || '',
       장소안내: site?.guide || '',
       사전질문지URL: 'https://forms.gle/Kss5nvQf78QNmWMa8',
       지원직무: c.team || '지원',
