@@ -34,6 +34,7 @@ const NAV: NavItem[] = [
   },
   { id: 'rooms', icon: '🚪', label: '회의실 예약' },
   { id: 'jobcenters', icon: '🏢', label: '일자리센터' },
+  { id: 'campus', icon: '🎓', label: '캠퍼스 리쿠르팅' },
   { id: 'lookup', icon: '🔍', label: '후보자 검색' },
   { id: 'comms', icon: '📨', label: '후보자 안내 메일' },
   { id: 'education', icon: '📚', label: '채용 교육 / 세미나' },

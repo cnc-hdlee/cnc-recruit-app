@@ -18,6 +18,7 @@ import { InterviewInsights } from './pages/InterviewInsights';
 import { RecruitFunnel } from './pages/RecruitFunnel';
 import { MeetingRooms } from './pages/MeetingRooms';
 import { JobCenters } from './pages/JobCenters';
+import { CampusRecruiting } from './pages/CampusRecruiting';
 import { CandidateLookup } from './pages/CandidateLookup';
 import { EmailToolsPage } from './pages/EmailToolsPage';
 import { EducationPage } from './pages/EducationPage';
@@ -34,6 +35,7 @@ const PAGE_TITLES: Record<PageId, string> = {
   funnel: '채용 Funnel (전형별 진행)',
   rooms: '회의실 예약',
   jobcenters: '일자리센터',
+  campus: '캠퍼스 리쿠르팅',
   lookup: '후보자 검색',
   comms: '후보자 안내 메일',
   education: '채용 교육 / 세미나',
@@ -103,6 +105,7 @@ export default function App() {
           {page === 'funnel' && <RecruitFunnel />}
           {page === 'rooms' && <MeetingRooms />}
           {page === 'jobcenters' && <JobCenters />}
+          {page === 'campus' && <CampusRecruiting />}
           {page === 'lookup' && <CandidateLookup />}
           {page === 'comms' && <EmailToolsPage />}
           {page === 'education' && <EducationPage />}
