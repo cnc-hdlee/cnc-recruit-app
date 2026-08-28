@@ -12,6 +12,9 @@ import { getTodayStr } from '../store';
 const CAMPUS_RE = /캠퍼스\s*리[쿠크]르?팅|캠퍼스\s*리크루팅|campus\s*recruit(ing)?|캠리|채용\s*설명회|캠퍼스\s*채용|학교\s*설명회/i;
 // 일자리센터/박람회는 '일자리센터' 페이지 소관 — 중복 표시 방지
 const EXCLUDE_RE = /일자리센터|일자리\s*플러스|박람회/i;
+// 준비 업무(캠리 디자인 / 배너 2개 준비 / 타임라인 제작 …)는 학교 방문 일정이 아니다.
+// 제목에 '캠리'가 들어갔다는 이유만으로 학교 카드가 뜨던 문제 차단. (2026-08)
+const TASK_RE = /(디자인|제작|준비|인쇄|발주|시안|초안|샘플|굿즈|기념품|정리|업데이트|발송|확인|검토|점검|기안|품의|계획|보고|회의|미팅|리뷰|촬영|섭외|신청|접수|마감|제출|백월|배너|팜플렛|소책자|현수막)/;
 
 const DOW = ['일', '월', '화', '수', '목', '금', '토'];
 
@@ -76,13 +79,16 @@ export function CampusRecruiting() {
       const haystack = `${e.title} ${e.location} ${e.raw.description || ''}`;
       if (!CAMPUS_RE.test(haystack)) continue;
       if (EXCLUDE_RE.test(haystack)) continue;
+      if (TASK_RE.test(e.title)) continue; // 준비/제작 업무는 학교 일정이 아님
+      // 학교명이 실제로 잡히는 일정만 남긴다 — 대학교 이름이 없으면 캠리 일정이 아님
+      const school = pickSchool(`${e.title} ${e.raw.description || ''}`);
+      if (!school) continue;
       out.push({
         id: e.id,
         dt: e.dt,
         tm: e.tm,
         title: e.title,
-        // 학교명을 못 뽑으면 이벤트 제목을 그대로 라벨로 쓴다
-        school: pickSchool(`${e.title} ${e.raw.description || ''}`) || e.title,
+        school,
         location: e.location || '',
         description: (e.raw.description || '').replace(/<[^>]+>/g, ' ').slice(0, 300),
         attendees: e.attendees,
