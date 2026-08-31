@@ -1334,6 +1334,25 @@ function NewBookingModal({
             )}
           </label>
 
+          {/* 그린카운티 면접은 이민영 님이 필수 — 자동 추가를 끄거나 칩에서 빼면 되돌리라고 알린다 */}
+          {resolved.siteEmails.length > 0 &&
+            resolved.siteEmails.some((em) => !finalAttendees.includes(em)) && (
+              <div className="mt-1.5 px-2 py-1 rounded bg-rose-100 border border-rose-300 text-[11px] font-bold text-slate-900 flex items-center gap-2">
+                <span>
+                  ⚠ {resolved.site}카운티 면접은 {resolved.siteEmails.map(personLabel).join(', ')} 참석이 필수입니다.
+                </span>
+                <button
+                  onClick={() => {
+                    setRemovedAttendees((p) => p.filter((x) => !resolved.siteEmails.includes(x)));
+                    setExtraAttendees((p) => [...new Set([...p, ...resolved.siteEmails])]);
+                  }}
+                  className="ml-auto px-2 py-0.5 rounded bg-white border border-rose-300 text-[11px] font-bold text-slate-900"
+                >
+                  다시 넣기
+                </button>
+              </div>
+            )}
+
           {resolved.siteMismatch && (
             <div className="mt-1.5 px-2 py-1 rounded bg-amber-100 border border-amber-300 text-[11px] font-bold text-slate-900">
               ⚠ {parsedTitle?.deptDisplay}은 {resolved.site}카운티 팀인데 {bookingSite} 회의실을 잡으셨습니다.
