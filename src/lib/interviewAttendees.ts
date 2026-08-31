@@ -46,6 +46,58 @@ export const DEFAULT_TEAM_ATTENDEES: Record<string, string[]> = {
   // 기본값으로 넣지 않고, 필요할 때 예약 화면에서 직접 추가하도록 비워둔다.
 };
 
+/**
+ * 계정 → 실명/소속. 화면에 ywkim 대신 "김영욱 팀장(전략구매팀)"으로 보이게 하기 위한 표.
+ * Slack 프로필에서 확인한 값이며, 없는 사람은 계정 아이디 그대로 표시된다.
+ */
+export const PEOPLE: Record<string, { name: string; title?: string; team?: string }> = {
+  // TA팀
+  shim: { name: '임세현', team: 'TA팀' },
+  bjkim4: { name: '김범준', title: '팀장', team: 'TA팀' },
+  hglim: { name: '임한결', team: 'TA팀' },
+  hdlee: { name: '이형도', team: 'TA팀' },
+  // People Ops
+  mylee: { name: '이민영', team: 'People Ops팀' },
+  // 현업
+  ywkim: { name: '김영욱', title: '팀장', team: '전략구매팀' },
+  jhlee3: { name: '이준희', title: '차장', team: '전략구매팀' },
+  suhwang: { name: '황선욱', title: '팀장', team: '영업관리팀' },
+  jwlee: { name: '이재욱', title: '대리', team: '제조1팀' },
+  yghan: { name: '한윤구', title: '팀장', team: '제조1팀' },
+  jemoon: { name: '문지은', title: '팀장', team: '품질보증팀' },
+  khjung: { name: '정기현', title: '팀장', team: '품질관리1팀' },
+  jekim1: { name: '김지은', title: '차장', team: '품질관리1팀' },
+  mhlee: { name: '이민호', title: '팀장', team: '품질관리2팀' },
+  kyhwang: { name: '황기연', title: '팀장', team: '시설안전팀' },
+  hskim3: { name: '김현수', title: '팀장', team: '공정혁신팀' },
+  yecho: { name: '조예은', title: '행정서무', team: '포장2팀' },
+  hnkang: { name: '강하나', title: '사원', team: '생산2팀' },
+  hscho: { name: '조현성', title: '공장장', team: '생산2부' },
+  kyhkim: { name: '김경한', title: '팀장', team: '생산2팀' },
+  oskim: { name: '김옥상', title: '팀장', team: '생산1팀' },
+  sykim4: { name: '김소영', title: '사원', team: '생산1팀' },
+  kmkim: { name: '김광민', title: '팀장', team: '품질연구팀' },
+  sclee: { name: '이상철', title: '팀장', team: '자재물류1팀' },
+  oshan: { name: '한옥성', title: '부문장', team: '생산운영부문' },
+};
+
+/** "김영욱 팀장" 처럼 사람이 읽는 이름. 모르는 계정은 아이디 그대로. */
+export function personLabel(email: string): string {
+  const id = (email || '').split('@')[0];
+  const p = PEOPLE[id];
+  if (!p) return id;
+  return p.title ? `${p.name} ${p.title}` : p.name;
+}
+
+/** 이름 + 소속까지 (툴팁·설정 화면용) */
+export function personFull(email: string): string {
+  const id = (email || '').split('@')[0];
+  const p = PEOPLE[id];
+  if (!p) return id;
+  const t = p.title ? ` ${p.title}` : '';
+  return p.team ? `${p.name}${t} · ${p.team}` : `${p.name}${t}`;
+}
+
 function normalizeMap(raw: Record<string, string[]>): Record<string, string[]> {
   const out: Record<string, string[]> = {};
   for (const [team, list] of Object.entries(raw)) {

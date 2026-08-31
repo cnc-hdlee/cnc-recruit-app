@@ -14,6 +14,8 @@ import {
   loadTeamAttendees,
   loadTaAttendees,
   resolveAttendees,
+  personLabel,
+  personFull,
 } from '../lib/interviewAttendees';
 import { refreshCalendarFromGoogle } from '../store/liveData';
 
@@ -1330,7 +1332,7 @@ function NewBookingModal({
                   key={em}
                   className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-white border border-sky-300 text-[11px] font-semibold text-slate-900"
                 >
-                  {em.split('@')[0]}
+                  <span title={personFull(em)}>{personLabel(em)}</span>
                   <button
                     onClick={() => setRemovedAttendees((p) => [...p, em])}
                     className="text-slate-700 hover:text-red-600 font-bold"
