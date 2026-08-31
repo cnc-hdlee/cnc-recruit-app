@@ -1327,12 +1327,19 @@ function NewBookingModal({
               )
             ) : resolved.siteEmails.length > 0 ? (
               <span className="ml-auto text-[10px] font-bold text-emerald-700">
-                {bookingSite}카운티 고정 참석자 포함
+                {resolved.site} 고정 참석자 포함
               </span>
             ) : (
               <span className="ml-auto text-[10px] text-slate-700">제목을 "○○팀 면접 - 이름" 형태로</span>
             )}
           </label>
+
+          {resolved.siteMismatch && (
+            <div className="mt-1.5 px-2 py-1 rounded bg-amber-100 border border-amber-300 text-[11px] font-bold text-slate-900">
+              ⚠ {parsedTitle?.deptDisplay}은 {resolved.site}카운티 팀인데 {bookingSite} 회의실을 잡으셨습니다.
+              참석자는 {resolved.site} 기준으로 넣었습니다.
+            </div>
+          )}
 
           {finalAttendees.length > 0 && (
             <div className="flex flex-wrap gap-1 mt-2">

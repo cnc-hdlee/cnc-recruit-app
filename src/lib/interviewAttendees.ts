@@ -56,6 +56,27 @@ export const SITE_ATTENDEES: Record<string, string[]> = {
 };
 
 /**
+ * 팀의 소속 사업장. 회의실을 어디로 잡든 팀이 정해지면 사업장도 정해진다.
+ *
+ * 규칙: "○○2팀"은 전부 그린카운티(용인), "○○1팀"은 퍼플카운티.
+ * 면접 이력과도 일치한다 — 포장2팀 그린 5/5, 생산2팀 3/3, 제조2팀 2/2,
+ * 생산1팀 퍼플 6/6, 제조1팀 6/6, 품질관리1팀 8/8, 자재물류1팀 3/3.
+ */
+const TEAM_SITE_FIXED: Record<string, string> = {
+  품질연구팀: '그린',
+  // 생산운영팀은 그린(생산직 대량)·퍼플이 섞여 있어 고정하지 않고 회의실 기준으로 둔다.
+};
+
+export function teamHomeSite(teamRaw: string): string {
+  const t = (teamRaw || '').replace(/[(（][^)）]*[)）]/g, '').replace(/\s+/g, '').trim();
+  if (!t) return '';
+  if (TEAM_SITE_FIXED[t]) return TEAM_SITE_FIXED[t];
+  if (/2팀$/.test(t)) return '그린';
+  if (/1팀$/.test(t)) return '퍼플';
+  return '';
+}
+
+/**
  * 계정 → 실명/소속. 화면에 ywkim 대신 "김영욱 팀장(전략구매팀)"으로 보이게 하기 위한 표.
  * Slack 프로필에서 확인한 값이며, 없는 사람은 계정 아이디 그대로 표시된다.
  */
@@ -185,10 +206,22 @@ export function resolveAttendees(
   teamRaw: string,
   teamMap: Record<string, string[]>,
   taList: string[],
-  siteRaw = ''
-): { emails: string[]; teamFound: boolean; siteEmails: string[] } {
+  roomSiteRaw = ''
+): {
+  emails: string[];
+  teamFound: boolean;
+  siteEmails: string[];
+  /** 참석자 계산에 실제로 쓴 사업장 */
+  site: string;
+  /** 팀 소속 사업장과 잡은 회의실 사업장이 다를 때 (오예약 신호) */
+  siteMismatch: boolean;
+} {
   const team = lookupTeam(teamRaw, teamMap);
-  const siteEmails = lookupSite(siteRaw);
+  // 팀이 사업장을 결정한다. 팀으로 못 정하면 잡은 회의실의 사업장을 쓴다.
+  const home = teamHomeSite(teamRaw);
+  const site = home || roomSiteRaw;
+  const siteEmails = lookupSite(site);
   const emails = [...new Set([...taList, ...team, ...siteEmails])].filter(Boolean);
-  return { emails, teamFound: team.length > 0, siteEmails };
+  const siteMismatch = !!home && !!roomSiteRaw && !roomSiteRaw.includes(home);
+  return { emails, teamFound: team.length > 0, siteEmails, site, siteMismatch };
 }
