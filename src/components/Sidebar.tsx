@@ -19,7 +19,6 @@ interface SubNavItem {
 }
 
 const NAV: NavItem[] = [
-  { id: 'dashboard', icon: '🏠', label: '대시보드' },
   { id: 'headcount', icon: '👥', label: '인원현황' },
   { id: 'incoming', icon: '🎉', label: '입사예정자', badgeKey: 'incoming' },
   {

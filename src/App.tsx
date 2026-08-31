@@ -10,7 +10,6 @@ import { useHireCalendarSync } from './lib/useHireCalendarSync';
 import { Sidebar } from './components/Sidebar';
 import { TopBar } from './components/TopBar';
 import { InstallPrompt } from './components/InstallPrompt';
-import { Dashboard } from './pages/Dashboard';
 import { Headcount } from './pages/Headcount';
 import { IncomingHires } from './pages/IncomingHires';
 import { CalendarPage } from './pages/CalendarPage';
@@ -27,7 +26,6 @@ import { Usage } from './pages/Usage';
 import type { PageId } from './types';
 
 const PAGE_TITLES: Record<PageId, string> = {
-  dashboard: '대시보드',
   headcount: '인원현황',
   incoming: '입사예정자',
   calendar: '면접 캘린더',
@@ -46,7 +44,7 @@ const PAGE_TITLES: Record<PageId, string> = {
 };
 
 export default function App() {
-  const [page, setPage] = useState<PageId>('dashboard');
+  const [page, setPage] = useState<PageId>('headcount');
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   // 입사자 관리 시트 자동 동기화 — 어느 페이지에 있든 입사예정(정규직)DB 변경 시 자동 반영.
@@ -99,7 +97,6 @@ export default function App() {
       <div className="flex-1 flex flex-col min-w-0">
         <TopBar title={PAGE_TITLES[page]} onMenuClick={() => setSidebarOpen(true)} />
         <main className="flex-1 overflow-y-auto overflow-x-auto p-3 sm:p-4 md:p-6 animate-fade-in">
-          {page === 'dashboard' && <Dashboard onNavigate={setPage} />}
           {page === 'headcount' && <Headcount />}
           {page === 'incoming' && <IncomingHires />}
           {page === 'calendar' && <CalendarPage />}
