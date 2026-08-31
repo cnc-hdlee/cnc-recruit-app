@@ -21,7 +21,7 @@ import { JobCenters } from './pages/JobCenters';
 import { CampusRecruiting } from './pages/CampusRecruiting';
 import { CandidateLookup } from './pages/CandidateLookup';
 import { EmailToolsPage } from './pages/EmailToolsPage';
-import { EducationPage } from './pages/EducationPage';
+import { CompetitorOrgPage, CompetitorsOverview } from './pages/Competitors';
 import { Settings } from './pages/Settings';
 import { Usage } from './pages/Usage';
 import type { PageId } from './types';
@@ -38,7 +38,9 @@ const PAGE_TITLES: Record<PageId, string> = {
   campus: '캠퍼스 리쿠르팅',
   lookup: '후보자 검색',
   comms: '후보자 안내 메일',
-  education: '채용 교육 / 세미나',
+  competitors: '경쟁사 조직도',
+  comp_kolmar: '경쟁사 — 한국콜마',
+  comp_cosmax: '경쟁사 — 코스맥스',
   settings: '설정 / 연동',
   usage: '사용법 (필독)',
 };
@@ -108,7 +110,9 @@ export default function App() {
           {page === 'campus' && <CampusRecruiting />}
           {page === 'lookup' && <CandidateLookup />}
           {page === 'comms' && <EmailToolsPage />}
-          {page === 'education' && <EducationPage />}
+          {page === 'competitors' && <CompetitorsOverview onOpen={(id) => setPage(id === 'kolmar' ? 'comp_kolmar' : 'comp_cosmax')} />}
+          {page === 'comp_kolmar' && <CompetitorOrgPage companyId="kolmar" />}
+          {page === 'comp_cosmax' && <CompetitorOrgPage companyId="cosmax" />}
           {page === 'settings' && <Settings />}
           {page === 'usage' && <Usage />}
         </main>

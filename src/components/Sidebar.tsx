@@ -37,7 +37,15 @@ const NAV: NavItem[] = [
   { id: 'campus', icon: '🎓', label: '캠퍼스 리쿠르팅' },
   { id: 'lookup', icon: '🔍', label: '후보자 검색' },
   { id: 'comms', icon: '📨', label: '후보자 안내 메일' },
-  { id: 'education', icon: '📚', label: '채용 교육 / 세미나' },
+  {
+    id: 'competitors',
+    icon: '🏭',
+    label: '경쟁사',
+    subItems: [
+      { id: 'comp_kolmar', icon: '🅚', label: '한국콜마' },
+      { id: 'comp_cosmax', icon: '🅒', label: '코스맥스' },
+    ],
+  },
   { id: 'settings', icon: '⚙️', label: '설정 / 연동' },
   { id: 'usage', icon: '📖', label: '사용법 (필독)' },
 ];
