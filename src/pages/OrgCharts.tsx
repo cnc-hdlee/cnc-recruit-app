@@ -68,28 +68,12 @@ function ChartView({ chart }: { chart: DeptChart }) {
         />
       </div>
 
-      {/* 조직 트리 — 원본 조직도처럼 팀장에서 파트로 갈라져 내려간다 */}
-      <div className="card p-4 overflow-x-auto">
+      {/* 조직 트리 — 원본 조직도와 같은 위→아래 구조 */}
+      <div className="card p-5 overflow-x-auto">
         {groups.length === 0 ? (
           <div className="py-8 text-center text-sm text-slate-900">검색 결과가 없습니다.</div>
         ) : (
-          <div className="min-w-[560px]">
-            {/* 루트 */}
-            <div className="flex justify-center">
-              <div className="px-4 py-2 rounded-lg bg-slate-900 text-white text-center">
-                <div className="text-sm font-black">{chart.dept}</div>
-                {chart.lead && <div className="text-xs">{chart.lead}</div>}
-              </div>
-            </div>
-            {/* 루트 → 가지 */}
-            <div className="h-5 w-px bg-slate-400 mx-auto" />
-
-            <div className="space-y-0">
-              {groups.map((g, i) => (
-                <TreeBranch key={g.name} group={g} last={i === groups.length - 1} />
-              ))}
-            </div>
-          </div>
+          <OrgTree chart={chart} groups={groups} />
         )}
       </div>
 
@@ -143,81 +127,150 @@ function ChartView({ chart }: { chart: DeptChart }) {
   );
 }
 
-/**
- * 트리 한 가지 — 왼쪽 세로줄에서 파트 상자가 뻗어 나오고,
- * 그 아래로 담당자가 한 명씩 달린다. 원본 조직도의 읽는 순서를 그대로 따른다.
- */
-function TreeBranch({ group, last }: { group: ChartGroup; last: boolean }) {
-  const vacant = group.members.filter((m) => m.vacant || !m.person).length;
+// ─────────────────────────────────────────────────────────────
+// 조직 트리 — 원본 조직도와 같은 위→아래 구조
+//
+//              [ 부서 · 팀장 ]
+//        ┌──────────┼──────────┐
+//     [대분류]   [대분류]   [대분류]
+//        │
+//     [파트] 업무칩
+//      담당자
+//
+// 파트 이름에 ' · '가 있으면 앞부분을 대분류로 묶는다 (원자재구매관리 · 구매 → 원자재구매관리 아래 구매).
+// ─────────────────────────────────────────────────────────────
+
+const SPLIT = ' · ';
+
+function OrgTree({ chart, groups }: { chart: DeptChart; groups: ChartGroup[] }) {
+  // 대분류로 묶기
+  const columns = useMemo(() => {
+    const map = new Map<string, { title: string; parts: ChartGroup[] }>();
+    for (const g of groups) {
+      const idx = g.name.indexOf(SPLIT);
+      const parent = idx > 0 ? g.name.slice(0, idx) : g.name;
+      const part: ChartGroup = idx > 0 ? { ...g, name: g.name.slice(idx + SPLIT.length) } : g;
+      const col = map.get(parent);
+      if (col) col.parts.push(part);
+      else map.set(parent, { title: parent, parts: [part] });
+    }
+    return [...map.values()];
+  }, [groups]);
+
+  const single = columns.length === 1;
+
   return (
-    <div className="relative pl-8">
-      {/* 세로 줄기 — 마지막 가지는 파트 상자까지만 */}
-      <div
-        className={`absolute left-0 w-px bg-slate-400 ${last ? 'top-0 h-6' : 'top-0 bottom-0'}`}
-        aria-hidden
-      />
-      {/* 줄기 → 파트 가로줄 */}
-      <div className="absolute left-0 top-6 h-px w-8 bg-slate-400" aria-hidden />
-
-      <div className="py-2">
-        {/* 파트 헤더 */}
-        <div className="inline-flex flex-wrap items-center gap-2 px-3 py-1.5 rounded-lg border border-indigo-300 bg-indigo-50">
-          <span className="text-sm font-black text-slate-900">{group.name}</span>
-          {group.headcount != null && (
-            <span className="px-1.5 py-0.5 rounded bg-white border border-indigo-200 text-[11px] font-bold text-slate-900">
-              편제 {group.headcount}
-            </span>
-          )}
-          {vacant > 0 && (
-            <span className="px-1.5 py-0.5 rounded bg-rose-100 border border-rose-300 text-[11px] font-bold text-slate-900">
-              공석 {vacant}
-            </span>
-          )}
+    <div className="min-w-max mx-auto">
+      {/* 루트 */}
+      <div className="flex justify-center">
+        <div className="px-5 py-2.5 rounded-lg bg-slate-900 text-white text-center shadow-sm">
+          <div className="text-base font-black">{chart.dept}</div>
+          {chart.lead ? (
+            <div className="text-xs mt-0.5">{chart.lead}</div>
+          ) : chart.headcount != null ? (
+            <div className="text-xs mt-0.5">편제 {chart.headcount}명</div>
+          ) : null}
         </div>
+      </div>
 
-        {/* 업무 */}
-        {group.duties && group.duties.length > 0 && (
-          <div className="flex flex-wrap gap-1 mt-1.5 ml-3">
-            {group.duties.map((d) => (
-              <span
-                key={d}
-                className="px-2 py-0.5 rounded bg-white border border-slate-300 text-[11px] font-semibold text-slate-900"
-              >
-                {d}
-              </span>
-            ))}
-          </div>
-        )}
+      {/* 루트에서 내려오는 줄 */}
+      <div className="h-6 w-px bg-slate-400 mx-auto" aria-hidden />
 
-        {/* 담당자 — 파트 아래로 한 단 더 들어간다 */}
-        <div className="relative mt-1.5 ml-3 pl-6">
-          <div className="absolute left-0 top-0 bottom-3 w-px bg-slate-300" aria-hidden />
-          <div className="flex flex-wrap gap-1.5">
-            {group.members.map((m, i) => {
-              const isVacant = m.vacant || !m.person;
-              return (
-                <div
-                  key={`${m.role}-${m.person}-${i}`}
-                  className={`relative px-2.5 py-1 rounded-md text-sm ${
-                    isVacant
-                      ? 'bg-rose-50 border border-dashed border-rose-400'
-                      : 'bg-white border border-slate-300'
-                  }`}
-                >
-                  <span className="font-bold text-slate-900">
-                    {isVacant ? '공석' : m.person}
-                  </span>
-                  {m.grade && <span className="ml-1 text-xs text-slate-900">{m.grade}</span>}
-                  {m.role && m.role !== group.name && (
-                    <span className="ml-1.5 text-[11px] text-slate-900 border-l border-slate-300 pl-1.5">
-                      {m.role}
-                    </span>
-                  )}
-                </div>
-              );
-            })}
+      {/* 대분류 가로 배치 */}
+      <div className="flex justify-center items-start gap-6">
+        {columns.map((col, i) => (
+          <div key={col.title} className="relative pt-6 flex flex-col items-center">
+            {/* 가로 버스 라인 — 첫/마지막은 안쪽 절반만 그린다 */}
+            {!single && (
+              <>
+                {i > 0 && <div className="absolute left-0 top-0 w-1/2 h-px bg-slate-400" aria-hidden />}
+                {i < columns.length - 1 && (
+                  <div className="absolute right-0 top-0 w-1/2 h-px bg-slate-400" aria-hidden />
+                )}
+              </>
+            )}
+            {/* 세로 내림줄 */}
+            <div className="absolute left-1/2 top-0 h-6 w-px bg-slate-400" aria-hidden />
+
+            {/* 대분류 상자 */}
+            <div className="px-4 py-1.5 rounded-lg border-2 border-slate-900 bg-white text-sm font-black text-slate-900 whitespace-nowrap">
+              {col.title}
+            </div>
+
+            {/* 대분류 → 파트 */}
+            <div className="h-5 w-px bg-slate-400" aria-hidden />
+
+            <div className="flex items-start gap-4">
+              {col.parts.map((part, k) => (
+                <PartColumn key={part.name} part={part} showName={part.name !== col.title} siblings={col.parts.length} index={k} />
+              ))}
+            </div>
           </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function PartColumn({
+  part,
+  showName,
+  siblings,
+  index,
+}: {
+  part: ChartGroup;
+  showName: boolean;
+  siblings: number;
+  index: number;
+}) {
+  const vacant = part.members.filter((m) => m.vacant || !m.person).length;
+  return (
+    <div className="relative pt-5 flex flex-col items-center min-w-[150px]">
+      {/* 파트가 둘 이상이면 갈라지는 가로줄 */}
+      {siblings > 1 && (
+        <>
+          {index > 0 && <div className="absolute left-0 top-0 w-1/2 h-px bg-slate-300" aria-hidden />}
+          {index < siblings - 1 && <div className="absolute right-0 top-0 w-1/2 h-px bg-slate-300" aria-hidden />}
+        </>
+      )}
+      <div className="absolute left-1/2 top-0 h-5 w-px bg-slate-300" aria-hidden />
+
+      {/* 파트 이름 */}
+      {showName && (
+        <div className="px-3 py-1 rounded-md border border-indigo-400 bg-indigo-50 text-sm font-bold text-slate-900 whitespace-nowrap">
+          {part.name}
+          {part.headcount != null && <span className="ml-1 text-xs">({part.headcount})</span>}
+          {vacant > 0 && <span className="ml-1 text-xs text-rose-700">공석 {vacant}</span>}
         </div>
+      )}
+
+      {/* 담당 업무 */}
+      {part.duties && part.duties.length > 0 && (
+        <div className="mt-1.5 flex flex-col items-center gap-0.5">
+          {part.duties.map((d) => (
+            <span key={d} className="text-[11px] text-slate-900 whitespace-nowrap">
+              {d}
+            </span>
+          ))}
+        </div>
+      )}
+
+      {/* 담당자 — 세로로 쌓는다 */}
+      <div className="mt-2 w-full flex flex-col items-stretch gap-1">
+        {part.members.map((m, i) => {
+          const isVacant = m.vacant || !m.person;
+          return (
+            <div
+              key={`${m.person}-${i}`}
+              className={`px-2 py-1 rounded text-center text-sm whitespace-nowrap ${
+                isVacant ? 'bg-rose-50 border border-dashed border-rose-400' : 'bg-slate-50 border border-slate-300'
+              }`}
+            >
+              <span className="font-bold text-slate-900">{isVacant ? '공석' : m.person}</span>
+              {m.grade && <span className="ml-1 text-xs text-slate-900">{m.grade}</span>}
+            </div>
+          );
+        })}
       </div>
     </div>
   );
