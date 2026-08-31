@@ -21,12 +21,15 @@ import { CampusRecruiting } from './pages/CampusRecruiting';
 import { CandidateLookup } from './pages/CandidateLookup';
 import { EmailToolsPage } from './pages/EmailToolsPage';
 import { CompetitorOrgPage, CompetitorsOverview } from './pages/Competitors';
+import { OrgChartPage, OrgChartsOverview } from './pages/OrgCharts';
+import { getOrgChart } from './data/orgCharts';
 import { Settings } from './pages/Settings';
 import { Usage } from './pages/Usage';
 import type { PageId } from './types';
 
-const PAGE_TITLES: Record<PageId, string> = {
+const PAGE_TITLES: Partial<Record<PageId, string>> = {
   headcount: '인원현황',
+  orgcharts: '부서별 업무 편제표',
   incoming: '입사예정자',
   calendar: '면접 캘린더',
   insights: '면접 인사이트',
@@ -42,6 +45,17 @@ const PAGE_TITLES: Record<PageId, string> = {
   settings: '설정 / 연동',
   usage: '사용법 (필독)',
 };
+
+const ORGCHART_PREFIX = 'orgchart:';
+
+// 편제표는 부서가 계속 추가되므로 제목을 데이터에서 만든다
+function pageTitle(page: PageId): string {
+  if (page.startsWith(ORGCHART_PREFIX)) {
+    const c = getOrgChart(page.slice(ORGCHART_PREFIX.length));
+    return c ? `${c.dept} 업무 편제표` : '업무 편제표';
+  }
+  return PAGE_TITLES[page] || '';
+}
 
 export default function App() {
   const [page, setPage] = useState<PageId>('headcount');
@@ -95,9 +109,15 @@ export default function App() {
         />
       )}
       <div className="flex-1 flex flex-col min-w-0">
-        <TopBar title={PAGE_TITLES[page]} onMenuClick={() => setSidebarOpen(true)} />
+        <TopBar title={pageTitle(page)} onMenuClick={() => setSidebarOpen(true)} />
         <main className="flex-1 overflow-y-auto overflow-x-auto p-3 sm:p-4 md:p-6 animate-fade-in">
           {page === 'headcount' && <Headcount />}
+          {page === 'orgcharts' && (
+            <OrgChartsOverview onOpen={(id) => setPage(`orgchart:${id}`)} />
+          )}
+          {page.startsWith(ORGCHART_PREFIX) && (
+            <OrgChartPage deptId={page.slice(ORGCHART_PREFIX.length)} />
+          )}
           {page === 'incoming' && <IncomingHires />}
           {page === 'calendar' && <CalendarPage />}
           {page === 'insights' && <InterviewInsights />}

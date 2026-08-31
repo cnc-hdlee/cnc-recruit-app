@@ -214,10 +214,18 @@ export function EmailToolsPage() {
   }, [sites, hqs, hqOverrides, emailMap, excludeNames]);
 
   const today = todayStr();
+  // 이미 치른 면접에만 보내는 단계 — 불합격 안내. 목록을 지난 면접으로 뒤집는다.
+  const isPastStage = stage === 'reject';
   const candidates = useMemo(() => {
     const q = search.trim().toLowerCase();
     return allCandidates.filter((c) => {
-      if (onlyUpcoming && c.dt < today) return false;
+      // 불합격 안내는 이미 본 면접에만 보낼 수 있다 — 지난 면접만 남긴다.
+      // (반대로 나머지 단계는 앞으로 있을 면접이 대상이라 '예정 일정만'이 기본)
+      if (isPastStage) {
+        if (c.dt >= today) return false;
+      } else if (onlyUpcoming && c.dt < today) {
+        return false;
+      }
       if (c.status && !includeAbsent) return false; // (불참)/(노쇼)는 기본 제외
       // 사업장 — 일정에서 사업장을 못 읽은 건은 항상 보여준다(누락 방지)
       if (c.siteId && c.siteId !== siteId) return false;
@@ -225,17 +233,19 @@ export function EmailToolsPage() {
       if (q && !(c.name.toLowerCase().includes(q) || c.team.toLowerCase().includes(q))) return false;
       return true;
     });
-  }, [allCandidates, onlyUpcoming, today, siteId, hqId, search, includeAbsent]);
+  }, [allCandidates, onlyUpcoming, today, siteId, hqId, search, includeAbsent, isPastStage]);
 
   // 본부 탭 카운트 (사업장·기간 필터까지 반영한 수)
   const hqCounts = useMemo(() => {
     const base = allCandidates.filter(
-      (c) => (!onlyUpcoming || c.dt >= today) && (!c.siteId || c.siteId === siteId)
+      (c) =>
+        (isPastStage ? c.dt < today : !onlyUpcoming || c.dt >= today) &&
+        (!c.siteId || c.siteId === siteId)
     );
     const m: Record<string, number> = { all: base.length };
     for (const c of base) m[c.hqId] = (m[c.hqId] || 0) + 1;
     return m;
-  }, [allCandidates, onlyUpcoming, today, siteId]);
+  }, [allCandidates, onlyUpcoming, today, siteId, isPastStage]);
 
   // ── 양식: 사업장/본부 전용이 있으면 우선, 없으면 공통
   const stageTemplates = useMemo(() => {
@@ -484,10 +494,16 @@ export function EmailToolsPage() {
           <h3 className="text-sm font-bold text-slate-900">
             면접 캘린더 후보자 <span className="text-slate-900">{candidates.length}명</span>
           </h3>
-          <label className="flex items-center gap-1 text-sm text-slate-900">
-            <input type="checkbox" checked={onlyUpcoming} onChange={(e) => setOnlyUpcoming(e.target.checked)} />
-            예정 일정만
-          </label>
+          {isPastStage ? (
+            <span className="px-2 py-1 rounded-lg bg-slate-900 text-white text-xs font-bold">
+              지난 면접만 — 불합격 안내는 면접을 본 사람에게만
+            </span>
+          ) : (
+            <label className="flex items-center gap-1 text-sm text-slate-900">
+              <input type="checkbox" checked={onlyUpcoming} onChange={(e) => setOnlyUpcoming(e.target.checked)} />
+              예정 일정만
+            </label>
+          )}
           <label className="flex items-center gap-1 text-sm text-slate-900">
             <input type="checkbox" checked={includeAbsent} onChange={(e) => setIncludeAbsent(e.target.checked)} />
             불참·노쇼 포함

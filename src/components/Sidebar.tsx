@@ -2,6 +2,7 @@ import type { PageId } from '../types';
 import { useData, getTodayStr } from '../store';
 import { useLiveData, liveByKindOrScan } from '../store/liveData';
 import { IS_VIEWER } from '../lib/mode';
+import { ORG_CHARTS } from '../data/orgCharts';
 
 interface NavItem {
   id: PageId;
@@ -20,6 +21,17 @@ interface SubNavItem {
 
 const NAV: NavItem[] = [
   { id: 'headcount', icon: '👥', label: '인원현황' },
+  {
+    id: 'orgcharts',
+    icon: '📋',
+    label: '업무 편제표',
+    // 부서 소분류는 데이터에서 자동 생성 — orgCharts.ts 에 추가하면 여기 바로 뜬다
+    subItems: ORG_CHARTS.map((c) => ({
+      id: `orgchart:${c.id}` as PageId,
+      icon: '🗂',
+      label: c.dept,
+    })),
+  },
   { id: 'incoming', icon: '🎉', label: '입사예정자', badgeKey: 'incoming' },
   {
     id: 'calendar',
