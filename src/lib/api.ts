@@ -216,6 +216,9 @@ interface ElectronAPI {
         start: { dateTime?: string; date?: string; timeZone?: string };
         end: { dateTime?: string; date?: string; timeZone?: string };
         attendees?: { email: string; resource?: boolean }[];
+        colorId?: string;
+        // 'private'면 다른 사람에게 제목/상세가 안 보이고 '바쁨'으로만 표시된다 (비공개 면접용).
+        visibility?: 'default' | 'public' | 'private';
       },
       sendUpdates?: 'all' | 'externalOnly' | 'none'
     ): Promise<Result<{ id: string; htmlLink?: string }>>;

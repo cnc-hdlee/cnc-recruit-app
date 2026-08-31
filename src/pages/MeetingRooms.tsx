@@ -1081,6 +1081,9 @@ function NewBookingModal({
     }
     setAlsoInterview(checked);
   };
+  // 비공개 일정 — 체크하면 생성되는 이벤트를 Google Calendar visibility='private'로 만든다.
+  // (비공개 채용/임원 면접처럼 제목이 남에게 보이면 안 되는 건)
+  const [isPrivate, setIsPrivate] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const titleRef = useRef<HTMLInputElement | null>(null);
@@ -1110,6 +1113,7 @@ function NewBookingModal({
         start: { dateTime: `${date}T${start}:00`, timeZone: 'Asia/Seoul' },
         end: { dateTime: `${date}T${end}:00`, timeZone: 'Asia/Seoul' },
         attendees: [{ email: room.resourceEmail }],
+        ...(isPrivate ? { visibility: 'private' as const } : {}),
       };
       console.log('[MeetingRooms] insertCalEvent 호출', body);
       const r = await api.google.insertCalEvent('primary', body, 'all');
@@ -1140,6 +1144,7 @@ function NewBookingModal({
           start: { dateTime: `${date}T${start}:00`, timeZone: 'Asia/Seoul' },
           end: { dateTime: `${date}T${end}:00`, timeZone: 'Asia/Seoul' },
           colorId: '3',
+          ...(isPrivate ? { visibility: 'private' as const } : {}),
           // 면접 캘에는 attendees 안 넣음 — 회의실 캘은 primary 이벤트가 attendee로 처리됨,
           // 면접 캘 이벤트가 또 회의실 attendee 가지면 중복 회의실 예약 발생.
         };
@@ -1258,6 +1263,27 @@ function NewBookingModal({
           ) : (
             <span className="ml-auto text-[10px] text-slate-500">제목에 "면접" 없으면 수동 확인 필요</span>
           )}
+        </label>
+
+        {/* 비공개 일정 — 체크 시 생성되는 이벤트가 Google Calendar에서 '비공개'로 등록된다.
+            (제목·상세가 남에게 안 보이고 '바쁨'으로만 표시. 비공개 채용/임원 면접용) */}
+        <label
+          className={`flex items-center gap-2 p-2 rounded-md border cursor-pointer ${
+            isPrivate ? 'bg-slate-800 border-slate-900' : 'bg-slate-50 border-slate-200'
+          }`}
+        >
+          <input
+            type="checkbox"
+            checked={isPrivate}
+            onChange={(e) => setIsPrivate(e.target.checked)}
+            className="w-4 h-4"
+          />
+          <span className={`text-xs font-semibold ${isPrivate ? 'text-white' : 'text-slate-800'}`}>
+            🔒 비공개 일정으로 등록
+          </span>
+          <span className={`ml-auto text-[10px] font-bold ${isPrivate ? 'text-slate-200' : 'text-slate-500'}`}>
+            {isPrivate ? '남에게 제목 안 보임 · 바쁨으로만 표시' : '공개 (기본)'}
+          </span>
         </label>
 
         {err && <div className="p-2 rounded-md bg-rose-50 border border-rose-200 text-rose-800 text-xs">{err}</div>}
