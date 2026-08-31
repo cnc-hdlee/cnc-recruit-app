@@ -136,7 +136,19 @@ export function EmailToolsPage() {
 
   useEffect(() => {
     loadSites().then(setSites);
-    loadExcludeNames().then(setExcludeNames);
+    // 제외 명단 = 설정값 + 지금 로그인한 본인 이름.
+    // 본인이 만든 테스트 면접이 후보자로 잡히는 걸 팀원 누구에게나 자동으로 막는다.
+    void (async () => {
+      const list = await loadExcludeNames();
+      let me: string | null = null;
+      try {
+        const prof = await api?.cfg?.get<{ name?: string }>('googleProfile');
+        me = prof?.ok ? prof.data?.name?.trim() || null : null;
+      } catch {
+        me = null;
+      }
+      setExcludeNames(me ? [...new Set([...list, me])] : list);
+    })();
     loadHqs().then(setHqs);
     loadHqOverrides().then(setHqOverrides);
     loadTemplates().then(setTemplates);
