@@ -10,6 +10,11 @@ import {
   type RoomSite,
 } from '../lib/meetingRooms';
 import { SHARED_CAL } from '../lib/sharedCalendars';
+import {
+  loadTeamAttendees,
+  loadTaAttendees,
+  resolveAttendees,
+} from '../lib/interviewAttendees';
 import { refreshCalendarFromGoogle } from '../store/liveData';
 
 // 회의실 예약 블록을 빨간 박스로 강조할 직원 이메일.
@@ -1084,6 +1089,33 @@ function NewBookingModal({
   // 비공개 일정 — 체크하면 생성되는 이벤트를 Google Calendar visibility='private'로 만든다.
   // (비공개 채용/임원 면접처럼 제목이 남에게 보이면 안 되는 건)
   const [isPrivate, setIsPrivate] = useState(false);
+
+  // ── 참석자 자동 채움 ──────────────────────────────────────
+  // 제목("전략구매팀 면접 - 이형도")에서 팀을 읽어 TA팀 + 그 팀 현업을 참석자로 넣는다.
+  // 지금까지는 예약할 때마다 손으로 한 명씩 넣던 부분.
+  const [autoAttendees, setAutoAttendees] = useState(true);
+  const [teamMap, setTeamMap] = useState<Record<string, string[]>>({});
+  const [taList, setTaList] = useState<string[]>([]);
+  const [removedAttendees, setRemovedAttendees] = useState<string[]>([]);
+  const [extraAttendee, setExtraAttendee] = useState('');
+  const [extraAttendees, setExtraAttendees] = useState<string[]>([]);
+
+  useEffect(() => {
+    loadTeamAttendees().then(setTeamMap);
+    loadTaAttendees().then(setTaList);
+  }, []);
+
+  const parsedTitle = parseRoomBookingTitle(title.trim());
+  const resolved = useMemo(() => {
+    if (!parsedTitle) return { emails: [], teamFound: false };
+    return resolveAttendees(parsedTitle.deptDisplay, teamMap, taList);
+  }, [parsedTitle?.deptDisplay, teamMap, taList]);
+
+  // 실제로 초대할 사람 = 자동 추천 − 뺀 사람 + 직접 추가한 사람
+  const finalAttendees = useMemo(() => {
+    const base = autoAttendees ? resolved.emails : [];
+    return [...new Set([...base, ...extraAttendees])].filter((e) => !removedAttendees.includes(e));
+  }, [autoAttendees, resolved.emails, extraAttendees, removedAttendees]);
   const [submitting, setSubmitting] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const titleRef = useRef<HTMLInputElement | null>(null);
@@ -1112,7 +1144,8 @@ function NewBookingModal({
         location: room.shortName,
         start: { dateTime: `${date}T${start}:00`, timeZone: 'Asia/Seoul' },
         end: { dateTime: `${date}T${end}:00`, timeZone: 'Asia/Seoul' },
-        attendees: [{ email: room.resourceEmail }],
+        // 회의실(리소스) + 면접 참석자. 참석자는 제목의 팀에서 자동으로 채워진다.
+        attendees: [{ email: room.resourceEmail }, ...finalAttendees.map((email) => ({ email }))],
         ...(isPrivate ? { visibility: 'private' as const } : {}),
       };
       console.log('[MeetingRooms] insertCalEvent 호출', body);
@@ -1264,6 +1297,80 @@ function NewBookingModal({
             <span className="ml-auto text-[10px] text-slate-500">제목에 "면접" 없으면 수동 확인 필요</span>
           )}
         </label>
+
+        {/* 참석자 자동 채움 — 제목의 팀명으로 TA팀 + 현업 면접관을 넣는다 */}
+        <div className={`p-2 rounded-md border ${autoAttendees ? 'bg-sky-50 border-sky-300' : 'bg-slate-50 border-slate-200'}`}>
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={autoAttendees}
+              onChange={(e) => setAutoAttendees(e.target.checked)}
+              className="w-4 h-4"
+            />
+            <span className="text-xs font-semibold text-slate-900">👥 참석자 자동 추가</span>
+            {parsedTitle ? (
+              resolved.teamFound ? (
+                <span className="ml-auto text-[10px] font-bold text-sky-700">
+                  {parsedTitle.deptDisplay} 인식됨
+                </span>
+              ) : (
+                <span className="ml-auto text-[10px] font-bold text-amber-700">
+                  {parsedTitle.deptDisplay} — 현업 명단 없음 (TA팀만)
+                </span>
+              )
+            ) : (
+              <span className="ml-auto text-[10px] text-slate-700">제목을 "○○팀 면접 - 이름" 형태로</span>
+            )}
+          </label>
+
+          {finalAttendees.length > 0 && (
+            <div className="flex flex-wrap gap-1 mt-2">
+              {finalAttendees.map((em) => (
+                <span
+                  key={em}
+                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-white border border-sky-300 text-[11px] font-semibold text-slate-900"
+                >
+                  {em.split('@')[0]}
+                  <button
+                    onClick={() => setRemovedAttendees((p) => [...p, em])}
+                    className="text-slate-700 hover:text-red-600 font-bold"
+                    title="이 사람 빼기"
+                  >
+                    ×
+                  </button>
+                </span>
+              ))}
+            </div>
+          )}
+
+          <div className="flex items-center gap-1 mt-2">
+            <input
+              value={extraAttendee}
+              onChange={(e) => setExtraAttendee(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && extraAttendee.trim()) {
+                  e.preventDefault();
+                  const em = extraAttendee.includes('@')
+                    ? extraAttendee.trim()
+                    : `${extraAttendee.trim()}@cnccosmetic.com`;
+                  setExtraAttendees((p) => [...p, em]);
+                  setRemovedAttendees((p) => p.filter((x) => x !== em));
+                  setExtraAttendee('');
+                }
+              }}
+              placeholder="참석자 추가 (아이디만 입력, Enter)"
+              className="flex-1 px-2 py-1 rounded border border-slate-300 bg-white text-slate-900 text-xs"
+            />
+            {removedAttendees.length > 0 && (
+              <button
+                onClick={() => setRemovedAttendees([])}
+                className="px-2 py-1 rounded border border-slate-300 bg-white text-[11px] font-semibold text-slate-900"
+              >
+                뺀 사람 되돌리기
+              </button>
+            )}
+          </div>
+        </div>
 
         {/* 비공개 일정 — 체크 시 생성되는 이벤트가 Google Calendar에서 '비공개'로 등록된다.
             (제목·상세가 남에게 안 보이고 '바쁨'으로만 표시. 비공개 채용/임원 면접용) */}
