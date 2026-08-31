@@ -570,15 +570,14 @@ export function IncomingHires() {
         </div>
       )}
 
-      {/* 요약 카드 */}
-      <div className="grid grid-cols-2 md:grid-cols-7 gap-2">
-        <SummaryCard label="다가오는 입사" count={summary.total} tone="indigo" />
-        <SummaryCard label="결재 완료" count={summary.approved} tone="emerald" />
-        <SummaryCard label="결재 진행중" count={summary.pending} tone="amber" />
-        <SummaryCard label="입사안내 발송" count={summary.mailSent} tone="emerald" />
-        <SummaryCard label="입사안내 미발송" count={summary.mailMissing} tone={summary.mailMissing > 0 ? 'amber' : 'emerald'} />
-        <SummaryCard label="퍼플 / 그린" count={summary.bySite.purple + summary.bySite.green} tone="purple" />
-        <SummaryCard label="입사 포기" count={declinedRows.length} tone="rose" />
+      {/* 요약 카드 — 뜻이 분명한 것만 남긴다.
+          제거함(2026-08-31): 입사안내 발송/미발송(발송 감지가 불완전해 '다가오는 입사'와 같은 수가
+          노란색으로 한 번 더 뜨던 카드), 퍼플/그린 합산(두 사업장을 더한 값은 의미 없음). */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+        <SummaryCard label="다가오는 입사" hint="오늘 이후 입사예정일" count={summary.total} tone="indigo" />
+        <SummaryCard label="결재 완료" hint="비고에 전자결재 링크 있음" count={summary.approved} tone="emerald" />
+        <SummaryCard label="결재 진행중" hint="비고에 '결재중' 표기" count={summary.pending} tone="amber" />
+        <SummaryCard label="입사 포기" hint="비고에 '입사 포기' 표기" count={declinedRows.length} tone="rose" />
       </div>
 
       {/* 입사 포기 전용 섹션 — 클릭하면 펼침 + 즉시 미러링(캘린더·관리시트) 강제 실행. */}
@@ -899,10 +898,13 @@ function SummaryCard({
   label,
   count,
   tone,
+  hint,
 }: {
   label: string;
   count: number;
   tone: 'indigo' | 'emerald' | 'amber' | 'purple' | 'green' | 'rose';
+  /** 이 숫자가 무엇을 센 것인지 한 줄 설명 — 설명 없는 숫자는 두지 않는다 */
+  hint?: string;
 }) {
   const palette = {
     indigo: { bg: 'bg-indigo-50', num: 'text-indigo-700', bar: 'bg-indigo-500' },
@@ -921,9 +923,10 @@ function SummaryCard({
         </span>
         <div className="flex items-baseline gap-0.5">
           <span className={`text-2xl font-black tabular-nums ${palette.num}`}>{count}</span>
-          <span className="text-[10px] text-slate-500">명</span>
+          <span className="text-[10px] text-slate-700">명</span>
         </div>
       </div>
+      {hint && <div className="ml-1.5 mt-0.5 text-[10px] text-slate-700">{hint}</div>}
     </div>
   );
 }
