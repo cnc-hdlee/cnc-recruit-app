@@ -6,6 +6,7 @@ import type { GCalListEntry } from '../lib/api';
 import { SHARED_CAL, isInterviewCalendar } from '../lib/sharedCalendars';
 import { gmailMessageUrl } from '../lib/gmail';
 import { classifyResourceCalendar, findResourceEmailByLocation, type RoomMeta } from '../lib/meetingRooms';
+import { InterviewTitleTidy } from '../components/InterviewTitleTidy';
 
 // 후보자 이름이 첨부파일명에 포함되는지로 "현업에 이력서 공유함" 여부를 매칭하기 위한 보낸함 인덱스.
 interface ResumeShareMail {
@@ -1533,6 +1534,9 @@ export function CalendarPage() {
           onClick={() => setCardFilter('all')}
         />
       </div>
+
+      {/* 캘린더 정리 — 중복 이벤트 + 제목 규격 (팀 공용이라 표기가 갈리는 걸 한 곳에서 잡는다) */}
+      <InterviewTitleTidy />
 
       {/* 필터 + 동기화 상태 */}
       <div className="card p-3">
