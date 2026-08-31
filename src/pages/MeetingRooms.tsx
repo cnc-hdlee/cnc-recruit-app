@@ -1108,10 +1108,15 @@ function NewBookingModal({
   }, []);
 
   const parsedTitle = parseRoomBookingTitle(title.trim());
+  // 회의실이 어느 사업장인지도 참석자에 영향을 준다 (그린카운티 면접 → 이민영 고정)
+  const bookingSite = selectedRoom ? extractSiteFromRoom(selectedRoom.shortName) : '';
   const resolved = useMemo(() => {
-    if (!parsedTitle) return { emails: [], teamFound: false };
-    return resolveAttendees(parsedTitle.deptDisplay, teamMap, taList);
-  }, [parsedTitle?.deptDisplay, teamMap, taList]);
+    if (!parsedTitle) {
+      // 팀을 못 읽어도 사업장 고정 참석자는 살려둔다
+      return resolveAttendees('', teamMap, taList, bookingSite);
+    }
+    return resolveAttendees(parsedTitle.deptDisplay, teamMap, taList, bookingSite);
+  }, [parsedTitle?.deptDisplay, teamMap, taList, bookingSite]);
 
   // 실제로 초대할 사람 = 자동 추천 − 뺀 사람 + 직접 추가한 사람
   const finalAttendees = useMemo(() => {
@@ -1320,6 +1325,10 @@ function NewBookingModal({
                   {parsedTitle.deptDisplay} — 현업 명단 없음 (TA팀만)
                 </span>
               )
+            ) : resolved.siteEmails.length > 0 ? (
+              <span className="ml-auto text-[10px] font-bold text-emerald-700">
+                {bookingSite}카운티 고정 참석자 포함
+              </span>
             ) : (
               <span className="ml-auto text-[10px] text-slate-700">제목을 "○○팀 면접 - 이름" 형태로</span>
             )}

@@ -35,15 +35,24 @@ export const DEFAULT_TEAM_ATTENDEES: Record<string, string[]> = {
   제조1팀: ['jwlee', 'yghan'],
   품질보증팀: ['jemoon'],
   품질관리1팀: ['khjung', 'jekim1'],
-  품질관리2팀: ['mhlee', 'mylee'],
+  품질관리2팀: ['mhlee'],
   시설안전팀: ['kyhwang'],
-  포장2팀: ['hskim3', 'mylee', 'yecho'],
-  생산2팀: ['hnkang', 'hscho', 'kyhkim', 'mylee'],
+  포장2팀: ['hskim3', 'yecho'],
+  생산2팀: ['hnkang', 'hscho', 'kyhkim'],
   생산1팀: ['oskim', 'sykim4'],
-  품질연구팀: ['kmkim', 'mylee'],
+  품질연구팀: ['kmkim'],
   자재물류1팀: ['sclee'],
-  // 생산운영팀은 생산직 대량 면접이 대부분이라 현업이 거의 안 들어온다(99건 중 7건).
-  // 기본값으로 넣지 않고, 필요할 때 예약 화면에서 직접 추가하도록 비워둔다.
+  // 한옥성 부문장은 생산운영부문 면접관이라 생산운영팀 면접에 항상 들어간다.
+  생산운영팀: ['oshan'],
+};
+
+/**
+ * 사업장 고정 참석자 — 팀과 무관하게 그 사업장 면접이면 무조건 들어가는 사람.
+ * 그린카운티(용인)는 이민영(People Ops)이 담당이며, 사업장 고정은 이 한 명뿐이다.
+ * (팀별 명단에 중복으로 넣지 않고 여기서만 관리한다)
+ */
+export const SITE_ATTENDEES: Record<string, string[]> = {
+  그린: ['mylee'],
 };
 
 /**
@@ -57,7 +66,7 @@ export const PEOPLE: Record<string, { name: string; title?: string; team?: strin
   hglim: { name: '임한결', team: 'TA팀' },
   hdlee: { name: '이형도', team: 'TA팀' },
   // People Ops
-  mylee: { name: '이민영', team: 'People Ops팀' },
+  mylee: { name: '이민영', team: 'People Ops팀 · 그린카운티 담당' },
   // 현업
   ywkim: { name: '김영욱', title: '팀장', team: '전략구매팀' },
   jhlee3: { name: '이준희', title: '차장', team: '전략구매팀' },
@@ -69,7 +78,7 @@ export const PEOPLE: Record<string, { name: string; title?: string; team?: strin
   jekim1: { name: '김지은', title: '차장', team: '품질관리1팀' },
   mhlee: { name: '이민호', title: '팀장', team: '품질관리2팀' },
   kyhwang: { name: '황기연', title: '팀장', team: '시설안전팀' },
-  hskim3: { name: '김현수', title: '팀장', team: '공정혁신팀' },
+  hskim3: { name: '김현수', title: '팀장', team: '포장2팀' },
   yecho: { name: '조예은', title: '행정서무', team: '포장2팀' },
   hnkang: { name: '강하나', title: '사원', team: '생산2팀' },
   hscho: { name: '조현성', title: '공장장', team: '생산2부' },
@@ -158,16 +167,28 @@ export function lookupTeam(teamRaw: string, map: Record<string, string[]>): stri
   return [];
 }
 
+/** 회의실 사이트("그린", "퍼플" …)에 걸린 고정 참석자 */
+export function lookupSite(siteRaw: string): string[] {
+  const s = (siteRaw || '').trim();
+  if (!s) return [];
+  for (const [site, list] of Object.entries(SITE_ATTENDEES)) {
+    if (s.includes(site)) return list.map(toEmail);
+  }
+  return [];
+}
+
 /**
- * 최종 참석자 = TA팀 공통 + 해당 팀 현업.
- * 팀을 못 찾으면 TA팀만 돌려주고, 호출한 쪽에서 "현업 미등록"으로 표시한다.
+ * 최종 참석자 = TA팀 공통 + 해당 팀 현업 + 사업장 고정 참석자.
+ * 팀을 못 찾으면 TA팀(+사업장)만 돌려주고, 호출한 쪽에서 "현업 미등록"으로 표시한다.
  */
 export function resolveAttendees(
   teamRaw: string,
   teamMap: Record<string, string[]>,
-  taList: string[]
-): { emails: string[]; teamFound: boolean } {
+  taList: string[],
+  siteRaw = ''
+): { emails: string[]; teamFound: boolean; siteEmails: string[] } {
   const team = lookupTeam(teamRaw, teamMap);
-  const emails = [...new Set([...taList, ...team])].filter(Boolean);
-  return { emails, teamFound: team.length > 0 };
+  const siteEmails = lookupSite(siteRaw);
+  const emails = [...new Set([...taList, ...team, ...siteEmails])].filter(Boolean);
+  return { emails, teamFound: team.length > 0, siteEmails };
 }
