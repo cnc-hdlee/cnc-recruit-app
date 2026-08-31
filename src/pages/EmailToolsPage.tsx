@@ -8,7 +8,7 @@
 // 단계: 1차 면접 안내 → 1차 합격 → 처우협의 → 최종 입사 안내 (+불합격)
 //       CPI 인성검사는 폐지(2026-08)되어 제거. 2차 면접은 아직 미구현.
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLiveData, liveCalendarEventsNormalized } from '../store/liveData';
 import { isInterviewKind, parseInterviewTitle } from './CalendarPage';
 import { api } from '../lib/api';
@@ -38,6 +38,8 @@ import {
   saveHqs,
   loadHqOverrides,
   saveHqOverride,
+  loadExcludeNames,
+  saveExcludeNames,
   inferHq,
   inferSite,
   HQ_UNSET,
@@ -72,6 +74,33 @@ interface CalCandidate {
   hqId: string;
   location: string;
   email: string;
+  /** (불참)/(노쇼) 등 제목에 붙은 상태 표기 */
+  status: string;
+}
+
+// ── 후보자 판정 보정 ─────────────────────────────────────────
+// 면접 캘린더에는 후보자 면접이 아닌 일정도 섞여 있고, 제목 포맷이 어긋나면
+// 파서가 엉뚱한 토큰을 이름으로 잡는다. 메일은 사람에게 나가므로 여기서 한 번 더 거른다.
+// (2026-08-31 실제 캘린더 46건 대조로 확인된 케이스들)
+
+/** 아예 후보자 면접이 아닌 일정 — 제목에 걸리면 목록에서 뺀다 */
+const NOT_CANDIDATE_EVENT =
+  /도제실습|도제교육|교육|설명회|weekly|preview|미팅|회의|워크샵|간담회|웨비나|OJT|오리엔테이션|일자리센터|박람회|대기실|안내/i;
+
+/** 사람 이름이 될 수 없는 토큰 — 파서가 이걸 이름으로 잡으면 그 건은 신뢰하지 않는다 */
+const NOT_A_NAME = /^(대기|미정|공석|후보자|면접자|지원자|팀장|파트장|담당|담당자|신입|경력|인사팀|채용팀)$/;
+
+/** 제목에 붙은 상태 표기 (불참/노쇼 등) — 메일 대상에서 기본 제외 */
+const STATUS_RE = /\((불참|노쇼|no ?show|미참석|지각)\)/i;
+
+/**
+ * "생산운영팀장 이재민 후보자" 처럼 '후보자/지원자' 앞에 진짜 이름이 오는 포맷 보정.
+ * 이 케이스에서 기본 파서는 이름을 '대기'(뒤 토큰)로 잡아 완전히 다른 사람이 된다.
+ */
+function fixCandidateName(title: string, parsed: string): string {
+  const m = title.match(/([가-힣]{2,4})\s*(?:후보자|지원자|님)/);
+  if (m && !NOT_A_NAME.test(m[1])) return m[1];
+  return parsed;
 }
 
 export function EmailToolsPage() {
@@ -92,6 +121,13 @@ export function EmailToolsPage() {
   const [search, setSearch] = useState('');
   const [draftEmail, setDraftEmail] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState<string | null>(null);
+  // (불참)/(노쇼) 표시된 면접은 메일 대상이 아니므로 기본 제외, 필요하면 켠다
+  const [includeAbsent, setIncludeAbsent] = useState(false);
+  // 메일 대상에서 뺄 내부 인원 (TA팀 등) — 설정에서 편집
+  const [excludeNames, setExcludeNames] = useState<string[]>([]);
+  const [showDrops, setShowDrops] = useState(false);
+  // 목록에서 걸러낸 일정과 사유 — 조용히 사라지지 않게 화면에 남긴다
+  const dropsRef = useRef<{ title: string; reason: string }[]>([]);
 
   const [editingTpl, setEditingTpl] = useState<EmailTemplate | null>(null);
   const [modal, setModal] = useState<{ template: EmailTemplate; candidate: CalCandidate } | null>(null);
@@ -100,6 +136,7 @@ export function EmailToolsPage() {
 
   useEffect(() => {
     loadSites().then(setSites);
+    loadExcludeNames().then(setExcludeNames);
     loadHqs().then(setHqs);
     loadHqOverrides().then(setHqOverrides);
     loadTemplates().then(setTemplates);
@@ -109,19 +146,43 @@ export function EmailToolsPage() {
 
   const site = sites.find((s) => s.id === siteId) || sites[0] || null;
 
-  // ── 면접 캘린더 → 후보자 목록 (캘린더 페이지와 동일한 분류기/파서 사용)
+  // ── 면접 캘린더 → 후보자 목록 (캘린더 페이지와 동일한 분류기/파서 + 메일 전용 보정)
   const allCandidates = useMemo<CalCandidate[]>(() => {
     if (hqs.length === 0) return [];
     const out = new Map<string, CalCandidate>();
+    const drops: { title: string; reason: string }[] = [];
     for (const e of liveCalendarEventsNormalized()) {
       if (!isInterviewKind(e.title, e.raw.colorId ?? null, e.raw.calendarId ?? null)) continue;
+
+      // ① 후보자 면접이 아닌 일정 (도제실습 / 교육 / 내부 미팅 등)
+      if (NOT_CANDIDATE_EVENT.test(e.title)) {
+        drops.push({ title: e.title, reason: '후보자 면접이 아님' });
+        continue;
+      }
+
       const p = parseInterviewTitle(e.title);
-      const name = (p.candidate || '').trim();
-      if (!name || name.length > 5) continue;
+      const name = fixCandidateName(e.title, (p.candidate || '').trim());
+
+      // ② 이름을 못 잡았거나 사람 이름이 아닌 토큰
+      if (!name || name.length > 5) {
+        drops.push({ title: e.title, reason: '이름 인식 실패' });
+        continue;
+      }
+      if (NOT_A_NAME.test(name)) {
+        drops.push({ title: e.title, reason: `'${name}'은 사람 이름이 아님` });
+        continue;
+      }
+      // ③ 내부 인원(TA팀 등) — 메일 대상이 아님
+      if (excludeNames.includes(name)) {
+        drops.push({ title: e.title, reason: `내부 인원(${name}) 제외` });
+        continue;
+      }
+
       const tm = e.tm || p.time || '';
       const key = `${e.dt}|${tm}|${name}`;
       if (out.has(key)) continue; // 캘린더 사본 중복 제거
       const teamText = [p.team, p.room, e.location].filter(Boolean).join(' ');
+      const st = e.title.match(STATUS_RE);
       out.set(key, {
         key,
         name,
@@ -133,23 +194,26 @@ export function EmailToolsPage() {
         hqId: hqOverrides[name] || inferHq(teamText, hqs),
         location: e.location || '',
         email: emailMap[name] || '',
+        status: st ? st[1] : '',
       });
     }
+    dropsRef.current = drops;
     return [...out.values()].sort((a, b) => (a.dt + a.tm).localeCompare(b.dt + b.tm));
-  }, [sites, hqs, hqOverrides, emailMap]);
+  }, [sites, hqs, hqOverrides, emailMap, excludeNames]);
 
   const today = todayStr();
   const candidates = useMemo(() => {
     const q = search.trim().toLowerCase();
     return allCandidates.filter((c) => {
       if (onlyUpcoming && c.dt < today) return false;
+      if (c.status && !includeAbsent) return false; // (불참)/(노쇼)는 기본 제외
       // 사업장 — 일정에서 사업장을 못 읽은 건은 항상 보여준다(누락 방지)
       if (c.siteId && c.siteId !== siteId) return false;
       if (hqId !== 'all' && c.hqId !== hqId) return false;
       if (q && !(c.name.toLowerCase().includes(q) || c.team.toLowerCase().includes(q))) return false;
       return true;
     });
-  }, [allCandidates, onlyUpcoming, today, siteId, hqId, search]);
+  }, [allCandidates, onlyUpcoming, today, siteId, hqId, search, includeAbsent]);
 
   // 본부 탭 카운트 (사업장·기간 필터까지 반영한 수)
   const hqCounts = useMemo(() => {
@@ -412,6 +476,18 @@ export function EmailToolsPage() {
             <input type="checkbox" checked={onlyUpcoming} onChange={(e) => setOnlyUpcoming(e.target.checked)} />
             예정 일정만
           </label>
+          <label className="flex items-center gap-1 text-sm text-slate-900">
+            <input type="checkbox" checked={includeAbsent} onChange={(e) => setIncludeAbsent(e.target.checked)} />
+            불참·노쇼 포함
+          </label>
+          {dropsRef.current.length > 0 && (
+            <button
+              onClick={() => setShowDrops((v) => !v)}
+              className="px-2 py-1 rounded-lg border border-amber-300 bg-amber-50 text-xs font-bold text-slate-900"
+            >
+              제외됨 {dropsRef.current.length}건
+            </button>
+          )}
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
@@ -419,6 +495,17 @@ export function EmailToolsPage() {
             className="ml-auto px-3 py-1.5 border border-slate-300 rounded-lg text-sm text-slate-900 w-56"
           />
         </div>
+
+        {/* 걸러낸 일정 — 왜 목록에 없는지 바로 확인할 수 있게 (조용한 누락 방지) */}
+        {showDrops && dropsRef.current.length > 0 && (
+          <div className="mb-2 rounded-lg border border-amber-300 bg-amber-50 p-2 max-h-40 overflow-y-auto">
+            {dropsRef.current.map((d, i) => (
+              <div key={`${d.title}-${i}`} className="text-xs text-slate-900">
+                <span className="font-bold">{d.reason}</span> · {d.title}
+              </div>
+            ))}
+          </div>
+        )}
 
         <div className="overflow-auto rounded-lg border border-slate-300 max-h-[420px]">
           <table className="w-full text-sm">
@@ -438,7 +525,14 @@ export function EmailToolsPage() {
                 return (
                   <tr key={c.key} className="border-b border-slate-200 hover:bg-slate-50">
                     <td className="px-3 py-2 text-slate-900 whitespace-nowrap">{c.when}</td>
-                    <td className="px-3 py-2 font-bold text-slate-900 whitespace-nowrap">{c.name}</td>
+                    <td className="px-3 py-2 font-bold text-slate-900 whitespace-nowrap">
+                      {c.name}
+                      {c.status && (
+                        <span className="ml-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-rose-100 text-rose-900 border border-rose-200">
+                          {c.status}
+                        </span>
+                      )}
+                    </td>
                     <td className="px-3 py-2 text-slate-900">{c.team || '-'}</td>
                     <td className="px-3 py-2 whitespace-nowrap">
                       <select
@@ -578,12 +672,15 @@ export function EmailToolsPage() {
         <SettingsModal
           sites={sites}
           hqs={hqs}
+          excludeNames={excludeNames}
           onClose={() => setShowSettings(false)}
-          onSave={async (s, h) => {
+          onSave={async (s, h, ex) => {
             await saveSites(s);
             await saveHqs(h);
+            await saveExcludeNames(ex);
             setSites(s);
             setHqs(h);
+            setExcludeNames(ex);
             setShowSettings(false);
           }}
         />
@@ -848,16 +945,19 @@ function TemplateEditor({
 function SettingsModal({
   sites,
   hqs,
+  excludeNames,
   onSave,
   onClose,
 }: {
   sites: MailSite[];
   hqs: MailHq[];
-  onSave: (sites: MailSite[], hqs: MailHq[]) => void;
+  excludeNames: string[];
+  onSave: (sites: MailSite[], hqs: MailHq[], excludeNames: string[]) => void;
   onClose: () => void;
 }) {
   const [s, setS] = useState<MailSite[]>(sites);
   const [h, setH] = useState<MailHq[]>(hqs);
+  const [ex, setEx] = useState<string>(excludeNames.join(', '));
 
   return (
     <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" onClick={onClose}>
@@ -903,12 +1003,27 @@ function SettingsModal({
               </div>
             ))}
           </div>
+          <div>
+            <div className="text-sm font-bold text-slate-900 mb-1">메일 대상에서 제외할 이름 (쉼표 구분)</div>
+            <div className="text-xs text-slate-900 mb-1">
+              TA팀 본인 이름으로 만든 테스트 면접이 후보자로 잡히지 않도록 걸러냅니다.
+            </div>
+            <input
+              value={ex}
+              onChange={(e) => setEx(e.target.value)}
+              placeholder="이형도, 임세현, 김범준, 임한결"
+              className="w-full px-3 py-2 border border-slate-300 rounded text-sm text-slate-900"
+            />
+          </div>
         </div>
         <div className="px-5 py-3 border-t border-slate-300 flex justify-end gap-2 bg-slate-50">
           <button onClick={onClose} className="px-4 py-2 rounded border border-slate-300 bg-white text-sm text-slate-900 hover:bg-slate-100">
             취소
           </button>
-          <button onClick={() => onSave(s, h)} className="px-5 py-2 rounded bg-accent-purple text-white text-sm font-bold hover:bg-accent-purple/90">
+          <button
+            onClick={() => onSave(s, h, ex.split(',').map((v) => v.trim()).filter(Boolean))}
+            className="px-5 py-2 rounded bg-accent-purple text-white text-sm font-bold hover:bg-accent-purple/90"
+          >
             저장
           </button>
         </div>

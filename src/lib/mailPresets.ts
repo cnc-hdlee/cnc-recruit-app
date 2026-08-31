@@ -124,6 +124,26 @@ export async function saveHqs(hqs: MailHq[]): Promise<void> {
   await api.cfg.set(HQ_KEY, hqs);
 }
 
+// 메일 대상에서 제외할 내부 인원 — TA팀이 테스트로 만든 본인 이름 면접 일정 등이
+// 후보자로 잡히던 문제(2026-08-31) 때문에 추가. 설정에서 편집 가능.
+const EXCLUDE_NAMES_KEY = 'mailExcludeNames';
+export const DEFAULT_EXCLUDE_NAMES = ['이형도', '임세현', '김범준', '임한결'];
+
+export async function loadExcludeNames(): Promise<string[]> {
+  if (!api?.cfg) return DEFAULT_EXCLUDE_NAMES;
+  try {
+    const r = await api.cfg.get<string[]>(EXCLUDE_NAMES_KEY);
+    return r.ok && Array.isArray(r.data) && r.data.length > 0 ? r.data : DEFAULT_EXCLUDE_NAMES;
+  } catch {
+    return DEFAULT_EXCLUDE_NAMES;
+  }
+}
+
+export async function saveExcludeNames(names: string[]): Promise<void> {
+  if (!api?.cfg) return;
+  await api.cfg.set(EXCLUDE_NAMES_KEY, names);
+}
+
 export async function loadHqOverrides(): Promise<Record<string, string>> {
   if (!api?.cfg) return {};
   try {
