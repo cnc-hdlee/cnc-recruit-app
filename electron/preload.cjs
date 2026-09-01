@@ -40,6 +40,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     sendGmail: (payload) => invoke('g:sendGmail', payload),
     openAttachment: (messageId, filename, attachmentId) => invoke('g:openAttachment', messageId, filename, attachmentId),
     fetchAttachmentBase64: (messageId, filename, attachmentId) => invoke('g:fetchAttachmentBase64', messageId, filename, attachmentId),
+    driveFile: (fileId) => invoke('g:driveFile', fileId),
     listCalendar: (min, max, id) => invoke('g:listCalendar', min, max, id),
     listCalendars: () => invoke('g:listCalendars'),
     listCalendarsFull: () => invoke('g:listCalendarsFull'),

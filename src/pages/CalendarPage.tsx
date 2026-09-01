@@ -415,6 +415,15 @@ export function parseInterviewTitle(title: string): {
   //   3점 = 이름만 있는 토큰("김미리애") / 2점 = 이름 + 호칭·차수("이새롬 1차")
   //   1점 = 이름 뒤에 다른 말이 붙음("영업관리 해외") → 더 좋은 후보가 없을 때만 사용
   const ROLE_TAIL = /^(님|씨|후보자|지원자|\d+\s*차|신입|경력|팀장|파트장|과장|대리|사원|주임|차장|부장|이사)$/;
+  // 부서·직무처럼 생긴 토큰 (국내영업/해외영업/원가분석/자재개발…). 이름과 같은 자리에 오기 때문에
+  // "(면접) 국내영업/윤경근/10:00" 에서 국내영업이 이름으로, 윤경근이 소속으로 뒤집히는 사고가 났다.
+  // 하드 배제가 아니라 감점 — 이지원처럼 직무 단어로 끝나는 진짜 이름도 있어서, 다른 후보가 없으면 살린다.
+  const DEPT_TAIL =
+    /(영업|관리|구매|기획|개발|분석|생산|물류|안전|품질|인사|교육|운영|회계|재무|총무|마케팅|디자인|연구|지원|구성|기술|공정|시설|자재|포장|제조)$/;
+  // 흔한 성(姓) — "해외영업"과 "이지원"이 똑같이 감점됐을 때 사람 이름 쪽을 고르는 기준.
+  // 부서명은 성으로 시작하지 않는다.
+  const SURNAME =
+    /^[김이박최정강조윤장임한오서신권황안송전홍유고문양손배백허남심노하곽성차주우구원천방공현함변염여추도소석선설마길연위표명기반왕금옥육인맹제탁국진어편용봉피]/;
   const nameScore = (p: string): { name: string; score: number } | null => {
     const bare = withoutParens(p).replace(/\s+/g, ' ').trim();
     const m = bare.match(/^([가-힣]{2,4})(?:\s+(.*))?$/);
@@ -423,9 +432,10 @@ export function parseInterviewTitle(title: string): {
     if (TEAM_KEYWORDS.test(bare)) return null;
     if (SITE_KEYWORDS.some((s) => bare.includes(s)) || ROOM_KEYWORDS.test(bare)) return null;
     const rest = (m[2] || '').trim();
-    if (!rest) return { name: m[1], score: 3 };
-    if (rest.split(/\s+/).every((w) => ROLE_TAIL.test(w))) return { name: m[1], score: 2 };
-    return { name: m[1], score: 1 };
+    const penalty = (DEPT_TAIL.test(m[1]) ? 2 : 0) - (SURNAME.test(m[1]) ? 1 : 0);
+    if (!rest) return { name: m[1], score: 3 - penalty };
+    if (rest.split(/\s+/).every((w) => ROLE_TAIL.test(w))) return { name: m[1], score: Math.max(1, 2 - penalty) };
+    return { name: m[1], score: Math.max(1, 1 - penalty) };
   };
   let bestIdx = -1;
   let bestScore = 0;

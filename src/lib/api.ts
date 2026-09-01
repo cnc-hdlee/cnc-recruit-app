@@ -65,6 +65,8 @@ export interface GCalEvent {
   visibility?: string | null;
   transparency?: string | null;
   conferenceUrl: string | null;
+  /** 일정에 첨부된 파일 (대부분 지원자 이력서 — 드라이브에 있음) */
+  attachments?: { fileId: string | null; title: string; mimeType: string; fileUrl: string }[];
   creator?: { email: string | null; self: boolean } | null;
   organizer?: { email: string | null; self: boolean } | null;
   attendees: { email?: string; name?: string; responseStatus?: string; organizer?: boolean; self?: boolean }[];
@@ -229,6 +231,8 @@ interface ElectronAPI {
     sendGmail(payload: { to: string; subject: string; body: string; cc?: string; bcc?: string }): Promise<Result<{ id: string; threadId: string }>>;
     openAttachment(messageId: string, filename: string, attachmentId?: string): Promise<Result<{ path: string }>>;
     fetchAttachmentBase64(messageId: string, filename: string, attachmentId?: string): Promise<Result<{ base64: string; mimeType: string; filename: string }>>;
+    /** 캘린더 일정에 첨부된 드라이브 파일 내려받기 (읽기 전용) */
+    driveFile(fileId: string): Promise<Result<{ id: string; name: string; mimeType: string; base64: string }>>;
     listCalendar(min: string, max: string, id?: string): Promise<Result<GCalEvent[]>>;
     listCalendars(): Promise<Result<GCalListItem[]>>;
     listCalendarsFull(): Promise<Result<GCalListEntry[]>>;

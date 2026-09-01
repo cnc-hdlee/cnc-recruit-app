@@ -16,6 +16,9 @@ const SCOPES = [
   'https://www.googleapis.com/auth/spreadsheets.readonly',
   'https://www.googleapis.com/auth/drive.metadata.readonly',
   'https://www.googleapis.com/auth/drive.file', // 앱이 직접 만든 파일만 read/write — 기존 시트는 절대 건드릴 수 없음.
+  // 면접 일정에 첨부된 이력서(현업/매니저가 올린 드라이브 파일)를 읽기 위한 읽기 전용 권한.
+  // 쓰기 권한은 여전히 drive.file(앱이 만든 파일)로 제한된다.
+  'https://www.googleapis.com/auth/drive.readonly',
                                                  // "이번 달 면접" 익스포트 같이 새 시트 생성+데이터 쓰기 용도.
   'https://www.googleapis.com/auth/gmail.readonly',
   'https://www.googleapis.com/auth/gmail.send', // self-mail anomaly alerts only
@@ -638,6 +641,12 @@ async function listCalendar(timeMin, timeMax, calendarId = 'primary') {
     visibility: e.visibility || null,
     transparency: e.transparency || null,
     conferenceUrl: e.conferenceData?.entryPoints?.[0]?.uri || e.hangoutLink || null,
+    attachments: (e.attachments || []).map((a) => ({
+      fileId: a.fileId || null,
+      title: a.title || '',
+      mimeType: a.mimeType || '',
+      fileUrl: a.fileUrl || '',
+    })),
     creator: e.creator ? { email: e.creator.email || null, self: !!e.creator.self } : null,
     organizer: e.organizer ? { email: e.organizer.email || null, self: !!e.organizer.self } : null,
     attendees: (e.attendees || []).map((a) => ({
@@ -755,6 +764,23 @@ async function moveResumeFile(fileId, { name, team }) {
     webViewLink: res.data.webViewLink || null,
     moved: needsMove,
     renamed: needsRename,
+  };
+}
+
+/**
+ * 드라이브 파일 1건 내려받기 (읽기 전용).
+ * 면접 일정에 첨부된 이력서처럼 앱이 만들지 않은 파일을 읽을 때 쓴다 — 파일을 수정하지 않는다.
+ */
+async function downloadDriveFile(fileId) {
+  const auth = buildClient();
+  const drive = google.drive({ version: 'v3', auth });
+  const meta = await drive.files.get({ fileId, fields: 'id,name,mimeType,size' });
+  const res = await drive.files.get({ fileId, alt: 'media' }, { responseType: 'arraybuffer' });
+  return {
+    id: fileId,
+    name: meta.data.name || '',
+    mimeType: meta.data.mimeType || 'application/octet-stream',
+    base64: Buffer.from(res.data).toString('base64'),
   };
 }
 
@@ -920,6 +946,9 @@ module.exports = {
   createSheetWithData,
   syncHiresWorkbook,
   listGmail,
+  // Gmail WRITE — 후보자 안내메일 발송. export에서 빠져 있어 발송이 항상
+  // "google.sendGmail is not a function"으로 실패했다 (2026-09-01 수정).
+  sendGmail,
   openGmailAttachment,
   fetchGmailAttachmentBase64,
   // Drive: 이력서 보관함 백업 — 앱이 만든 폴더/파일만 (drive.file)

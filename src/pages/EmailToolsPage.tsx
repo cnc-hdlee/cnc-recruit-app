@@ -10,6 +10,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { IS_VIEWER } from '../lib/mode';
+import { INTERVIEW_CAL_IDS } from '../lib/sharedCalendars';
 import { useLiveData, liveCalendarEventsNormalized } from '../store/liveData';
 import { isInterviewKind, parseInterviewTitle } from './CalendarPage';
 import { api } from '../lib/api';
@@ -135,6 +136,42 @@ async function emailFromGmailResume(name: string): Promise<string> {
     }
   } catch {
     // 메일을 못 읽어도 치명적이지 않다
+  }
+  return '';
+}
+
+/**
+ * 면접 일정에 첨부된 이력서에서 주소를 읽는다.
+ * 김범준 팀장처럼 다른 사람이 등록한 면접은 이력서가 내 PC에도, 내 메일에도 없고
+ * 일정 첨부(드라이브)에만 있다. 드라이브 읽기 전용 권한으로 그 파일만 받아 파싱한다.
+ */
+async function emailFromCalendarAttachment(name: string, dt: string): Promise<string> {
+  if (!api?.google?.driveFile || !api?.resumes) return '';
+  try {
+    const day = dt || new Date().toISOString().slice(0, 10);
+    const from = new Date(`${day}T00:00:00+09:00`);
+    from.setDate(from.getDate() - 1);
+    const to = new Date(`${day}T00:00:00+09:00`);
+    to.setDate(to.getDate() + 2);
+    const cals = ['primary', ...INTERVIEW_CAL_IDS];
+    for (const calId of cals) {
+      const r = await api.google.listCalendar(from.toISOString(), to.toISOString(), calId);
+      if (!r.ok || !r.data) continue;
+      for (const ev of r.data) {
+        if (!(ev.summary || '').includes(name)) continue;
+        for (const att of ev.attachments || []) {
+          if (!att.fileId) continue;
+          if (NOT_RESUME_FILE_RE.test(att.title)) continue;
+          if (!/\.(pdf|docx?)$/i.test(att.title) && !RESUME_FILE_RE.test(att.title)) continue;
+          const f = await api.google.driveFile(att.fileId);
+          if (!f.ok || !f.data?.base64) continue;
+          const c = await api.resumes.contactsFromData(f.data.base64, f.data.mimeType);
+          if (c.ok && c.data?.email) return c.data.email;
+        }
+      }
+    }
+  } catch {
+    // 드라이브 권한이 아직 없으면(재로그인 전) 조용히 넘어간다
   }
   return '';
 }
@@ -273,6 +310,8 @@ export function EmailToolsPage() {
           if (r.ok && r.data?.email) found = r.data.email;
           // ② 보관함에 없으면 — 메일에 첨부된 이력서를 찾아 그 자리에서 읽는다 (저장은 안 함)
           if (!found) found = await emailFromGmailResume(c.name);
+          // ③ 그래도 없으면 면접 일정에 첨부된 이력서(드라이브)에서
+          if (!found) found = await emailFromCalendarAttachment(c.name, c.dt);
           if (!found || cancelled) continue;
           setAutoEmail((p) => ({ ...p, [c.name]: found }));
           await saveAutoEmail(c.name, found);
