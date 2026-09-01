@@ -10,7 +10,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api } from '../lib/api';
 import type { ResumeEntry } from '../lib/api';
 import { IS_VIEWER } from '../lib/mode';
-import { DEFAULT_TEAM_ATTENDEES } from '../lib/interviewAttendees';
+import { DEFAULT_TEAM_ATTENDEES, ALL_TEAMS } from '../lib/interviewAttendees';
 import { INTERVIEW_CAL_IDS } from '../lib/sharedCalendars';
 import { liveByKindOrScan, useLiveData } from '../store/liveData';
 import { parseInterviewTitle } from './CalendarPage';
@@ -315,7 +315,7 @@ export function ResumeVault() {
   // 알려진 팀 목록 — 메일/슬랙 본문에서 팀을 찾을 때 "아무 ○○팀"이 아니라 실재하는 팀만 인정한다.
   // (긴 이름부터 검사해야 '생산1팀'이 '생산팀'으로 잘못 잡히지 않는다)
   const knownTeams = useMemo(() => {
-    const s = new Set<string>([...Object.keys(DEFAULT_TEAM_ATTENDEES), ...suggestTeams]);
+    const s = new Set<string>([...ALL_TEAMS, ...Object.keys(DEFAULT_TEAM_ATTENDEES), ...suggestTeams]);
     entries.forEach((e) => e.team?.trim() && s.add(e.team.trim()));
     return [...s].sort((a, b) => b.length - a.length);
   }, [entries, suggestTeams]);
@@ -380,7 +380,7 @@ export function ResumeVault() {
       }
       // 2차 — 캘린더/시트로도 팀을 못 찾은 사람은 메일·슬랙까지 검색 (한 번에 최대 12명)
       const stillUnknown = (await api.resumes.list()).data || [];
-      const targets = stillUnknown.filter((e) => e.candidate && !e.team?.trim()).slice(0, 12);
+      const targets = stillUnknown.filter((e) => e.candidate && !e.team?.trim()).slice(0, 60);
       const deep: { id: string; team: string; matchedBy: string }[] = [];
       for (const e of targets) {
         if (!silent) setBusy(`메일·슬랙에서 ${e.candidate} 소속 찾는 중…`);

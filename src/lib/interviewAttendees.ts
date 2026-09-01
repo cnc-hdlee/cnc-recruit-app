@@ -225,3 +225,70 @@ export function resolveAttendees(
   const siteMismatch = !!home && !!roomSiteRaw && !roomSiteRaw.includes(home);
   return { emails, teamFound: team.length > 0, siteEmails, site, siteMismatch };
 }
+
+// ── Slack 조직도 동기화 (2026-09-01) ─────────────────────────────────────────
+// Slack 프로필 표시명이 "팀/이름/직급" 포맷이라 그대로 옮겼다.
+// 면접 참석자 이름 표시, 이력서 팀 자동 분류(실재하는 팀만 인정)에 함께 쓴다.
+// 갱신하려면 Slack에서 "팀장"으로 사용자 검색 후 이 표를 다시 채우면 된다.
+export const TEAM_LEADS: Record<string, { name: string; team: string; title: string }> = {
+  nedjang: { name: '장광남', team: 'GPD3팀', title: '팀장' },
+  yrjang: { name: '장예리', team: '품질관리2팀', title: '주임' },
+  jwoo: { name: '우정', team: 'Efficacy Design Studio', title: '팀장' },
+  swpark: { name: '박성우', team: '생산3팀', title: '팀장' },
+  sywoo: { name: '우선영', team: '디지털전략팀', title: '팀장' },
+  helena: { name: '이슬이', team: 'KPD1팀', title: '팀장' },
+  yhkim3: { name: '김요한', team: '포장3팀', title: '팀장' },
+  syjang2: { name: '장수영', team: 'Lip Studio 1팀', title: '연구원' },
+  jhoh: { name: '오지훈', team: 'Base Studio팀', title: '팀장' },
+  ewjang2: { name: '장은우', team: '품질관리1팀', title: '사원' },
+  hsong: { name: '송희', team: 'Lip Studio 2팀', title: '팀장' },
+  sjjang: { name: '장수진', team: '생산2팀', title: '사원' },
+  khpark: { name: '박광호', team: '디지털인프라팀', title: '팀장' },
+  kcshin: { name: '신관철', team: '포장2팀', title: '팀장' },
+  khjung: { name: '정기현', team: '품질관리1팀', title: '팀장' },
+  igchoi: { name: '최인규', team: '포장1팀', title: '팀장' },
+  hrjeong: { name: '정혜리', team: '기반연구팀', title: '팀장' },
+  mhso: { name: '소문희', team: 'KPD4팀', title: '팀장' },
+  sjjung: { name: '정소정', team: '제품전략팀', title: '팀장' },
+  eakim: { name: '김은아', team: 'Cleansing Studio팀', title: '팀장' },
+  sojbae: { name: '배소정', team: 'Powder Studio팀', title: '팀장' },
+  khkim: { name: '김광훈', team: '생산4팀', title: '팀장' },
+  ehjang: { name: '장은희', team: '생산3팀', title: '사원' },
+  sjlee: { name: '이승지', team: 'KPD2팀', title: '팀장' },
+  kmkim: { name: '김광민', team: '품질연구팀', title: '팀장' },
+  mkson: { name: '손민경', team: 'KPD3팀', title: '팀장' },
+  khan: { name: '한결', team: 'GPD3팀', title: '팀장' },
+  nkpark: { name: '박노권', team: 'FPNA팀', title: '팀장' },
+  mhlee: { name: '이민호', team: '품질관리2팀', title: '팀장' },
+  ejoh: { name: '오은지', team: 'Lip Studio 1팀', title: '팀장' },
+  kyhwang: { name: '황기연', team: '시설안전팀', title: '팀장' },
+  smkim4: { name: '김수민', team: '글로벌규제팀', title: '팀장' },
+  suhwang: { name: '황선욱', team: '영업관리팀', title: '팀장' },
+  kyhkim: { name: '김경한', team: '생산2팀', title: '팀장' },
+  juddoh: { name: '오서준', team: 'GPD1팀', title: '팀장' },
+  dklee: { name: '이동기', team: '생산기술팀', title: '팀장' },
+  jemoon: { name: '문지은', team: '품질보증팀', title: '팀장' },
+  yjunglee: { name: '이윤정', team: '자금팀', title: '팀장' },
+  jscheon: { name: '천진수', team: '자재물류2팀', title: '팀장' },
+  hskim3: { name: '김현수', team: '공정혁신팀', title: '팀장' },
+  sekim4: { name: '김승은', team: 'Scent Design Studio', title: '팀장' },
+  yghan: { name: '한윤구', team: '제조1팀', title: '팀장' },
+  ywkim: { name: '김영욱', team: '전략구매팀', title: '팀장' },
+  oskim: { name: '김옥상', team: '생산1팀', title: '팀장' },
+  dhko: { name: '고다희', team: '재무회계팀', title: '팀장' },
+  eblee2: { name: '이은범', team: '구성원경험팀', title: '팀장' },
+  jskim3: { name: '김진성', team: '거버넌스전략팀', title: '팀장' },
+  sclee: { name: '이상철', team: '자재물류1팀', title: '팀장' },
+  shhan3: { name: '한상현', team: 'People Ops팀', title: '팀장' },
+  bjkim4: { name: '김범준', team: 'Talent Acquisition팀', title: '팀장' },
+};
+
+/** 회사에 실재하는 팀 목록 — 파일명·메일에서 팀을 찾을 때 오탐을 막는 화이트리스트 */
+export const ALL_TEAMS: string[] = [...new Set(Object.values(TEAM_LEADS).map((t) => t.team))].sort(
+  (a, b) => b.length - a.length
+);
+
+// PEOPLE에 병합 — 수기로 넣어둔 값보다 Slack 조직도를 우선한다(소속이 바뀐 사람 반영).
+for (const [id, v] of Object.entries(TEAM_LEADS)) {
+  PEOPLE[id] = { name: v.name, title: v.title, team: v.team };
+}
