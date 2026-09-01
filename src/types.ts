@@ -101,6 +101,7 @@ export type PageId =
   | 'jobcenters'
   | 'campus'
   | 'lookup'
+  | 'resumes'
   | 'comms'
   | 'competitors'
   | 'comp_kolmar'

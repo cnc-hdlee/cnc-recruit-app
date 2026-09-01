@@ -650,6 +650,57 @@ async function listCalendar(timeMin, timeMax, calendarId = 'primary') {
   }));
 }
 
+// ── 이력서 보관함 드라이브 백업 ──────────────────────────────────────────────
+// drive.file 스코프 = 앱이 만든 파일/폴더만 접근 가능. 기존 드라이브 문서는 읽지도 쓰지도 못한다.
+// 폴더는 한 번만 만들고 id를 cfg에 저장해 재사용한다 (매번 새 폴더가 생기지 않게).
+const RESUME_FOLDER_KEY = 'resumeDriveFolderId';
+const RESUME_FOLDER_NAME = 'CNC 이력서 보관함';
+
+async function ensureResumeFolder() {
+  const auth = buildClient();
+  const drive = google.drive({ version: 'v3', auth });
+  const saved = store.get(RESUME_FOLDER_KEY);
+  if (saved) {
+    try {
+      const r = await drive.files.get({ fileId: saved, fields: 'id,name,trashed' });
+      if (r.data && !r.data.trashed) return r.data.id;
+    } catch {
+      // 폴더가 지워졌거나 접근 불가 → 아래에서 새로 만든다
+    }
+  }
+  const created = await drive.files.create({
+    requestBody: { name: RESUME_FOLDER_NAME, mimeType: 'application/vnd.google-apps.folder' },
+    fields: 'id',
+  });
+  store.set(RESUME_FOLDER_KEY, created.data.id);
+  return created.data.id;
+}
+
+async function uploadResumeFile({ name, mimeType, filePath }) {
+  const fs = require('node:fs');
+  const auth = buildClient();
+  const drive = google.drive({ version: 'v3', auth });
+  const folderId = await ensureResumeFolder();
+  const res = await drive.files.create({
+    requestBody: { name, parents: [folderId] },
+    media: { mimeType: mimeType || 'application/octet-stream', body: fs.createReadStream(filePath) },
+    fields: 'id,webViewLink',
+  });
+  return { id: res.data.id, webViewLink: res.data.webViewLink || null };
+}
+
+async function deleteDriveFile(fileId) {
+  const auth = buildClient();
+  const drive = google.drive({ version: 'v3', auth });
+  await drive.files.delete({ fileId });
+  return { ok: true };
+}
+
+async function getResumeFolderLink() {
+  const id = store.get(RESUME_FOLDER_KEY);
+  return id ? { id, url: `https://drive.google.com/drive/folders/${id}` } : { id: null, url: null };
+}
+
 async function listCalendars() {
   const auth = buildClient();
   const cal = google.calendar({ version: 'v3', auth });
@@ -802,6 +853,10 @@ module.exports = {
   listGmail,
   openGmailAttachment,
   fetchGmailAttachmentBase64,
+  // Drive: 이력서 보관함 백업 — 앱이 만든 폴더/파일만 (drive.file)
+  uploadResumeFile,
+  deleteDriveFile,
+  getResumeFolderLink,
   // Calendar: read + WRITE (user explicitly authorized)
   listCalendar,
   listCalendars,

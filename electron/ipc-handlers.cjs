@@ -3,6 +3,7 @@ const google = require('./integrations/google.cjs');
 const slack = require('./integrations/slack.cjs');
 const store = require('./integrations/store.cjs');
 const sync = require('./integrations/sync.cjs');
+const resumes = require('./integrations/resumes.cjs');
 
 function safeHandle(channel, handler) {
   ipcMain.handle(channel, async (_e, ...args) => {
@@ -67,6 +68,18 @@ function register() {
   safeHandle('g:deleteCalAcl', async (calendarId, ruleId) => google.deleteCalendarAcl(calendarId, ruleId));
 
   // Slack
+  // 이력서 보관함 — 로컬 저장(원본) + 드라이브 백업
+  safeHandle('rv:save', async (payload) => resumes.saveResume(payload));
+  safeHandle('rv:list', async () => resumes.listResumes());
+  safeHandle('rv:update', async (id, patch) => resumes.updateResume(id, patch));
+  safeHandle('rv:read', async (id) => resumes.readResumeBase64(id));
+  safeHandle('rv:open', async (id) => resumes.openResume(id));
+  safeHandle('rv:reveal', async () => resumes.revealResumeFolder());
+  safeHandle('rv:delete', async (id) => resumes.deleteResume(id));
+  safeHandle('rv:backup', async (ids) => resumes.backupToDrive(ids));
+  safeHandle('rv:stats', async () => resumes.stats());
+  safeHandle('rv:driveFolder', async () => google.getResumeFolderLink());
+
   safeHandle('s:saveToken', async (token) => {
     const r = await slack.testAuth(token);
     if (r.ok) slack.setToken(token);

@@ -92,6 +92,29 @@ export interface GCalListEntry {
   deleted: boolean;
 }
 
+// 이력서 보관함 항목 — userData/resumes/index.json 에 저장되는 레코드
+export interface ResumeEntry {
+  id: string;
+  filename: string;
+  storedName: string;
+  mimeType: string;
+  size: number;
+  hash: string;
+  addedAt: string;
+  updatedAt?: string;
+  candidate: string;
+  team: string;
+  job: string;
+  channel: string;
+  appliedAt: string;
+  note: string;
+  tags: string[];
+  source: string;
+  driveFileId: string | null;
+  driveLink?: string | null;
+  driveError: string | null;
+}
+
 export interface SlackTeam {
   team: string;
   teamId: string;
@@ -245,6 +268,22 @@ interface ElectronAPI {
       scopeType?: 'user' | 'group' | 'domain'
     ): Promise<Result<{ id: string; role: string }>>;
     deleteCalAcl(calendarId: string, ruleId: string): Promise<Result<{ ok: boolean }>>;
+  };
+  resumes: {
+    save(payload: {
+      filename: string;
+      base64: string;
+      meta?: Partial<ResumeEntry>;
+    }): Promise<Result<{ entry: ResumeEntry; duplicate: boolean }>>;
+    list(): Promise<Result<ResumeEntry[]>>;
+    update(id: string, patch: Partial<ResumeEntry>): Promise<Result<ResumeEntry>>;
+    read(id: string): Promise<Result<{ base64: string; mimeType: string; filename: string }>>;
+    open(id: string): Promise<Result<{ path: string }>>;
+    reveal(): Promise<Result<{ path: string }>>;
+    remove(id: string): Promise<Result<{ ok: boolean }>>;
+    backup(ids?: string[]): Promise<Result<{ uploaded: number; pending: number; errors: string[] }>>;
+    stats(): Promise<Result<{ count: number; bytes: number; backedUp: number; dir: string }>>;
+    driveFolder(): Promise<Result<{ id: string | null; url: string | null }>>;
   };
   slack: {
     saveToken(token: string): Promise<Result<{ ok: boolean; team: string; user: string; url: string }>>;

@@ -20,6 +20,7 @@ import { MeetingRooms } from './pages/MeetingRooms';
 import { JobCenters } from './pages/JobCenters';
 import { CampusRecruiting } from './pages/CampusRecruiting';
 import { CandidateLookup } from './pages/CandidateLookup';
+import { ResumeVault } from './pages/ResumeVault';
 import { EmailToolsPage } from './pages/EmailToolsPage';
 import { CompetitorOrgPage, CompetitorsOverview } from './pages/Competitors';
 import { OrgChartPage, OrgChartsOverview } from './pages/OrgCharts';
@@ -40,6 +41,7 @@ const PAGE_TITLES: Partial<Record<PageId, string>> = {
   jobcenters: '일자리센터',
   campus: '캠퍼스 리쿠르팅',
   lookup: '후보자 검색',
+  resumes: '이력서 보관함 (팀 · 직무별)',
   comms: '후보자 안내 메일',
   competitors: '경쟁사 조직도',
   comp_kolmar: '경쟁사 — 한국콜마',
@@ -129,6 +131,7 @@ export default function App() {
           {page === 'jobcenters' && <JobCenters />}
           {page === 'campus' && <CampusRecruiting />}
           {page === 'lookup' && <CandidateLookup />}
+          {page === 'resumes' && <ResumeVault />}
           {page === 'comms' && <EmailToolsPage />}
           {page === 'competitors' && <CompetitorsOverview onOpen={(id) => setPage(id === 'kolmar' ? 'comp_kolmar' : 'comp_cosmax')} />}
           {page === 'comp_kolmar' && <CompetitorOrgPage companyId="kolmar" />}

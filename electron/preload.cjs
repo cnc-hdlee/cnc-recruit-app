@@ -54,6 +54,20 @@ contextBridge.exposeInMainWorld('electronAPI', {
     deleteCalAcl: (calendarId, ruleId) => invoke('g:deleteCalAcl', calendarId, ruleId),
   },
 
+  // 이력서 보관함 — 드래그앤드랍한 원본을 로컬에 쌓고 드라이브에 백업
+  resumes: {
+    save: (payload) => invoke('rv:save', payload),
+    list: () => invoke('rv:list'),
+    update: (id, patch) => invoke('rv:update', id, patch),
+    read: (id) => invoke('rv:read', id),
+    open: (id) => invoke('rv:open', id),
+    reveal: () => invoke('rv:reveal'),
+    remove: (id) => invoke('rv:delete', id),
+    backup: (ids) => invoke('rv:backup', ids),
+    stats: () => invoke('rv:stats'),
+    driveFolder: () => invoke('rv:driveFolder'),
+  },
+
   slack: {
     saveToken: (token) => invoke('s:saveToken', token),
     status: () => invoke('s:status'),
