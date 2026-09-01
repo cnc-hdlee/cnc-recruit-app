@@ -165,7 +165,8 @@ export function InterviewAgenda() {
             owner: m.id,
             dt: s.dt,
             tm: s.tm,
-            endTm: en.dt === s.dt ? en.tm : '',
+            // 종료가 다른 날이거나 시작과 같으면(휴가 등 길이 0 이벤트) 종료시각 표기 생략
+            endTm: en.dt === s.dt && en.tm !== s.tm ? en.tm : '',
             allDay: e.allDay || !s.tm,
             title,
             // 구글은 남의 private 일정을 제목 없이(바쁨) 내려준다 → 제목 없음 = 비공개로 표시
