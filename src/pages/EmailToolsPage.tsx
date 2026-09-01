@@ -9,6 +9,7 @@
 //       CPI 인성검사는 폐지(2026-08)되어 제거. 2차 면접은 아직 미구현.
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { IS_VIEWER } from '../lib/mode';
 import { useLiveData, liveCalendarEventsNormalized } from '../store/liveData';
 import { isInterviewKind, parseInterviewTitle } from './CalendarPage';
 import { api } from '../lib/api';
@@ -24,6 +25,8 @@ import {
   appendSendLog,
   loadSendLog,
   loadEmailCache,
+  loadAutoEmailCache,
+  saveAutoEmail,
   saveEmail,
   STAGE_ORDER,
   STAGE_LABEL,
@@ -103,6 +106,39 @@ function fixCandidateName(title: string, parsed: string): string {
   return parsed;
 }
 
+/**
+ * 보관함에 이력서가 없는 지원자 — 받은 메일에 첨부된 이력서를 찾아 거기서 주소를 읽는다.
+ * 첨부는 저장하지 않고 그 자리에서 파싱만 한다 (이력서 보관함은 사용자가 직접 넣은 것만 유지).
+ * 사전질문지·평가표는 이력서가 아니므로 제외 — 메모리 [이력서만 엄격].
+ */
+const RESUME_FILE_RE = /(이력서|경력기술서|자기소개서|resume|cv)/i;
+const NOT_RESUME_FILE_RE = /(사전질문|평가표|면접표|안내문|양식)/i;
+
+async function emailFromGmailResume(name: string): Promise<string> {
+  if (!api?.google || !api?.resumes) return '';
+  try {
+    const r = await api.google.listGmail(`"${name}" has:attachment`, 6);
+    if (!r.ok || !r.data?.length) return '';
+    for (const msg of r.data) {
+      const infos = msg.attachmentInfos || [];
+      const pick = infos.find(
+        (a) =>
+          /\.(pdf|docx?)$/i.test(a.filename) &&
+          !NOT_RESUME_FILE_RE.test(a.filename) &&
+          (a.filename.includes(name) || RESUME_FILE_RE.test(a.filename))
+      );
+      if (!pick) continue;
+      const f = await api.google.fetchAttachmentBase64(msg.id, pick.filename, pick.attachmentId);
+      if (!f.ok || !f.data?.base64) continue;
+      const c = await api.resumes.contactsFromData(f.data.base64, f.data.mimeType);
+      if (c.ok && c.data?.email) return c.data.email;
+    }
+  } catch {
+    // 메일을 못 읽어도 치명적이지 않다
+  }
+  return '';
+}
+
 export function EmailToolsPage() {
   useLiveData(); // 캘린더 폴링 갱신에 재렌더
 
@@ -111,6 +147,9 @@ export function EmailToolsPage() {
   const [hqOverrides, setHqOverrides] = useState<Record<string, string>>({});
   const [templates, setTemplates] = useState<EmailTemplate[]>([]);
   const [emailMap, setEmailMap] = useState<Record<string, string>>({});
+  // 이력서에서 자동으로 뽑은 주소 (수기 입력이 항상 우선)
+  const [autoEmail, setAutoEmail] = useState<Record<string, string>>({});
+  const autoTried = useRef<Set<string>>(new Set());
   const [log, setLog] = useState<SendLogEntry[]>([]);
 
   const [siteId, setSiteId] = useState<string>('purple');
@@ -153,6 +192,7 @@ export function EmailToolsPage() {
     loadHqOverrides().then(setHqOverrides);
     loadTemplates().then(setTemplates);
     loadEmailCache().then(setEmailMap);
+    loadAutoEmailCache().then(setAutoEmail);
     loadSendLog().then(setLog);
   }, []);
 
@@ -205,13 +245,46 @@ export function EmailToolsPage() {
         siteId: inferSite([p.site, e.location, e.title].filter(Boolean).join(' '), sites),
         hqId: hqOverrides[name] || inferHq(teamText, hqs),
         location: e.location || '',
-        email: emailMap[name] || '',
+        email: emailMap[name] || autoEmail[name] || '',
         status: st ? st[1] : '',
       });
     }
     dropsRef.current = drops;
     return [...out.values()].sort((a, b) => (a.dt + a.tm).localeCompare(b.dt + b.tm));
-  }, [sites, hqs, hqOverrides, emailMap, excludeNames]);
+  }, [sites, hqs, hqOverrides, emailMap, autoEmail, excludeNames]);
+
+  // ── 이력서 → 받는 사람 주소 자동 인입 ────────────────────────────────────
+  // 메일 주소를 손으로 치지 않게, 이력서 보관함의 원본 PDF에서 지원자 이메일을 읽어 채운다.
+  // 한 번 찾은 값은 캐시되므로 다음부터는 즉시 뜬다. 수기로 고친 주소는 절대 덮어쓰지 않는다.
+  useEffect(() => {
+    if (IS_VIEWER || !api?.resumes) return;
+    const targets = allCandidates
+      .filter((c) => !c.email && c.name && !autoTried.current.has(c.name))
+      .slice(0, 40);
+    if (targets.length === 0) return;
+    let cancelled = false;
+    (async () => {
+      for (const c of targets) {
+        autoTried.current.add(c.name);
+        try {
+          // ① 이력서 보관함
+          let found = '';
+          const r = await api.resumes.contactsByName(c.name);
+          if (r.ok && r.data?.email) found = r.data.email;
+          // ② 보관함에 없으면 — 메일에 첨부된 이력서를 찾아 그 자리에서 읽는다 (저장은 안 함)
+          if (!found) found = await emailFromGmailResume(c.name);
+          if (!found || cancelled) continue;
+          setAutoEmail((p) => ({ ...p, [c.name]: found }));
+          await saveAutoEmail(c.name, found);
+        } catch {
+          // 이력서가 없거나 못 읽는 형식 — 수기 입력으로 남겨둔다
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [allCandidates]);
 
   const today = todayStr();
   // 이미 치른 면접에만 보내는 단계 — 불합격 안내. 목록을 지난 면접으로 뒤집는다.
@@ -585,6 +658,15 @@ export function EmailToolsPage() {
                         placeholder="candidate@example.com"
                         className="w-56 px-2 py-1 border border-slate-300 rounded text-sm text-slate-900"
                       />
+                      {/* 이력서에서 자동으로 끌어온 주소임을 표시 — 수기 입력과 구분 */}
+                      {!emailMap[c.name] && autoEmail[c.name] && to === autoEmail[c.name] && (
+                        <span
+                          className="ml-1.5 px-1.5 py-0.5 rounded text-[10px] font-bold bg-violet-100 text-violet-800 align-middle"
+                          title="이력서 보관함의 원본 PDF에서 자동으로 읽어온 주소입니다"
+                        >
+                          이력서
+                        </span>
+                      )}
                     </td>
                     <td className="px-3 py-2 whitespace-nowrap">
                       <button

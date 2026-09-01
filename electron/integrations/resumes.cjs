@@ -231,6 +231,242 @@ async function deleteResume(id) {
   return { ok: true };
 }
 
+// ── 이력서에서 연락처 뽑기 ──────────────────────────────────────────────────
+// 후보자 안내 메일의 받는 사람을 손으로 치지 않게, 이력서 원본에서 이메일/전화를 읽어온다.
+//
+// PDF 본문은 대부분 FlateDecode로 압축돼 있고, 텍스트는 (…) 문자열 안에 들어 있다.
+// 커닝 때문에 "hong"  "@"  "gmail.com" 처럼 쪼개지므로 괄호 문자열을 이어 붙인 뒤 정규식을 건다.
+// (한글은 CID 폰트라 깨질 수 있지만 이메일·전화는 ASCII라 이 방식으로 잘 잡힌다)
+const zlib = require('node:zlib');
+
+function pdfParenStrings(s) {
+  let out = '';
+  let depth = 0;
+  let cur = '';
+  for (let i = 0; i < s.length; i += 1) {
+    const ch = s[i];
+    if (depth > 0 && ch === '\\') {
+      cur += s[i + 1] || '';
+      i += 1;
+      continue;
+    }
+    if (ch === '(') {
+      depth += 1;
+      if (depth === 1) cur = '';
+      else cur += ch;
+      continue;
+    }
+    if (ch === ')') {
+      depth -= 1;
+      if (depth === 0) {
+        out += cur;
+        cur = '';
+      } else if (depth > 0) cur += ch;
+      continue;
+    }
+    if (depth > 0) cur += ch;
+  }
+  return out;
+}
+
+// 텍스트 레이어(사람이 읽는 글자)와 raw(메타데이터·바이너리)를 분리해서 돌려준다.
+// raw까지 뒤지면 XMP 메타데이터가 글자에 눌어붙어 "en-UStkdgus9114@naver.com" 같은 쓰레기가 나온다.
+function pdfTextCandidates(buf) {
+  const texts = [];
+  const raw = buf.toString('latin1');
+  texts.push(pdfParenStrings(raw));
+  // FlateDecode 스트림 풀기
+  let idx = 0;
+  for (;;) {
+    const s = raw.indexOf('stream', idx);
+    if (s < 0) break;
+    const e = raw.indexOf('endstream', s);
+    if (e < 0) break;
+    let start = s + 6;
+    if (raw[start] === '\r') start += 1;
+    if (raw[start] === '\n') start += 1;
+    const chunk = buf.subarray(start, e);
+    if (chunk.length > 8 && chunk.length < 8 * 1024 * 1024) {
+      try {
+        const inflated = zlib.inflateSync(chunk).toString('latin1');
+        texts.push(pdfParenStrings(inflated));
+      } catch {
+        // 이미지·비압축 스트림 — 무시
+      }
+    }
+    idx = e + 9;
+  }
+  return { layer: texts, raw };
+}
+
+// 실재하는 TLD만 인정 — "naver.en", "g4.Bj" 같은 PDF 내부 문자열 조각을 걸러낸다
+const EMAIL_RE =
+  /[A-Za-z0-9._%+-]{2,}@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.(?:com|net|org|kr|co\.kr|ne\.kr|or\.kr|ac\.kr|pe\.kr|edu|io|me|biz|info)\b/gi;
+// 휴대폰 — 앞뒤로 숫자가 더 붙지 않아야 하고, 구분자가 있거나 정확히 11자리
+const PHONE_RE = /(?<!\d)01[016-9](?:[-. ]\d{3,4}[-. ]\d{4}|\d{7,8})(?!\d)/g;
+// 메일 앞에 눌어붙는 흔한 메타데이터 조각 (언어코드·인코딩 표기 등)
+const EMAIL_NOISE_PREFIX = /^(?:[a-z]{2}-[A-Z]{2}|utf-?8|xml|iso-?\d+|adobe|acrobat|word|hwp)/;
+// 지원자 본인 주소가 아닐 가능성이 큰 도메인 (회사·채용플랫폼 알림)
+const NOT_CANDIDATE_DOMAIN =
+  /@(cnccosmetic\.com|jobkorea\.co\.kr|saramin\.co\.kr|greetinghr\.com|incruit\.com|wanted\.co\.kr|google\.com|gmail-noreply)/i;
+
+// 1순위: pdf-parse(pdf.js)로 제대로 된 텍스트 추출 — 한글 CID 폰트까지 정확히 읽는다.
+// 2순위: 위 라이브러리가 실패하면 zlib 자체 파서 (ASCII만 건짐).
+let PDFParseCls;
+function pdfLib() {
+  if (PDFParseCls === undefined) {
+    try {
+      PDFParseCls = require('pdf-parse').PDFParse;
+    } catch {
+      PDFParseCls = null;
+    }
+  }
+  return PDFParseCls;
+}
+
+async function pdfText(buf) {
+  const P = pdfLib();
+  if (P) {
+    let parser = null;
+    try {
+      parser = new P({ data: new Uint8Array(buf) });
+      const r = await parser.getText();
+      if (r && r.text) return r.text;
+    } catch {
+      // 손상된 PDF·암호화 문서 → 아래 fallback
+    } finally {
+      try {
+        await parser?.destroy?.();
+      } catch {
+        /* noop */
+      }
+    }
+  }
+  return pdfTextCandidates(buf).layer.join('\n');
+}
+
+async function extractContacts(id) {
+  const list = readIndex();
+  const r = list.find((x) => x.id === id);
+  if (!r) throw new Error('해당 이력서를 찾을 수 없습니다');
+  const p = path.join(filesDir(), r.storedName);
+  if (!fs.existsSync(p)) throw new Error('원본 파일이 로컬에 없습니다');
+  const buf = fs.readFileSync(p);
+  const parsed =
+    r.mimeType === 'application/pdf'
+      ? { layer: [await pdfText(buf)], raw: buf.toString('latin1') }
+      : { layer: [buf.toString('utf8')], raw: '' };
+  const emails = new Set();
+  const phones = new Set();
+  const addEmails = (t) => {
+    for (const m of t.match(EMAIL_RE) || []) {
+      let v = m.replace(/\.$/, '');
+      if (v.length > 64) continue;
+      // 앞에 눌어붙은 메타데이터 조각 제거 ("en-UStkdgus9114@…" → "tkdgus9114@…")
+      const local = v.slice(0, v.indexOf('@'));
+      const noise = local.match(EMAIL_NOISE_PREFIX);
+      if (noise) v = v.slice(noise[0].length);
+      if (v.startsWith('@')) continue;
+      emails.add(v);
+    }
+  };
+  // 1순위: 사람이 읽는 텍스트 레이어
+  for (const t of parsed.layer) {
+    addEmails(t);
+    for (const m of t.match(PHONE_RE) || []) {
+      phones.add(m.replace(/[.\s]/g, '-'));
+    }
+  }
+  // 2순위: 텍스트 레이어에서 못 찾았을 때만 raw (메타데이터 포함이라 정확도가 떨어짐)
+  if (emails.size === 0 && parsed.raw) addEmails(parsed.raw);
+  const ranked = [...emails].sort((a, b) => {
+    const an = NOT_CANDIDATE_DOMAIN.test(a) ? 1 : 0;
+    const bn = NOT_CANDIDATE_DOMAIN.test(b) ? 1 : 0;
+    return an - bn || a.length - b.length;
+  });
+  const out = {
+    id,
+    candidate: r.candidate,
+    email: ranked.find((e) => !NOT_CANDIDATE_DOMAIN.test(e)) || '',
+    emails: ranked,
+    phone: [...phones][0] || '',
+    phones: [...phones],
+  };
+  // 인덱스에 캐시 — 같은 이력서를 다시 파싱하지 않게 (메일 화면에서 즉시 뜬다)
+  if (out.email !== r.contactEmail || out.phone !== r.contactPhone) {
+    r.contactEmail = out.email;
+    r.contactPhone = out.phone;
+    r.contactAt = new Date().toISOString();
+    writeIndex(list);
+  }
+  return out;
+}
+
+/**
+ * 파일을 저장하지 않고 버퍼에서만 연락처를 뽑는다.
+ * 보관함에 없는 지원자(현업이 메일로 보낸 이력서 등)의 주소를 채울 때 쓴다 — 보관함은 건드리지 않는다.
+ */
+async function extractContactsFromData(base64, mimeType) {
+  const buf = Buffer.from(base64 || '', 'base64');
+  if (!buf.length) return { email: '', emails: [], phone: '', phones: [] };
+  const text =
+    (mimeType || '').includes('pdf') || buf.subarray(0, 4).toString() === '%PDF'
+      ? await pdfText(buf)
+      : buf.toString('utf8');
+  const emails = new Set();
+  const phones = new Set();
+  for (const m of text.match(EMAIL_RE) || []) {
+    let v = m.replace(/\.$/, '');
+    if (v.length > 64) continue;
+    const local = v.slice(0, v.indexOf('@'));
+    const noise = local.match(EMAIL_NOISE_PREFIX);
+    if (noise) v = v.slice(noise[0].length);
+    if (!v.startsWith('@')) emails.add(v);
+  }
+  for (const m of text.match(PHONE_RE) || []) phones.add(m.replace(/[.\s]/g, '-'));
+  const ranked = [...emails].sort((a, b) => {
+    const an = NOT_CANDIDATE_DOMAIN.test(a) ? 1 : 0;
+    const bn = NOT_CANDIDATE_DOMAIN.test(b) ? 1 : 0;
+    return an - bn || a.length - b.length;
+  });
+  return {
+    email: ranked.find((e) => !NOT_CANDIDATE_DOMAIN.test(e)) || '',
+    emails: ranked,
+    phone: [...phones][0] || '',
+    phones: [...phones],
+  };
+}
+
+/** 이름으로 보관함을 찾아 연락처를 돌려준다 (가장 최근 이력서 우선, 캐시 있으면 즉시) */
+async function contactsByName(name) {
+  const key = (name || '').replace(/\s+/g, '');
+  if (!key) return { email: '', phone: '', emails: [], phones: [], id: null };
+  const hits = readIndex()
+    .filter((r) => (r.candidate || '').replace(/\s+/g, '') === key)
+    .sort((a, b) => (b.addedAt || '').localeCompare(a.addedAt || ''));
+  const cached = hits.find((h) => h.contactEmail || h.contactPhone);
+  if (cached) {
+    return {
+      id: cached.id,
+      candidate: cached.candidate,
+      email: cached.contactEmail || '',
+      phone: cached.contactPhone || '',
+      emails: cached.contactEmail ? [cached.contactEmail] : [],
+      phones: cached.contactPhone ? [cached.contactPhone] : [],
+      cached: true,
+    };
+  }
+  for (const h of hits) {
+    try {
+      const c = await extractContacts(h.id);
+      if (c.email || c.phone) return c;
+    } catch {
+      // 다음 이력서로
+    }
+  }
+  return { email: '', phone: '', emails: [], phones: [], id: hits[0]?.id || null };
+}
+
 // ── 분류 일괄 반영 ──────────────────────────────────────────────────────────
 // 화면(면접 캘린더·시트 매칭)에서 찾아낸 팀/직무를 한 번에 적용한다.
 // fill 모드(기본)에서는 비어 있는 칸만 채우고, 사용자가 직접 넣은 값은 덮어쓰지 않는다.
@@ -434,5 +670,8 @@ module.exports = {
   backupToDrive,
   applyClassification,
   organizeVault,
+  extractContacts,
+  extractContactsFromData,
+  contactsByName,
   stats,
 };

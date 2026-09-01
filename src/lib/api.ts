@@ -115,6 +115,17 @@ export interface ResumeEntry {
   driveError: string | null;
 }
 
+// 이력서에서 뽑아낸 지원자 연락처
+export interface ResumeContact {
+  id: string | null;
+  candidate?: string;
+  email: string;
+  emails: string[];
+  phone: string;
+  phones: string[];
+  cached?: boolean;
+}
+
 export interface SlackTeam {
   team: string;
   teamId: string;
@@ -286,6 +297,12 @@ interface ElectronAPI {
       updates: { id: string; candidate?: string; team?: string; job?: string; matchedBy?: string }[],
       opts?: { overwrite?: boolean }
     ): Promise<Result<{ changed: number }>>;
+    /** 이력서 원본(PDF)에서 지원자 이메일·전화를 읽어온다 */
+    contacts(id: string): Promise<Result<ResumeContact>>;
+    /** 이름으로 보관함을 찾아 연락처를 돌려준다 (가장 최근 이력서 기준) */
+    contactsByName(name: string): Promise<Result<ResumeContact>>;
+    /** 저장하지 않고 파일 데이터에서만 연락처를 뽑는다 (메일 첨부 이력서용) */
+    contactsFromData(base64: string, mimeType?: string): Promise<Result<ResumeContact>>;
     organize(): Promise<
       Result<{
         localMoved: number;

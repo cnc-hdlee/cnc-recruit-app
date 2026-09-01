@@ -446,3 +446,25 @@ export async function saveEmail(name: string, email: string): Promise<void> {
   cur[name] = email;
   await api.cfg.set(EMAIL_CACHE_KEY, cur);
 }
+
+// 이력서에서 자동으로 뽑아낸 주소 — 수기 입력값과 섞이지 않게 별도 보관한다.
+// (수기 > 자동 우선순위. 자동값이 틀리면 이력서만 고치면 다시 뽑힌다)
+const EMAIL_AUTO_KEY = 'candidateEmailFromResume';
+
+export async function loadAutoEmailCache(): Promise<Record<string, string>> {
+  if (!api?.cfg) return {};
+  try {
+    const r = await api.cfg.get<Record<string, string>>(EMAIL_AUTO_KEY);
+    return r.ok && r.data ? r.data : {};
+  } catch {
+    return {};
+  }
+}
+
+export async function saveAutoEmail(name: string, email: string): Promise<void> {
+  if (!api?.cfg) return;
+  const cur = await loadAutoEmailCache();
+  if (cur[name] === email) return;
+  cur[name] = email;
+  await api.cfg.set(EMAIL_AUTO_KEY, cur);
+}

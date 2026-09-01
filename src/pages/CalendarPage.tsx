@@ -409,7 +409,38 @@ export function parseInterviewTitle(title: string): {
   let candidate = '', site = '', team = '', room = '', time = '';
   const leftover: string[] = [];
 
-  for (const p of parts) {
+  // 이름 후보 고르기 — "먼저 나온 토큰이 이김"이 아니라 점수가 가장 높은 토큰을 쓴다.
+  //   "영업관리 해외/김미리애/14:00" 에서 앞 토큰(부서)이 이름으로 잡혀 메일이 "영업관리님"으로
+  //   나가던 문제(2026-09-01) 때문에 도입. 부서·직무는 뒤에 다른 말이 붙어 있고, 사람 이름은 단독이다.
+  //   3점 = 이름만 있는 토큰("김미리애") / 2점 = 이름 + 호칭·차수("이새롬 1차")
+  //   1점 = 이름 뒤에 다른 말이 붙음("영업관리 해외") → 더 좋은 후보가 없을 때만 사용
+  const ROLE_TAIL = /^(님|씨|후보자|지원자|\d+\s*차|신입|경력|팀장|파트장|과장|대리|사원|주임|차장|부장|이사)$/;
+  const nameScore = (p: string): { name: string; score: number } | null => {
+    const bare = withoutParens(p).replace(/\s+/g, ' ').trim();
+    const m = bare.match(/^([가-힣]{2,4})(?:\s+(.*))?$/);
+    if (!m) return null;
+    if (NOT_NAME_KEYWORDS.test(m[1])) return null;
+    if (TEAM_KEYWORDS.test(bare)) return null;
+    if (SITE_KEYWORDS.some((s) => bare.includes(s)) || ROOM_KEYWORDS.test(bare)) return null;
+    const rest = (m[2] || '').trim();
+    if (!rest) return { name: m[1], score: 3 };
+    if (rest.split(/\s+/).every((w) => ROLE_TAIL.test(w))) return { name: m[1], score: 2 };
+    return { name: m[1], score: 1 };
+  };
+  let bestIdx = -1;
+  let bestScore = 0;
+  parts.forEach((p, i) => {
+    if (/\d{1,2}:\d{2}/.test(p)) return; // 시간 토큰은 이름 후보가 아니다
+    const s = nameScore(p);
+    if (s && s.score > bestScore) {
+      bestScore = s.score;
+      bestIdx = i;
+    }
+  });
+  if (bestIdx >= 0) candidate = nameScore(parts[bestIdx])!.name;
+
+  for (const [idx, p] of parts.entries()) {
+    if (idx === bestIdx) continue; // 이름으로 확정된 토큰은 다른 항목으로 재사용하지 않는다
     // 시간: 토큰 내 어디든
     if (!time) {
       const tm = p.match(/(\d{1,2}:\d{2})/);
@@ -453,6 +484,9 @@ export function parseInterviewTitle(title: string): {
   if (!candidate) {
     candidate = parts.find((p) => !NOT_NAME_KEYWORDS.test(p) && !/^\d/.test(p)) || '';
   }
+
+  // 소속 앞에 붙은 "(면접)" 머리말은 표시용으로 필요 없다 — 칩에 그대로 찍히면 지저분하다
+  team = team.replace(/^[(（]\s*면접\s*[)）]\s*/, '').replace(/\s+/g, ' ').trim();
 
   return { candidate, site, team, room, time };
 }
