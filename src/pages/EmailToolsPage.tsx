@@ -218,6 +218,9 @@ export function EmailToolsPage() {
   const [showLog, setShowLog] = useState(false);
   // 드라이브 읽기 권한이 없어 일정 첨부 이력서를 못 읽는 상태 (스코프 추가 후 최초 1회 재로그인 필요)
   const [needDriveAuth, setNeedDriveAuth] = useState(false);
+  const driveAuthTried = useRef(false);
+  // 재로그인 후 못 채운 주소를 한 번 더 훑기 위한 트리거
+  const [retryTick, setRetryTick] = useState(0);
 
   useEffect(() => {
     loadSites().then(setSites);
@@ -328,12 +331,30 @@ export function EmailToolsPage() {
           // 이력서가 없거나 못 읽는 형식 — 수기 입력으로 남겨둔다
         }
       }
-      if (driveScopeMissing && !cancelled) setNeedDriveAuth(true);
+      // 드라이브 권한이 없어 일정 첨부 이력서를 못 읽었다면 — 물어보지 말고 바로 로그인 창을 띄운다.
+      // (권한 동의 클릭만 사용자가 하면 되고, 끝나면 못 채운 주소를 자동으로 다시 채운다)
+      if (driveScopeMissing && !cancelled) {
+        setNeedDriveAuth(true);
+        if (!driveAuthTried.current) {
+          driveAuthTried.current = true;
+          try {
+            const r = await api.google.startAuth();
+            if (r.ok) {
+              driveScopeMissing = false;
+              setNeedDriveAuth(false);
+              autoTried.current.clear(); // 못 채운 사람들 다시 시도
+              setRetryTick((t) => t + 1);
+            }
+          } catch {
+            // 사용자가 창을 닫았으면 배너로 다시 안내
+          }
+        }
+      }
     })();
     return () => {
       cancelled = true;
     };
-  }, [allCandidates]);
+  }, [allCandidates, retryTick]);
 
   const today = todayStr();
   // 이미 치른 면접에만 보내는 단계 — 불합격 안내. 목록을 지난 면접으로 뒤집는다.
