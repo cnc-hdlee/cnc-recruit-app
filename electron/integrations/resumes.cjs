@@ -314,7 +314,10 @@ const NOT_RESUME_DOC =
 // 현업/채용사이트가 여러 명 이력서를 zip으로 묶어 보내는 경우가 많다.
 // 중앙 디렉터리만 읽어 목록을 만들고, 필요한 항목만 풀어서 편입한다(원본 zip은 그대로 둔다).
 function zipEntries(filePath) {
-  const buf = fs.readFileSync(filePath);
+  return zipEntriesFromBuffer(fs.readFileSync(filePath));
+}
+
+function zipEntriesFromBuffer(buf) {
   // End of Central Directory 찾기 (뒤에서부터)
   let eocd = -1;
   for (let i = buf.length - 22; i >= 0 && i > buf.length - 66000; i -= 1) {
@@ -792,13 +795,38 @@ async function extractContacts(id) {
  * 파일을 저장하지 않고 버퍼에서만 연락처를 뽑는다.
  * 보관함에 없는 지원자(현업이 메일로 보낸 이력서 등)의 주소를 채울 때 쓴다 — 보관함은 건드리지 않는다.
  */
+/**
+ * .docx 본문 텍스트 — docx는 zip이고 본문이 word/document.xml에 들어 있다.
+ * 현업이 보내는 이력서에 docx가 섞여 있어(윤수민 건) PDF만 읽으면 연락처를 놓친다.
+ */
+function docxText(buf) {
+  try {
+    const entries = zipEntriesFromBuffer(buf);
+    const doc = entries.find((e) => e.name === 'word/document.xml');
+    if (!doc) return '';
+    const xml = zipRead(doc)?.toString('utf8') || '';
+    return xml
+      .replace(/<w:p[ >][^]*?<\/w:p>|<w:p\/>/g, (m) => m + '\n') // 문단 구분 유지
+      .replace(/<[^>]+>/g, ' ')
+      .replace(/&amp;/g, '&')
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&quot;/g, '"')
+      .replace(/&#(\d+);/g, (_, d) => String.fromCharCode(Number(d)))
+      .replace(/[ \t]+/g, ' ');
+  } catch {
+    return '';
+  }
+}
+
 async function extractContactsFromData(base64, mimeType) {
   const buf = Buffer.from(base64 || '', 'base64');
   if (!buf.length) return { email: '', emails: [], phone: '', phones: [] };
-  const text =
-    (mimeType || '').includes('pdf') || buf.subarray(0, 4).toString() === '%PDF'
-      ? await pdfText(buf)
-      : buf.toString('utf8');
+  const isPdf = (mimeType || '').includes('pdf') || buf.subarray(0, 4).toString() === '%PDF';
+  const isDocx =
+    /officedocument\.wordprocessingml/.test(mimeType || '') ||
+    (buf[0] === 0x50 && buf[1] === 0x4b && !isPdf);
+  const text = isPdf ? await pdfText(buf) : isDocx ? docxText(buf) : buf.toString('utf8');
   const emails = new Set();
   const phones = new Set();
   for (const m of text.match(EMAIL_RE) || []) {

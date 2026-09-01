@@ -482,8 +482,13 @@ export function EmailToolsPage() {
         variables: vars,
       });
       setLog(await loadSendLog());
-      await saveEmail(c.name, to);
-      setEmailMap((p) => ({ ...p, [c.name]: to }));
+      // 테스트로 내 주소에 보낸 걸 후보자 주소로 기억하면, 이력서에서 읽어온 진짜 주소를 덮어버린다.
+      // (조성준 건 — 테스트 발송 주소가 계속 남아 있던 문제) 내 주소면 저장하지 않는다.
+      const me = (await api.cfg.get<{ email?: string }>('googleProfile'))?.data?.email || '';
+      if (to.toLowerCase() !== me.toLowerCase()) {
+        await saveEmail(c.name, to);
+        setEmailMap((p) => ({ ...p, [c.name]: to }));
+      }
       return true;
     } finally {
       setBusy(null);

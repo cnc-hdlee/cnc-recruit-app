@@ -818,8 +818,14 @@ async function moveResumeFile(fileId, { name, team }) {
 async function downloadDriveFile(fileId) {
   const auth = buildClient();
   const drive = google.drive({ version: 'v3', auth });
-  const meta = await drive.files.get({ fileId, fields: 'id,name,mimeType,size' });
-  const res = await drive.files.get({ fileId, alt: 'media' }, { responseType: 'arraybuffer' });
+  // supportsAllDrives — 공유 드라이브에 있는 파일은 이 옵션이 없으면 404(File not found)가 난다.
+  // 면접 일정에 첨부된 이력서가 팀 공유 드라이브에 있는 경우가 있어 반드시 필요하다.
+  const opts = { supportsAllDrives: true, includeItemsFromAllDrives: true };
+  const meta = await drive.files.get({ fileId, fields: 'id,name,mimeType,size', ...opts });
+  const res = await drive.files.get(
+    { fileId, alt: 'media', ...opts },
+    { responseType: 'arraybuffer' }
+  );
   return {
     id: fileId,
     name: meta.data.name || '',
