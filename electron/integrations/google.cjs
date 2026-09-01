@@ -676,17 +676,86 @@ async function ensureResumeFolder() {
   return created.data.id;
 }
 
-async function uploadResumeFile({ name, mimeType, filePath }) {
+// 팀별 하위 폴더 — "CNC 이력서 보관함 / 생산2팀 / 김보민_생산2팀_ERP_20260901.pdf" 구조를 만든다.
+// 폴더 id는 cfg에 캐시해 매번 같은 폴더를 재사용한다(중복 폴더 방지).
+const RESUME_TEAM_FOLDERS_KEY = 'resumeDriveTeamFolders';
+
+async function ensureResumeTeamFolder(team) {
+  const root = await ensureResumeFolder();
+  const label = (team || '').trim();
+  if (!label) return root;
+  const auth = buildClient();
+  const drive = google.drive({ version: 'v3', auth });
+  const cache = store.get(RESUME_TEAM_FOLDERS_KEY) || {};
+  if (cache[label]) {
+    try {
+      const r = await drive.files.get({ fileId: cache[label], fields: 'id,trashed' });
+      if (r.data && !r.data.trashed) return r.data.id;
+    } catch {
+      // 지워졌으면 아래에서 다시 만든다
+    }
+  }
+  // 이미 같은 이름의 폴더가 있으면 그걸 쓴다 (앱이 만든 폴더만 검색됨 — drive.file)
+  try {
+    const q = `'${root}' in parents and name = '${label.replace(/'/g, "\\'")}' and mimeType = 'application/vnd.google-apps.folder' and trashed = false`;
+    const found = await drive.files.list({ q, fields: 'files(id,name)', pageSize: 1 });
+    if (found.data.files && found.data.files.length) {
+      cache[label] = found.data.files[0].id;
+      store.set(RESUME_TEAM_FOLDERS_KEY, cache);
+      return cache[label];
+    }
+  } catch {
+    // 검색 실패는 무시하고 새로 생성
+  }
+  const created = await drive.files.create({
+    requestBody: {
+      name: label,
+      mimeType: 'application/vnd.google-apps.folder',
+      parents: [root],
+    },
+    fields: 'id',
+  });
+  cache[label] = created.data.id;
+  store.set(RESUME_TEAM_FOLDERS_KEY, cache);
+  return created.data.id;
+}
+
+async function uploadResumeFile({ name, mimeType, filePath, team }) {
   const fs = require('node:fs');
   const auth = buildClient();
   const drive = google.drive({ version: 'v3', auth });
-  const folderId = await ensureResumeFolder();
+  const folderId = await ensureResumeTeamFolder(team);
   const res = await drive.files.create({
     requestBody: { name, parents: [folderId] },
     media: { mimeType: mimeType || 'application/octet-stream', body: fs.createReadStream(filePath) },
     fields: 'id,webViewLink',
   });
   return { id: res.data.id, webViewLink: res.data.webViewLink || null };
+}
+
+// 기존에 올라간 파일을 팀 폴더로 옮기고 이름을 사람 이름 기준으로 바꾼다.
+async function moveResumeFile(fileId, { name, team }) {
+  const auth = buildClient();
+  const drive = google.drive({ version: 'v3', auth });
+  const target = await ensureResumeTeamFolder(team);
+  const cur = await drive.files.get({ fileId, fields: 'parents,name' });
+  const parents = cur.data.parents || [];
+  const needsMove = !parents.includes(target);
+  const needsRename = name && cur.data.name !== name;
+  if (!needsMove && !needsRename) return { id: fileId, moved: false, renamed: false };
+  const res = await drive.files.update({
+    fileId,
+    requestBody: needsRename ? { name } : {},
+    addParents: needsMove ? target : undefined,
+    removeParents: needsMove && parents.length ? parents.join(',') : undefined,
+    fields: 'id,webViewLink',
+  });
+  return {
+    id: res.data.id,
+    webViewLink: res.data.webViewLink || null,
+    moved: needsMove,
+    renamed: needsRename,
+  };
 }
 
 async function deleteDriveFile(fileId) {
@@ -855,6 +924,8 @@ module.exports = {
   fetchGmailAttachmentBase64,
   // Drive: 이력서 보관함 백업 — 앱이 만든 폴더/파일만 (drive.file)
   uploadResumeFile,
+  moveResumeFile,
+  ensureResumeTeamFolder,
   deleteDriveFile,
   getResumeFolderLink,
   // Calendar: read + WRITE (user explicitly authorized)

@@ -64,6 +64,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     reveal: () => invoke('rv:reveal'),
     remove: (id) => invoke('rv:delete', id),
     backup: (ids) => invoke('rv:backup', ids),
+    classify: (updates, opts) => invoke('rv:classify', updates, opts),
+    organize: () => invoke('rv:organize'),
     stats: () => invoke('rv:stats'),
     driveFolder: () => invoke('rv:driveFolder'),
   },

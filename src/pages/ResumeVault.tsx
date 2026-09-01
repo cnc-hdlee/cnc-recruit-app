@@ -11,8 +11,13 @@ import { api } from '../lib/api';
 import type { ResumeEntry } from '../lib/api';
 import { IS_VIEWER } from '../lib/mode';
 import { DEFAULT_TEAM_ATTENDEES } from '../lib/interviewAttendees';
+import { INTERVIEW_CAL_IDS } from '../lib/sharedCalendars';
+import { liveByKindOrScan, useLiveData } from '../store/liveData';
+import { parseInterviewTitle } from './CalendarPage';
 
-const UNCLASSIFIED = '미분류';
+// 팀을 아직 못 찾은 이력서가 모이는 자리. "미분류"라는 영구 카테고리가 아니라
+// 반드시 채워야 하는 할 일 목록이라는 뜻으로 이름을 붙였다 (사용자 요청).
+const UNCLASSIFIED = '확인 필요';
 
 // ── 파일명 파서 ─────────────────────────────────────────────────────────────
 // 실제 들어오는 파일명 예시
@@ -104,6 +109,78 @@ function fmtDate(iso: string): string {
 
 const PREVIEWABLE = /^(application\/pdf|image\/)/;
 
+// ── 후보자 인명부 (이름 → 팀/직무) ──────────────────────────────────────────
+// 파일명만으로 팀을 못 읽은 이력서를 "누구인지" 알아내는 근거.
+//  ① 면접 캘린더 — description에 "후보자: 홍길동(직무)\n팀: 생산2팀" 형태로 구조화돼 있다(가장 정확).
+//  ② 면접 캘린더 제목 — "10:00 / 퍼플 / 김보민(ERP) / 생산2팀"
+//  ③ 시트 — 성명 + 지원부서/지원구분 컬럼이 있는 탭 전부
+// 이력서는 몇 달 전 지원 건도 있으므로 캘린더는 앱 공용 store(-30일)보다 넓은 400일 창으로 따로 읽는다.
+interface DirHit {
+  team: string;
+  job: string;
+  when: string;
+  via: string;
+}
+
+const SHEET_KINDS = ['office_interview', 'office_pipeline', 'recruit_funnel', 'field_pipeline'] as const;
+const NAME_COLS = /(성명|이름|후보자)/;
+const TEAM_COLS = /(지원부서|희망부서|지원팀|부서|팀)/;
+const JOB_COLS = /(지원구분|모집직무|직무|포지션|채용구분)/;
+
+function pickCol(row: Record<string, string>, re: RegExp): string {
+  const hit = Object.entries(row).find(([k, v]) => re.test(k.replace(/\s+/g, '')) && (v || '').trim());
+  return hit ? hit[1].trim() : '';
+}
+
+function mergeHit(dir: Map<string, DirHit>, name: string, hit: DirHit) {
+  const key = (name || '').replace(/\s+/g, '');
+  if (!key || !/^[가-힣]{2,4}$/.test(key)) return;
+  const prev = dir.get(key);
+  // 더 최근 기록이 이긴다. 단, 팀이 비어 있는 기록으로 있는 팀을 덮지는 않는다.
+  if (!prev) {
+    dir.set(key, hit);
+    return;
+  }
+  const newer = (hit.when || '') >= (prev.when || '');
+  dir.set(key, {
+    team: (newer && hit.team) || prev.team || hit.team,
+    job: (newer && hit.job) || prev.job || hit.job,
+    when: newer ? hit.when : prev.when,
+    via: newer && hit.team ? hit.via : prev.via,
+  });
+}
+
+function parseEventForDirectory(
+  summary: string,
+  description: string,
+  when: string,
+  dir: Map<string, DirHit>
+) {
+  // ① 회의실 예약 페이지가 남긴 구조화 description
+  const dTeam = description.match(/팀\s*[:：]\s*([^\n\r]+)/);
+  const dCand = description.match(/후보자\s*[:：]\s*([가-힣]{2,4})\s*[((]?\s*([^)）\n]*)?/);
+  if (dCand) {
+    mergeHit(dir, dCand[1], {
+      team: (dTeam?.[1] || '').trim(),
+      job: (dCand[2] || '').trim(),
+      when,
+      via: '면접 캘린더',
+    });
+    return;
+  }
+  // ② 제목 포맷 — "HH:MM / 사이트 / 이름(직무) / 팀"
+  const p = parseInterviewTitle(summary);
+  if (p.candidate) {
+    const jobM = summary.match(new RegExp(`${p.candidate}\\s*[((]\\s*([^)）]+)`));
+    mergeHit(dir, p.candidate, {
+      team: p.team || '',
+      job: (jobM?.[1] || '').trim(),
+      when,
+      via: '면접 캘린더',
+    });
+  }
+}
+
 interface DropReport {
   added: ResumeEntry[];
   duplicates: string[];
@@ -130,8 +207,13 @@ export function ResumeVault() {
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const [bulk, setBulk] = useState({ team: '', job: '' });
   const [driveUrl, setDriveUrl] = useState<string | null>(null);
+  const [dir, setDir] = useState<Map<string, DirHit>>(new Map());
+  const [dirReady, setDirReady] = useState(false);
+  const [tidyMsg, setTidyMsg] = useState<string | null>(null);
   const dragDepth = useRef(0);
   const fileInput = useRef<HTMLInputElement>(null);
+  const autoRan = useRef(false);
+  const live = useLiveData();
 
   const refresh = useCallback(async () => {
     if (IS_VIEWER || !api?.resumes) {
@@ -156,6 +238,63 @@ export function ResumeVault() {
     }
   }, [refresh]);
 
+  // 인명부 구축 — 면접 캘린더(400일) + 시트. 이력서 팀 자동 인식의 근거가 된다.
+  useEffect(() => {
+    if (IS_VIEWER || !api?.google) {
+      setDirReady(true);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      const next = new Map<string, DirHit>();
+      const from = new Date();
+      from.setDate(from.getDate() - 400);
+      const to = new Date();
+      to.setDate(to.getDate() + 120);
+      const calIds = [...INTERVIEW_CAL_IDS, 'primary'];
+      const results = await Promise.all(
+        calIds.map(async (id) => {
+          try {
+            const r = await api.google.listCalendar(from.toISOString(), to.toISOString(), id);
+            return r.ok && r.data ? r.data : [];
+          } catch {
+            return [];
+          }
+        })
+      );
+      for (const items of results) {
+        for (const e of items) {
+          if (!e.summary && !e.description) continue;
+          parseEventForDirectory(e.summary || '', e.description || '', e.start || '', next);
+        }
+      }
+      // 시트 — 성명/지원부서 컬럼이 있는 탭
+      for (const kind of SHEET_KINDS) {
+        let rows: Record<string, string>[] = [];
+        try {
+          rows = liveByKindOrScan(kind);
+        } catch {
+          rows = [];
+        }
+        for (const row of rows) {
+          const name = pickCol(row, NAME_COLS);
+          if (!name) continue;
+          const team = pickCol(row, TEAM_COLS);
+          const job = pickCol(row, JOB_COLS);
+          if (!team && !job) continue;
+          mergeHit(next, name, { team, job, when: '', via: '시트' });
+        }
+      }
+      if (!cancelled) {
+        setDir(next);
+        setDirReady(true);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [live.snapshots]);
+
   // 팀/직무 입력 자동완성 후보 — 앱이 아는 팀 + 보관함에 이미 쓰인 값
   const suggestTeams = useMemo(() => {
     const s = new Set<string>(Object.keys(DEFAULT_TEAM_ATTENDEES));
@@ -167,6 +306,55 @@ export function ResumeVault() {
     entries.forEach((e) => e.job && s.add(e.job));
     return [...s].sort((a, b) => a.localeCompare(b));
   }, [entries]);
+
+  // ── 자동 인식 + 폴더 정리 ─────────────────────────────────────────────────
+  // 이름으로 인명부를 찾아 팀/직무를 채운 뒤, 로컬·드라이브 폴더를 <팀>/이름_팀_직무_날짜 구조로 맞춘다.
+  const tidy = useCallback(
+    async (silent = false) => {
+      if (!api?.resumes) return;
+      if (!silent) setBusy('이력서 점검 중…');
+      const list = (await api.resumes.list()).data || [];
+      const updates = list
+        .filter((e) => e.candidate && (!e.team?.trim() || !e.job?.trim()))
+        .map((e) => {
+          const hit = dir.get(e.candidate.replace(/\s+/g, ''));
+          if (!hit || (!hit.team && !hit.job)) return null;
+          return {
+            id: e.id,
+            team: e.team?.trim() ? '' : hit.team,
+            job: e.job?.trim() ? '' : hit.job,
+            matchedBy: hit.via,
+          };
+        })
+        .filter((u): u is NonNullable<typeof u> => !!u && !!(u.team || u.job));
+      let matched = 0;
+      if (updates.length) {
+        const r = await api.resumes.classify(updates);
+        matched = r.data?.changed || 0;
+      }
+      const org = await api.resumes.organize();
+      // 분류가 새로 붙은 항목은 드라이브 백업도 다시 확인 (백업 대기분 업로드)
+      await api.resumes.backup();
+      await refresh();
+      setBusy(null);
+      const o = org.data;
+      setTidyMsg(
+        `자동 인식 ${matched}건 · 폴더 정리 ${o?.localMoved ?? 0}건` +
+          `${o?.driveMoved ? ` · 드라이브 이동 ${o.driveMoved}건` : ''}` +
+          `${o?.pending ? ` · 확인 필요 ${o.pending}건` : ' · 확인 필요 없음'}` +
+          `${o?.errors?.length ? ` · 오류 ${o.errors.length}건: ${o.errors[0]}` : ''}`
+      );
+    },
+    [dir, refresh]
+  );
+
+  // 인명부가 준비되면 한 번 자동 실행 — 사용자가 버튼을 누르지 않아도 정리돼 있어야 한다
+  useEffect(() => {
+    if (autoRan.current || !dirReady || loading || IS_VIEWER) return;
+    if (!entries.length) return;
+    autoRan.current = true;
+    void tidy(true);
+  }, [dirReady, loading, entries.length, tidy]);
 
   // ── 드랍 처리 ─────────────────────────────────────────────────────────────
   const ingest = useCallback(
@@ -202,10 +390,10 @@ export function ResumeVault() {
       setReport(rep);
       setBusy(null);
       await refresh();
-      // 드라이브 백업은 백그라운드 — 실패해도 로컬 저장은 이미 끝났다
-      void api.resumes.backup().then(() => refresh());
+      // 저장 직후 자동 인식 + 팀 폴더 정리 + 드라이브 백업까지 한 번에 (사용자 조작 불필요)
+      void tidy(true);
     },
-    [entries, refresh, selTeam, selJob]
+    [entries, refresh, selTeam, selJob, tidy]
   );
 
   const onDrop = (e: React.DragEvent) => {
@@ -319,6 +507,9 @@ export function ResumeVault() {
     };
   }, [entries]);
 
+  // 팀이 아직 없는 항목 — 자동 인식이 실패한 건만 남는다
+  const pending = useMemo(() => entries.filter((e) => !e.team?.trim()), [entries]);
+
   const applyBulk = async () => {
     if (!picked.size) return;
     const patch: Partial<ResumeEntry> = {};
@@ -330,7 +521,8 @@ export function ResumeVault() {
     setPicked(new Set());
     setBulk({ team: '', job: '' });
     setBusy(null);
-    void refresh();
+    // 분류가 바뀌었으니 로컬·드라이브 폴더도 바로 따라가게 한다
+    await tidy(true);
   };
 
   if (IS_VIEWER) {
@@ -603,18 +795,53 @@ export function ResumeVault() {
                 ☁ 드라이브
               </a>
             )}
-            <button
-              className="btn text-[12px]"
-              onClick={async () => {
-                setBusy('드라이브 백업 중…');
-                await api.resumes.backup();
-                setBusy(null);
-                void refresh();
-              }}
-            >
-              ↻ 백업
+            <button className="btn btn-primary text-[12px]" onClick={() => void tidy()}>
+              🔧 자동 정리
             </button>
           </div>
+
+          {tidyMsg && (
+            <div className="card p-2.5 text-[12px] text-slate-900 flex items-center gap-2">
+              <span>🔧</span>
+              <span className="flex-1">{tidyMsg}</span>
+              <button className="btn text-[11px]" onClick={() => setTidyMsg(null)}>
+                닫기
+              </button>
+            </div>
+          )}
+
+          {/* 팀을 못 찾은 이력서 — 남겨두지 않고 여기서 바로 지정 */}
+          {pending.length > 0 && (
+            <div
+              className="card p-3"
+              style={{ background: '#fff7ed', borderColor: '#fdba74' }}
+            >
+              <div className="text-[13px] font-bold text-amber-900 mb-1.5">
+                ⚠ 팀 확인 필요 {pending.length}건 — 자동 인식으로도 못 찾은 지원자입니다
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                {pending.map((e) => (
+                  <button
+                    key={e.id}
+                    onClick={() => {
+                      setSelTeam(UNCLASSIFIED);
+                      setSelJob(null);
+                      setOpen((p) => new Set(p).add(e.candidate || `(이름 미상) ${e.filename}`));
+                      setPicked((p) => new Set(p).add(e.id));
+                    }}
+                    className="chip bg-white border border-amber-300 text-amber-900 hover:bg-amber-50"
+                    title={e.filename}
+                  >
+                    {e.candidate || e.filename}
+                  </button>
+                ))}
+              </div>
+              <div className="mt-1.5 text-[11px] text-amber-800">
+                이름을 누르면 아래에서 선택된 채로 열립니다 → 팀/직무 입력 후 적용하면 폴더도 함께
+                정리됩니다.
+              </div>
+            </div>
+          )}
 
           {/* 선택 경로 + 일괄 분류 */}
           {(selTeam || picked.size > 0) && (

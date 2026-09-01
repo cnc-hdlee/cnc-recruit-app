@@ -73,6 +73,36 @@ function safeName(filename) {
   return (filename || 'resume').replace(/[\\/:*?"<>|]/g, '_').slice(0, 180);
 }
 
+// 팀이 아직 확인 안 된 이력서가 들어가는 폴더 — "미분류"가 아니라 처리해야 할 할 일 목록이다.
+const PENDING_FOLDER = '_확인필요';
+
+function teamFolder(entry) {
+  const t = (entry.team || '').trim();
+  return t ? safeName(t) : PENDING_FOLDER;
+}
+
+// 사람 이름이 그대로 보이는 파일명: 이름_팀_직무_YYYYMMDD.pdf
+function canonicalName(entry) {
+  const ext = path.extname(entry.storedName || entry.filename || '') || '.bin';
+  const d = (entry.appliedAt || entry.addedAt || '').replace(/[^0-9]/g, '').slice(0, 8);
+  const parts = [entry.candidate?.trim(), entry.team?.trim(), entry.job?.trim(), d].filter(Boolean);
+  // 이름을 못 읽었으면 원본 파일명을 그대로 쓴다 (엉뚱한 이름을 지어내지 않는다)
+  if (!entry.candidate?.trim()) return safeName(entry.filename);
+  return `${safeName(parts.join('_'))}${ext.toLowerCase()}`;
+}
+
+// 같은 폴더에 같은 이름이 있으면 (2), (3) … 을 붙인다
+function uniqueIn(dirAbs, name, selfPath) {
+  let out = name;
+  let i = 2;
+  while (fs.existsSync(path.join(dirAbs, out)) && path.join(dirAbs, out) !== selfPath) {
+    const ext = path.extname(name);
+    out = `${path.basename(name, ext)} (${i})${ext}`;
+    i += 1;
+  }
+  return out;
+}
+
 // ── 저장 ────────────────────────────────────────────────────────────────────
 /**
  * @param {{filename:string, base64:string, meta?:object}} payload
@@ -91,8 +121,22 @@ function saveResume({ filename, base64, meta }) {
 
   const id = `${Date.now().toString(36)}-${crypto.randomBytes(4).toString('hex')}`;
   const ext = path.extname(filename || '') || '.bin';
-  const stored = `${id}${ext.toLowerCase()}`;
-  fs.writeFileSync(path.join(filesDir(), stored), buf);
+  // 저장 경로는 처음부터 팀 폴더 + 사람 이름 파일명으로 — 나중에 정리할 필요가 없게.
+  const draft = {
+    storedName: `x${ext}`,
+    filename: safeName(filename),
+    candidate: meta?.candidate || '',
+    team: meta?.team || '',
+    job: meta?.job || '',
+    appliedAt: meta?.appliedAt || '',
+    addedAt: new Date().toISOString(),
+  };
+  const folder = teamFolder(draft);
+  const dirAbs = path.join(filesDir(), folder);
+  fs.mkdirSync(dirAbs, { recursive: true });
+  const fname = uniqueIn(dirAbs, canonicalName(draft), '');
+  const stored = path.posix.join(folder, fname);
+  fs.writeFileSync(path.join(filesDir(), folder, fname), buf);
 
   const entry = {
     id,
@@ -187,6 +231,94 @@ async function deleteResume(id) {
   return { ok: true };
 }
 
+// ── 분류 일괄 반영 ──────────────────────────────────────────────────────────
+// 화면(면접 캘린더·시트 매칭)에서 찾아낸 팀/직무를 한 번에 적용한다.
+// fill 모드(기본)에서는 비어 있는 칸만 채우고, 사용자가 직접 넣은 값은 덮어쓰지 않는다.
+function applyClassification(updates, { overwrite = false } = {}) {
+  const list = readIndex();
+  let changed = 0;
+  const byId = new Map(list.map((r) => [r.id, r]));
+  for (const u of updates || []) {
+    const r = byId.get(u.id);
+    if (!r) continue;
+    let touched = false;
+    for (const k of ['candidate', 'team', 'job']) {
+      const v = (u[k] || '').trim();
+      if (!v) continue;
+      if (overwrite || !(r[k] || '').trim()) {
+        if (r[k] !== v) {
+          r[k] = v;
+          touched = true;
+        }
+      }
+    }
+    if (u.matchedBy && touched) r.matchedBy = u.matchedBy;
+    if (touched) {
+      r.updatedAt = new Date().toISOString();
+      changed += 1;
+    }
+  }
+  if (changed) writeIndex(list);
+  return { changed };
+}
+
+// ── 폴더 정리 ───────────────────────────────────────────────────────────────
+// 로컬과 드라이브를 동일한 구조로 맞춘다: <팀>/이름_팀_직무_YYYYMMDD.pdf
+// 팀을 아직 못 찾은 건은 _확인필요 폴더로 모아 눈에 띄게 남긴다.
+async function organizeVault() {
+  ensureDirs();
+  const list = readIndex();
+  const report = { localMoved: 0, driveMoved: 0, driveRenamed: 0, errors: [], pending: 0 };
+  for (const r of list) {
+    if (!r.team?.trim()) report.pending += 1;
+    // 1) 로컬 이동/이름변경
+    try {
+      const curAbs = path.join(filesDir(), r.storedName);
+      const folder = teamFolder(r);
+      const dirAbs = path.join(filesDir(), folder);
+      const want = canonicalName(r);
+      const wantRel = path.posix.join(folder, want);
+      if (fs.existsSync(curAbs) && r.storedName !== wantRel) {
+        fs.mkdirSync(dirAbs, { recursive: true });
+        const finalName = uniqueIn(dirAbs, want, curAbs);
+        fs.renameSync(curAbs, path.join(dirAbs, finalName));
+        r.storedName = path.posix.join(folder, finalName);
+        report.localMoved += 1;
+      }
+    } catch (e) {
+      report.errors.push(`${r.filename} (로컬) — ${e.message || e}`);
+    }
+    // 2) 드라이브 이동/이름변경
+    if (r.driveFileId) {
+      try {
+        const res = await gapi().moveResumeFile(r.driveFileId, {
+          name: path.basename(r.storedName),
+          team: r.team?.trim() || PENDING_FOLDER,
+        });
+        if (res.moved) report.driveMoved += 1;
+        if (res.renamed) report.driveRenamed += 1;
+        if (res.webViewLink) r.driveLink = res.webViewLink;
+        r.driveError = null;
+      } catch (e) {
+        r.driveError = e.message || String(e);
+        report.errors.push(`${r.filename} (드라이브) — ${r.driveError}`);
+      }
+    }
+  }
+  writeIndex(list);
+  // 빈 폴더 정리
+  try {
+    for (const d of fs.readdirSync(filesDir(), { withFileTypes: true })) {
+      if (!d.isDirectory()) continue;
+      const p = path.join(filesDir(), d.name);
+      if (fs.readdirSync(p).length === 0) fs.rmdirSync(p);
+    }
+  } catch {
+    // 정리 실패는 무시
+  }
+  return report;
+}
+
 // ── 드라이브 백업 ───────────────────────────────────────────────────────────
 // drive.file 스코프 = 앱이 만든 파일만 접근. 기존 드라이브 문서는 건드릴 수 없다.
 async function backupToDrive(ids) {
@@ -201,9 +333,10 @@ async function backupToDrive(ids) {
     if (!fs.existsSync(p)) continue;
     try {
       const res = await gapi().uploadResumeFile({
-        name: r.candidate ? `${r.candidate}__${r.filename}` : r.filename,
+        name: path.basename(r.storedName),
         mimeType: r.mimeType,
         filePath: p,
+        team: r.team?.trim() || PENDING_FOLDER,
       });
       r.driveFileId = res.id;
       r.driveLink = res.webViewLink || null;
@@ -237,5 +370,7 @@ module.exports = {
   revealResumeFolder,
   deleteResume,
   backupToDrive,
+  applyClassification,
+  organizeVault,
   stats,
 };

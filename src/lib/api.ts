@@ -282,6 +282,19 @@ interface ElectronAPI {
     reveal(): Promise<Result<{ path: string }>>;
     remove(id: string): Promise<Result<{ ok: boolean }>>;
     backup(ids?: string[]): Promise<Result<{ uploaded: number; pending: number; errors: string[] }>>;
+    classify(
+      updates: { id: string; candidate?: string; team?: string; job?: string; matchedBy?: string }[],
+      opts?: { overwrite?: boolean }
+    ): Promise<Result<{ changed: number }>>;
+    organize(): Promise<
+      Result<{
+        localMoved: number;
+        driveMoved: number;
+        driveRenamed: number;
+        pending: number;
+        errors: string[];
+      }>
+    >;
     stats(): Promise<Result<{ count: number; bytes: number; backedUp: number; dir: string }>>;
     driveFolder(): Promise<Result<{ id: string | null; url: string | null }>>;
   };
