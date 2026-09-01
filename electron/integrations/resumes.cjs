@@ -118,6 +118,8 @@ function saveResume({ filename, base64, meta }) {
   // 같은 내용의 파일이 이미 있으면 새로 만들지 않고 기존 항목을 돌려준다
   const dup = list.find((r) => r.hash === hash);
   if (dup) return { entry: dup, duplicate: true };
+  // 사용자가 지웠던 파일은 다시 넣지 않는다 (스캔을 다시 돌려도 되살아나지 않게)
+  if (readIgnored().has(hash)) return { entry: null, duplicate: true, ignored: true };
 
   const id = `${Date.now().toString(36)}-${crypto.randomBytes(4).toString('hex')}`;
   const ext = path.extname(filename || '') || '.bin';
@@ -209,6 +211,67 @@ function revealResumeFolder() {
   ensureDirs();
   shell.openPath(filesDir());
   return { path: filesDir() };
+}
+
+// 삭제한 이력서의 내용 해시 목록.
+// 이게 없으면 "내 PC 이력서 찾기"를 다시 돌릴 때 지웠던 파일이 그대로 되살아난다.
+function ignorePath() {
+  return path.join(rootDir(), 'ignored.json');
+}
+function readIgnored() {
+  try {
+    const v = JSON.parse(fs.readFileSync(ignorePath(), 'utf8'));
+    return Array.isArray(v) ? new Set(v) : new Set();
+  } catch {
+    return new Set();
+  }
+}
+function writeIgnored(set) {
+  ensureDirs();
+  fs.writeFileSync(ignorePath(), JSON.stringify([...set], null, 2), 'utf8');
+}
+
+/** 여러 건 한 번에 삭제. ignore=true면 같은 파일이 다시 편입되지 않게 제외 목록에 넣는다. */
+async function deleteResumes(ids, { ignore = true } = {}) {
+  const list = readIndex();
+  const targets = list.filter((r) => ids.includes(r.id));
+  if (!targets.length) return { deleted: 0, ignored: 0 };
+  // 지우기 전에 인덱스 백업 (되돌릴 근거는 남긴다)
+  try {
+    fs.copyFileSync(indexPath(), path.join(rootDir(), `index.backup-${Date.now()}.json`));
+  } catch {
+    /* 백업 실패해도 삭제는 진행 */
+  }
+  const ignored = readIgnored();
+  let driveFailed = 0;
+  for (const r of targets) {
+    try {
+      fs.unlinkSync(path.join(filesDir(), r.storedName));
+    } catch {
+      /* 파일이 이미 없어도 인덱스는 정리 */
+    }
+    if (r.driveFileId) {
+      try {
+        await gapi().deleteDriveFile(r.driveFileId);
+      } catch {
+        driveFailed += 1;
+      }
+    }
+    if (ignore && r.hash) ignored.add(r.hash);
+  }
+  writeIndex(list.filter((r) => !ids.includes(r.id)));
+  if (ignore) writeIgnored(ignored);
+  // 빈 팀 폴더 정리
+  try {
+    for (const d of fs.readdirSync(filesDir(), { withFileTypes: true })) {
+      if (!d.isDirectory()) continue;
+      const p = path.join(filesDir(), d.name);
+      if (fs.readdirSync(p).length === 0) fs.rmdirSync(p);
+    }
+  } catch {
+    /* noop */
+  }
+  return { deleted: targets.length, ignored: ignore ? targets.length : 0, driveFailed };
 }
 
 async function deleteResume(id) {
@@ -989,6 +1052,7 @@ module.exports = {
   openResume,
   revealResumeFolder,
   deleteResume,
+  deleteResumes,
   backupToDrive,
   applyClassification,
   organizeVault,

@@ -292,6 +292,11 @@ interface ElectronAPI {
     open(id: string): Promise<Result<{ path: string }>>;
     reveal(): Promise<Result<{ path: string }>>;
     remove(id: string): Promise<Result<{ ok: boolean }>>;
+    /** 여러 건 삭제 — 기본으로 제외 목록에 넣어 재스캔 시 되살아나지 않게 한다 */
+    removeMany(
+      ids: string[],
+      opt?: { ignore?: boolean }
+    ): Promise<Result<{ deleted: number; ignored: number; driveFailed?: number }>>;
     backup(ids?: string[]): Promise<Result<{ uploaded: number; pending: number; errors: string[] }>>;
     classify(
       updates: { id: string; candidate?: string; team?: string; job?: string; matchedBy?: string }[],

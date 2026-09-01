@@ -986,8 +986,31 @@ export function ResumeVault() {
               className="card p-3"
               style={{ background: '#fff7ed', borderColor: '#fdba74' }}
             >
-              <div className="text-[13px] font-bold text-amber-900 mb-1.5">
-                ⚠ 팀 확인 필요 {pending.length}건 — 자동 인식으로도 못 찾은 지원자입니다
+              <div className="flex items-center gap-2 mb-1.5">
+                <span className="text-[13px] font-bold text-amber-900">
+                  ⚠ 팀 확인 필요 {pending.length}건 — 자동 인식으로도 못 찾은 지원자입니다
+                </span>
+                <div className="flex-1" />
+                <button
+                  className="btn text-[11px] text-rose-600"
+                  onClick={async () => {
+                    if (
+                      !confirm(
+                        `팀을 못 찾은 이력서 ${pending.length}건을 모두 삭제할까요?\n` +
+                          '보관함(로컬+드라이브)에서 지워지고, 다시 스캔해도 되살아나지 않습니다.\n' +
+                          '(내 PC의 원본 파일은 그대로 남습니다)'
+                      )
+                    )
+                      return;
+                    setBusy(`${pending.length}건 삭제 중…`);
+                    const r = await api.resumes.removeMany(pending.map((e) => e.id));
+                    setBusy(null);
+                    await refresh();
+                    setTidyMsg(`확인 필요 ${r.data?.deleted ?? 0}건 삭제 — 재스캔해도 다시 안 들어옵니다.`);
+                  }}
+                >
+                  🗑 전부 삭제
+                </button>
               </div>
               <div className="flex flex-wrap gap-1.5">
                 {pending.map((e) => (
