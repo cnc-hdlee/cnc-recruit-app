@@ -228,7 +228,17 @@ interface ElectronAPI {
     ): Promise<Result<{ spreadsheetId: string; url: string }>>;
     listGmail(q: string, max: number): Promise<Result<GmailMsg[]>>;
     // Gmail WRITE — 후보자 안내 메일 발송. 사용자가 발송 버튼을 눌렀을 때만 호출.
-    sendGmail(payload: { to: string; subject: string; body: string; cc?: string; bcc?: string }): Promise<Result<{ id: string; threadId: string }>>;
+    sendGmail(payload: {
+      to: string;
+      subject: string;
+      body: string;
+      /** HTML 본문 (있으면 이걸로 발송) */
+      html?: string;
+      /** 서명 이미지 — 본문에 cid로 박아 넣는다 */
+      inlineImage?: { base64: string; mimeType: string; cid?: string };
+      cc?: string;
+      bcc?: string;
+    }): Promise<Result<{ id: string; threadId: string }>>;
     openAttachment(messageId: string, filename: string, attachmentId?: string): Promise<Result<{ path: string }>>;
     fetchAttachmentBase64(messageId: string, filename: string, attachmentId?: string): Promise<Result<{ base64: string; mimeType: string; filename: string }>>;
     /** 캘린더 일정에 첨부된 드라이브 파일 내려받기 (읽기 전용) */

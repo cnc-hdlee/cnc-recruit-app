@@ -447,6 +447,65 @@ export async function saveEmail(name: string, email: string): Promise<void> {
   await api.cfg.set(EMAIL_CACHE_KEY, cur);
 }
 
+// ── 메일 서명 & 숨은참조 ────────────────────────────────────────────────────
+const SIG_KEY = 'mailSignature'; // { text, image: { base64, mimeType, name } }
+const BCC_KEY = 'mailAutoBcc';
+
+export interface MailSignature {
+  text: string;
+  image: { base64: string; mimeType: string; name: string } | null;
+}
+
+/** TA팀 공유용 기본 숨은참조 — 김범준 팀장 / 임한결 주임 */
+export const DEFAULT_AUTO_BCC = ['bjkim4@cnccosmetic.com', 'hglim@cnccosmetic.com'];
+
+export async function loadSignature(): Promise<MailSignature> {
+  if (!api?.cfg) return { text: '', image: null };
+  try {
+    const r = await api.cfg.get<MailSignature>(SIG_KEY);
+    return r.ok && r.data ? { text: r.data.text || '', image: r.data.image || null } : { text: '', image: null };
+  } catch {
+    return { text: '', image: null };
+  }
+}
+
+export async function saveSignature(sig: MailSignature): Promise<void> {
+  if (!api?.cfg) return;
+  await api.cfg.set(SIG_KEY, sig);
+}
+
+export async function loadAutoBcc(): Promise<string[]> {
+  if (!api?.cfg) return DEFAULT_AUTO_BCC;
+  try {
+    const r = await api.cfg.get<string[]>(BCC_KEY);
+    return r.ok && Array.isArray(r.data) ? r.data : DEFAULT_AUTO_BCC;
+  } catch {
+    return DEFAULT_AUTO_BCC;
+  }
+}
+
+export async function saveAutoBcc(list: string[]): Promise<void> {
+  if (!api?.cfg) return;
+  await api.cfg.set(BCC_KEY, list);
+}
+
+const escapeHtml = (s: string) =>
+  s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+/**
+ * 본문(평문) + 서명 → HTML 메일 본문.
+ * 서명 이미지는 cid:sig 로 참조하고, 실제 이미지는 발송 시 함께 실려 나간다.
+ */
+export function buildHtmlBody(text: string, sig: MailSignature): string {
+  const body = escapeHtml(text || '').replace(/\r?\n/g, '<br>');
+  const sigText = sig.text ? `<div style="margin-top:4px">${escapeHtml(sig.text).replace(/\r?\n/g, '<br>')}</div>` : '';
+  const sigImg = sig.image ? '<div style="margin-top:8px"><img src="cid:sig" style="max-width:420px;border:0" alt=""></div>' : '';
+  const block = sigText || sigImg
+    ? `<div style="margin-top:24px;padding-top:12px;border-top:1px solid #e5e7eb;color:#374151;font-size:13px">${sigText}${sigImg}</div>`
+    : '';
+  return `<div style="font-family:'Malgun Gothic','맑은 고딕',Apple SD Gothic Neo,sans-serif;font-size:14px;line-height:1.7;color:#111">${body}${block}</div>`;
+}
+
 // 이력서에서 자동으로 뽑아낸 주소 — 수기 입력값과 섞이지 않게 별도 보관한다.
 // (수기 > 자동 우선순위. 자동값이 틀리면 이력서만 고치면 다시 뽑힌다)
 const EMAIL_AUTO_KEY = 'candidateEmailFromResume';

@@ -473,23 +473,67 @@ function collectAttachmentNames(payload, detailed) {
 // 후보자 안내 메일 발송 (gmail.send).
 // 사용자가 앱에서 [발송]을 눌렀을 때만 호출된다 — 자동/폴링 발송 경로 없음.
 // 한글 제목은 RFC2047 base64로, 본문은 UTF-8 base64 quoted 없이 그대로 보낸다.
-async function sendGmail({ to, subject, body, cc, bcc }) {
+/**
+ * 후보자 안내메일 발송.
+ * html이 있으면 HTML 메일로 보내고, 서명 이미지(inlineImage)가 있으면 본문에 박아 넣는다
+ * (multipart/related + Content-ID — 첨부파일로 따로 보이지 않고 서명 그림으로 표시된다).
+ */
+async function sendGmail({ to, subject, body, html, inlineImage, cc, bcc }) {
   if (!to || !String(to).trim()) throw new Error('NO_RECIPIENT');
   const auth = buildClient();
   const gmail = google.gmail({ version: 'v1', auth });
   const b64 = (str) => Buffer.from(String(str), 'utf8').toString('base64');
+  const wrap = (s) => (s.match(/.{1,76}/g) || []).join(String.fromCharCode(13, 10));
   const encSubject = '=?UTF-8?B?' + b64(subject || '') + '?=';
-  const headers = [
-    `To: ${to}`,
-    cc ? `Cc: ${cc}` : null,
-    bcc ? `Bcc: ${bcc}` : null,
-    `Subject: ${encSubject}`,
-    'MIME-Version: 1.0',
-    'Content-Type: text/plain; charset="UTF-8"',
-    'Content-Transfer-Encoding: base64',
-  ].filter(Boolean);
   const CRLF = String.fromCharCode(13, 10);
-  const raw = Buffer.from(headers.join(CRLF) + CRLF + CRLF + b64(body || ''), 'utf8')
+
+  let mime;
+  if (html && inlineImage && inlineImage.base64) {
+    const b = `rel_${Date.now().toString(36)}`;
+    const cid = inlineImage.cid || 'sig';
+    mime = [
+      `To: ${to}`,
+      cc ? `Cc: ${cc}` : null,
+      bcc ? `Bcc: ${bcc}` : null,
+      `Subject: ${encSubject}`,
+      'MIME-Version: 1.0',
+      `Content-Type: multipart/related; boundary="${b}"`,
+      '',
+      `--${b}`,
+      'Content-Type: text/html; charset="UTF-8"',
+      'Content-Transfer-Encoding: base64',
+      '',
+      wrap(b64(html)),
+      `--${b}`,
+      `Content-Type: ${inlineImage.mimeType || 'image/png'}`,
+      'Content-Transfer-Encoding: base64',
+      `Content-ID: <${cid}>`,
+      'Content-Disposition: inline',
+      '',
+      wrap(inlineImage.base64),
+      `--${b}--`,
+      '',
+    ]
+      .filter((x) => x !== null)
+      .join(CRLF);
+  } else {
+    mime = [
+      `To: ${to}`,
+      cc ? `Cc: ${cc}` : null,
+      bcc ? `Bcc: ${bcc}` : null,
+      `Subject: ${encSubject}`,
+      'MIME-Version: 1.0',
+      html ? 'Content-Type: text/html; charset="UTF-8"' : 'Content-Type: text/plain; charset="UTF-8"',
+      'Content-Transfer-Encoding: base64',
+      '',
+      wrap(b64(html || body || '')),
+      '',
+    ]
+      .filter((x) => x !== null)
+      .join(CRLF);
+  }
+
+  const raw = Buffer.from(mime, 'utf8')
     .toString('base64')
     .replace(/\+/g, '-')
     .replace(/\//g, '_')

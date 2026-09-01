@@ -81,14 +81,15 @@ function teamFolder(entry) {
   return t ? safeName(t) : PENDING_FOLDER;
 }
 
-// 사람 이름이 그대로 보이는 파일명: 이름_팀_직무_YYYYMMDD.pdf
+// 파일명 규칙: "○○팀_지원자이름.pdf" (2026-09-01 사용자 지정 — 폴더에서 한눈에 보이게 통일)
+// 같은 팀에 같은 이름이 여러 건이면 uniqueIn()이 " (2)"를 붙인다.
 function canonicalName(entry) {
   const ext = path.extname(entry.storedName || entry.filename || '') || '.bin';
-  const d = (entry.appliedAt || entry.addedAt || '').replace(/[^0-9]/g, '').slice(0, 8);
-  const parts = [entry.candidate?.trim(), entry.team?.trim(), entry.job?.trim(), d].filter(Boolean);
+  const name = (entry.candidate || '').trim();
   // 이름을 못 읽었으면 원본 파일명을 그대로 쓴다 (엉뚱한 이름을 지어내지 않는다)
-  if (!entry.candidate?.trim()) return safeName(entry.filename);
-  return `${safeName(parts.join('_'))}${ext.toLowerCase()}`;
+  if (!name) return safeName(entry.filename);
+  const team = (entry.team || '').trim();
+  return `${safeName(team ? `${team}_${name}` : name)}${ext.toLowerCase()}`;
 }
 
 // 같은 폴더에 같은 이름이 있으면 (2), (3) … 을 붙인다

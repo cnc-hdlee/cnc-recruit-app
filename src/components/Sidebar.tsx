@@ -32,6 +32,7 @@ const NAV: NavItem[] = [
     })),
   },
   { id: 'incoming', icon: '🎉', label: '입사예정자', badgeKey: 'incoming' },
+  { id: 'comms', icon: '📨', label: '후보자 안내 메일' },
   {
     id: 'calendar',
     icon: '📅',
@@ -44,7 +45,6 @@ const NAV: NavItem[] = [
   { id: 'campus', icon: '🎓', label: '캠퍼스 리쿠르팅' },
   { id: 'lookup', icon: '🔍', label: '후보자 검색' },
   { id: 'resumes', icon: '🗂', label: '이력서' },
-  { id: 'comms', icon: '📨', label: '후보자 안내 메일' },
   {
     id: 'competitors',
     icon: '🏭',

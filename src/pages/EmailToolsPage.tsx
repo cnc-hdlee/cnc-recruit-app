@@ -29,6 +29,13 @@ import {
   loadAutoEmailCache,
   saveAutoEmail,
   saveEmail,
+  loadSignature,
+  saveSignature,
+  loadAutoBcc,
+  saveAutoBcc,
+  buildHtmlBody,
+  DEFAULT_AUTO_BCC,
+  type MailSignature,
   STAGE_ORDER,
   STAGE_LABEL,
   type EmailTemplate,
@@ -216,6 +223,9 @@ export function EmailToolsPage() {
   const [modal, setModal] = useState<{ template: EmailTemplate; candidate: CalCandidate } | null>(null);
   const [showSettings, setShowSettings] = useState(false);
   const [showLog, setShowLog] = useState(false);
+  // 메일 서명(그림 포함)과 자동 숨은참조
+  const [signature, setSignature] = useState<MailSignature>({ text: '', image: null });
+  const [autoBcc, setAutoBcc] = useState<string[]>(DEFAULT_AUTO_BCC);
   // 드라이브 읽기 권한이 없어 일정 첨부 이력서를 못 읽는 상태 (스코프 추가 후 최초 1회 재로그인 필요)
   const [needDriveAuth, setNeedDriveAuth] = useState(false);
   const driveAuthTried = useRef(false);
@@ -243,6 +253,8 @@ export function EmailToolsPage() {
     loadEmailCache().then(setEmailMap);
     loadAutoEmailCache().then(setAutoEmail);
     loadSendLog().then(setLog);
+    loadSignature().then(setSignature);
+    loadAutoBcc().then(setAutoBcc);
   }, []);
 
   const site = sites.find((s) => s.id === siteId) || sites[0] || null;
@@ -448,7 +460,16 @@ export function EmailToolsPage() {
     }
     setBusy(c.key);
     try {
-      const r = await api.google.sendGmail({ to, subject: rendered.subject, body: rendered.body });
+      const r = await api.google.sendGmail({
+        to,
+        subject: rendered.subject,
+        body: rendered.body,
+        html: buildHtmlBody(rendered.body, signature),
+        inlineImage: signature.image
+          ? { base64: signature.image.base64, mimeType: signature.image.mimeType, cid: 'sig' }
+          : undefined,
+        bcc: autoBcc.filter(Boolean).join(', ') || undefined,
+      });
       if (!r.ok) {
         alert(`발송 실패: ${r.error || '알 수 없는 오류'}`);
         return false;
@@ -659,6 +680,92 @@ export function EmailToolsPage() {
           </button>
         </div>
       )}
+
+      {/* ── 서명 + 숨은참조 (모든 발송에 공통 적용) ──── */}
+      <details className="card p-3">
+        <summary className="text-sm font-bold text-slate-900 cursor-pointer">
+          ✍️ 메일 서명 · 숨은참조
+          <span className="ml-2 text-[11px] font-normal text-slate-500">
+            {signature.image ? '이미지 서명 있음' : '이미지 없음'} · 숨은참조 {autoBcc.length}명
+          </span>
+        </summary>
+        <div className="mt-3 grid md:grid-cols-2 gap-3">
+          <div>
+            <div className="text-[11px] font-bold text-slate-700 mb-1">서명 이미지 (명함·로고)</div>
+            {signature.image ? (
+              <div className="flex items-start gap-2">
+                <img
+                  src={`data:${signature.image.mimeType};base64,${signature.image.base64}`}
+                  alt="서명"
+                  className="max-w-[260px] max-h-[110px] border rounded"
+                  style={{ borderColor: 'var(--cc-p8)' }}
+                />
+                <button
+                  className="btn text-[11px] text-rose-600"
+                  onClick={async () => {
+                    const next = { ...signature, image: null };
+                    setSignature(next);
+                    await saveSignature(next);
+                  }}
+                >
+                  제거
+                </button>
+              </div>
+            ) : (
+              <div className="text-[11px] text-slate-500 mb-1">
+                Gmail 서명에 쓰는 이미지 파일을 그대로 올리시면 됩니다 (PNG/JPG)
+              </div>
+            )}
+            <input
+              type="file"
+              accept="image/*"
+              className="mt-1 text-[11px]"
+              onChange={async (e) => {
+                const f = e.target.files?.[0];
+                e.target.value = '';
+                if (!f) return;
+                if (f.size > 2 * 1024 * 1024) {
+                  alert('이미지가 너무 큽니다 (2MB 이하로 넣어주세요).');
+                  return;
+                }
+                const buf = new Uint8Array(await f.arrayBuffer());
+                let bin = '';
+                for (let i = 0; i < buf.length; i += 0x8000) bin += String.fromCharCode(...buf.subarray(i, i + 0x8000));
+                const next: MailSignature = {
+                  ...signature,
+                  image: { base64: btoa(bin), mimeType: f.type || 'image/png', name: f.name },
+                };
+                setSignature(next);
+                await saveSignature(next);
+              }}
+            />
+          </div>
+          <div>
+            <div className="text-[11px] font-bold text-slate-700 mb-1">서명 문구 (이미지 위에 들어갑니다)</div>
+            <textarea
+              value={signature.text}
+              onChange={(e) => setSignature({ ...signature, text: e.target.value })}
+              onBlur={() => void saveSignature(signature)}
+              rows={3}
+              placeholder={'이형도 사원 / Talent Acquisition팀\nT. 031-000-0000  |  hdlee@cnccosmetic.com'}
+              className="w-full px-2 py-1.5 border border-slate-300 rounded text-[12px] text-slate-900"
+            />
+            <div className="text-[11px] font-bold text-slate-700 mt-2 mb-1">
+              숨은참조 (모든 발송에 자동 포함)
+            </div>
+            <input
+              value={autoBcc.join(', ')}
+              onChange={(e) => setAutoBcc(e.target.value.split(',').map((x) => x.trim()).filter(Boolean))}
+              onBlur={() => void saveAutoBcc(autoBcc)}
+              className="w-full px-2 py-1.5 border border-slate-300 rounded text-[12px] text-slate-900"
+              placeholder="bjkim4@cnccosmetic.com, hglim@cnccosmetic.com"
+            />
+            <div className="text-[10px] text-slate-500 mt-1">
+              기본값: 김범준 팀장 · 임한결 주임 — 수신자에게는 보이지 않습니다
+            </div>
+          </div>
+        </div>
+      </details>
 
       {/* ── 3) 면접 캘린더 후보자 → 메일 주소만 넣고 발송 ──── */}
       <div className="card p-3">
