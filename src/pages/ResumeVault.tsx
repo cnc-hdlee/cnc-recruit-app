@@ -307,6 +307,47 @@ export function ResumeVault() {
     return [...s].sort((a, b) => a.localeCompare(b));
   }, [entries]);
 
+  // 알려진 팀 목록 — 메일/슬랙 본문에서 팀을 찾을 때 "아무 ○○팀"이 아니라 실재하는 팀만 인정한다.
+  // (긴 이름부터 검사해야 '생산1팀'이 '생산팀'으로 잘못 잡히지 않는다)
+  const knownTeams = useMemo(() => {
+    const s = new Set<string>([...Object.keys(DEFAULT_TEAM_ATTENDEES), ...suggestTeams]);
+    entries.forEach((e) => e.team?.trim() && s.add(e.team.trim()));
+    return [...s].sort((a, b) => b.length - a.length);
+  }, [entries, suggestTeams]);
+
+  // 캘린더·시트에 흔적이 없는 지원자는 메일·슬랙까지 뒤져서 소속을 찾는다 (사용자 요청).
+  const searchMailSlack = useCallback(
+    async (name: string): Promise<{ team: string; via: string } | null> => {
+      const scan = (texts: string[]) => {
+        for (const t of texts) {
+          const hit = knownTeams.find((team) => t.includes(team));
+          if (hit) return hit;
+        }
+        return '';
+      };
+      try {
+        const g = await api.google.listGmail(`"${name}"`, 8);
+        if (g.ok && g.data?.length) {
+          const team = scan(g.data.map((m) => `${m.subject || ''} ${m.snippet || ''}`));
+          if (team) return { team, via: 'Gmail' };
+        }
+      } catch {
+        // 메일 검색 실패는 무시하고 슬랙으로
+      }
+      try {
+        const s = await api.slack?.search(name, 8);
+        if (s?.ok && s.data?.length) {
+          const team = scan(s.data.map((m) => m.text || ''));
+          if (team) return { team, via: 'Slack' };
+        }
+      } catch {
+        // 슬랙 미연동이면 그냥 넘어간다
+      }
+      return null;
+    },
+    [knownTeams]
+  );
+
   // ── 자동 인식 + 폴더 정리 ─────────────────────────────────────────────────
   // 이름으로 인명부를 찾아 팀/직무를 채운 뒤, 로컬·드라이브 폴더를 <팀>/이름_팀_직무_날짜 구조로 맞춘다.
   const tidy = useCallback(
@@ -332,6 +373,19 @@ export function ResumeVault() {
         const r = await api.resumes.classify(updates);
         matched = r.data?.changed || 0;
       }
+      // 2차 — 캘린더/시트로도 팀을 못 찾은 사람은 메일·슬랙까지 검색 (한 번에 최대 12명)
+      const stillUnknown = (await api.resumes.list()).data || [];
+      const targets = stillUnknown.filter((e) => e.candidate && !e.team?.trim()).slice(0, 12);
+      const deep: { id: string; team: string; matchedBy: string }[] = [];
+      for (const e of targets) {
+        if (!silent) setBusy(`메일·슬랙에서 ${e.candidate} 소속 찾는 중…`);
+        const hit = await searchMailSlack(e.candidate);
+        if (hit) deep.push({ id: e.id, team: hit.team, matchedBy: hit.via });
+      }
+      if (deep.length) {
+        const r2 = await api.resumes.classify(deep);
+        matched += r2.data?.changed || 0;
+      }
       const org = await api.resumes.organize();
       // 분류가 새로 붙은 항목은 드라이브 백업도 다시 확인 (백업 대기분 업로드)
       await api.resumes.backup();
@@ -345,7 +399,7 @@ export function ResumeVault() {
           `${o?.errors?.length ? ` · 오류 ${o.errors.length}건: ${o.errors[0]}` : ''}`
       );
     },
-    [dir, refresh]
+    [dir, refresh, searchMailSlack]
   );
 
   // 인명부가 준비되면 한 번 자동 실행 — 사용자가 버튼을 누르지 않아도 정리돼 있어야 한다

@@ -265,10 +265,68 @@ function applyClassification(updates, { overwrite = false } = {}) {
 // ── 폴더 정리 ───────────────────────────────────────────────────────────────
 // 로컬과 드라이브를 동일한 구조로 맞춘다: <팀>/이름_팀_직무_YYYYMMDD.pdf
 // 팀을 아직 못 찾은 건은 _확인필요 폴더로 모아 눈에 띄게 남긴다.
-async function organizeVault() {
+// 디스크 ↔ 인덱스 정합성 복구.
+// 저장 중 앱이 꺼지거나 인덱스 쓰기가 유실되면 "파일은 있는데 목록엔 없는" 고아 파일이 남는다.
+//   · 내용 해시가 이미 등록된 이력서와 같으면 = 중복본 → 삭제 (메모리 [중복 절대 금지])
+//   · 처음 보는 내용이면 = 유실된 이력서 → 인덱스에 되살린다 (파일은 절대 지우지 않는다)
+function reconcileFiles() {
   ensureDirs();
   const list = readIndex();
-  const report = { localMoved: 0, driveMoved: 0, driveRenamed: 0, errors: [], pending: 0 };
+  const known = new Set(list.map((r) => (r.storedName || '').replace(/\\/g, '/')));
+  const byHash = new Map(list.map((r) => [r.hash, r]));
+  const out = { duplicatesRemoved: 0, recovered: 0 };
+  const walk = (absDir, rel) => {
+    for (const d of fs.readdirSync(absDir, { withFileTypes: true })) {
+      const abs = path.join(absDir, d.name);
+      const relPath = rel ? `${rel}/${d.name}` : d.name;
+      if (d.isDirectory()) {
+        walk(abs, relPath);
+        continue;
+      }
+      if (known.has(relPath)) continue;
+      const buf = fs.readFileSync(abs);
+      const hash = crypto.createHash('sha256').update(buf).digest('hex');
+      if (byHash.has(hash)) {
+        fs.unlinkSync(abs); // 이미 보관 중인 이력서와 같은 파일 → 중복본 제거
+        out.duplicatesRemoved += 1;
+        continue;
+      }
+      const id = `${Date.now().toString(36)}-${crypto.randomBytes(4).toString('hex')}`;
+      const entry = {
+        id,
+        filename: d.name,
+        storedName: relPath,
+        mimeType: mimeFor(d.name),
+        size: buf.length,
+        hash,
+        addedAt: fs.statSync(abs).mtime.toISOString(),
+        candidate: '',
+        team: rel && rel !== PENDING_FOLDER ? rel : '',
+        job: '',
+        channel: '',
+        appliedAt: '',
+        note: '목록에서 유실됐다가 복구된 파일 — 이름/팀 확인 필요',
+        tags: [],
+        source: 'recovered',
+        driveFileId: null,
+        driveError: null,
+      };
+      list.push(entry);
+      byHash.set(hash, entry);
+      known.add(relPath);
+      out.recovered += 1;
+    }
+  };
+  walk(filesDir(), '');
+  if (out.duplicatesRemoved || out.recovered) writeIndex(list);
+  return out;
+}
+
+async function organizeVault({ skipDrive = false } = {}) {
+  ensureDirs();
+  const heal = reconcileFiles();
+  const list = readIndex();
+  const report = { localMoved: 0, driveMoved: 0, driveRenamed: 0, errors: [], pending: 0, ...heal };
   for (const r of list) {
     if (!r.team?.trim()) report.pending += 1;
     // 1) 로컬 이동/이름변경
@@ -288,16 +346,18 @@ async function organizeVault() {
     } catch (e) {
       report.errors.push(`${r.filename} (로컬) — ${e.message || e}`);
     }
-    // 2) 드라이브 이동/이름변경
-    if (r.driveFileId) {
+    // 2) 드라이브 이동/이름변경 — 이미 같은 이름·같은 팀 폴더면 API를 부르지 않는다(불필요한 호출 방지)
+    const wantName = path.basename(r.storedName);
+    const wantTeam = r.team?.trim() || PENDING_FOLDER;
+    const driveInSync = r.driveName === wantName && r.driveTeam === wantTeam;
+    if (!skipDrive && r.driveFileId && !driveInSync) {
       try {
-        const res = await gapi().moveResumeFile(r.driveFileId, {
-          name: path.basename(r.storedName),
-          team: r.team?.trim() || PENDING_FOLDER,
-        });
+        const res = await gapi().moveResumeFile(r.driveFileId, { name: wantName, team: wantTeam });
         if (res.moved) report.driveMoved += 1;
         if (res.renamed) report.driveRenamed += 1;
         if (res.webViewLink) r.driveLink = res.webViewLink;
+        r.driveName = wantName;
+        r.driveTeam = wantTeam;
         r.driveError = null;
       } catch (e) {
         r.driveError = e.message || String(e);
@@ -340,6 +400,8 @@ async function backupToDrive(ids) {
       });
       r.driveFileId = res.id;
       r.driveLink = res.webViewLink || null;
+      r.driveName = path.basename(r.storedName);
+      r.driveTeam = r.team?.trim() || PENDING_FOLDER;
       r.driveError = null;
       uploaded += 1;
     } catch (e) {
