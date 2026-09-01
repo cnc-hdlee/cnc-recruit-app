@@ -834,6 +834,92 @@ async function downloadDriveFile(fileId) {
   };
 }
 
+// ── 접속 현황 파일 (앱 사용자 표시) ─────────────────────────────────────────
+// 각 사용자의 앱이 자기 드라이브에 작은 JSON 파일 하나를 만들고 관리자에게 읽기 공유한다.
+// drive.file 스코프 = 앱이 만든 파일만 다루므로 사용자의 다른 파일에는 접근하지 않는다.
+const PRESENCE_FILE_NAME = 'cnc-app-presence.json';
+
+async function upsertPresenceFile(json, shareWith) {
+  const auth = buildClient();
+  const drive = google.drive({ version: 'v3', auth });
+  const store2 = store;
+  let fileId = store2.get('presenceFileId') || null;
+  if (fileId) {
+    try {
+      await drive.files.get({ fileId, fields: 'id,trashed' });
+    } catch {
+      fileId = null; // 지워졌으면 새로 만든다
+    }
+  }
+  if (!fileId) {
+    // 앱이 예전에 만든 파일이 있으면 재사용 (drive.file 범위 내 검색)
+    try {
+      const found = await drive.files.list({
+        q: `name = '${PRESENCE_FILE_NAME}' and 'me' in owners and trashed = false`,
+        fields: 'files(id)',
+        pageSize: 1,
+      });
+      if (found.data.files && found.data.files.length) fileId = found.data.files[0].id;
+    } catch {
+      /* 검색 실패는 무시하고 새로 생성 */
+    }
+  }
+  const media = { mimeType: 'application/json', body: JSON.stringify(json) };
+  if (fileId) {
+    await drive.files.update({ fileId, media });
+  } else {
+    const created = await drive.files.create({
+      requestBody: { name: PRESENCE_FILE_NAME, mimeType: 'application/json' },
+      media,
+      fields: 'id',
+    });
+    fileId = created.data.id;
+    store2.set('presenceFileId', fileId);
+    // 관리자에게 읽기 권한 부여 (앱이 만든 파일이라 drive.file 권한으로 공유 가능)
+    if (shareWith) {
+      try {
+        await drive.permissions.create({
+          fileId,
+          requestBody: { role: 'reader', type: 'user', emailAddress: shareWith },
+          sendNotificationEmail: false,
+        });
+      } catch {
+        /* 이미 공유돼 있으면 무시 */
+      }
+    }
+  }
+  return { id: fileId };
+}
+
+/** 관리자용 — 나에게 공유된 접속 현황 파일들을 모아 읽는다 (drive.readonly 필요) */
+async function readPresenceFiles() {
+  const auth = buildClient();
+  const drive = google.drive({ version: 'v3', auth });
+  const r = await drive.files.list({
+    q: `name = '${PRESENCE_FILE_NAME}' and trashed = false`,
+    fields: 'files(id,name,owners(emailAddress,displayName),modifiedTime)',
+    pageSize: 50,
+    supportsAllDrives: true,
+    includeItemsFromAllDrives: true,
+  });
+  const out = [];
+  for (const f of r.data.files || []) {
+    try {
+      const c = await drive.files.get({ fileId: f.id, alt: 'media' }, { responseType: 'text' });
+      const body = typeof c.data === 'string' ? JSON.parse(c.data) : c.data;
+      out.push({
+        ...body,
+        email: body.email || f.owners?.[0]?.emailAddress || '',
+        name: body.name || f.owners?.[0]?.displayName || '',
+        lastSeen: body.lastSeen || Date.parse(f.modifiedTime) || 0,
+      });
+    } catch {
+      /* 못 읽는 파일은 건너뛴다 */
+    }
+  }
+  return out;
+}
+
 async function deleteDriveFile(fileId) {
   const auth = buildClient();
   const drive = google.drive({ version: 'v3', auth });
@@ -1006,6 +1092,8 @@ module.exports = {
   moveResumeFile,
   ensureResumeTeamFolder,
   downloadDriveFile,
+  upsertPresenceFile,
+  readPresenceFiles,
   deleteDriveFile,
   getResumeFolderLink,
   // Calendar: read + WRITE (user explicitly authorized)

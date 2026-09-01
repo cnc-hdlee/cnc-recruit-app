@@ -24,6 +24,7 @@ interface SubNavItem {
 }
 
 const NAV: NavItem[] = [
+  { id: 'admin', icon: '🛡️', label: '접속 현황', adminOnly: true },
   {
     id: 'orgcharts',
     icon: '📋',
@@ -58,7 +59,6 @@ const NAV: NavItem[] = [
       { id: 'comp_cosmax', icon: '🅒', label: '코스맥스' },
     ],
   },
-  { id: 'admin', icon: '🛡️', label: '접속 현황', adminOnly: true },
   { id: 'settings', icon: '⚙️', label: '설정 / 연동' },
 ];
 
@@ -75,16 +75,29 @@ const ADMIN_EMAILS = ['hdlee@cnccosmetic.com'];
 export function Sidebar({ active, onChange, isOpen = false, onClose }: SidebarProps) {
   const [isAdmin, setIsAdmin] = useState(false);
   useEffect(() => {
-    // 로그인한 계정이 관리자일 때만 관리자 메뉴를 노출한다
-    void (async () => {
+    // 로그인한 계정이 관리자일 때만 관리자 메뉴를 노출한다.
+    // 로그인 복구가 늦을 수 있어 잡힐 때까지 잠깐 재시도한다.
+    let tries = 0;
+    let t: ReturnType<typeof setInterval> | null = null;
+    const run = async () => {
       try {
         const r = await api?.cfg?.get<{ email?: string }>('googleProfile');
         const email = (r?.ok ? r.data?.email : '') || '';
-        setIsAdmin(ADMIN_EMAILS.includes(email.toLowerCase()));
+        const ok = ADMIN_EMAILS.includes(email.toLowerCase());
+        setIsAdmin(ok);
+        if (ok && t) clearInterval(t);
       } catch {
         setIsAdmin(false);
       }
-    })();
+    };
+    void run();
+    const check = async () => {
+      tries += 1;
+      if (tries > 10 && t) clearInterval(t);
+    };
+    void check();
+    t = setInterval(() => { void check(); void run(); }, 3000);
+    return () => { if (t) clearInterval(t); };
   }, []);
   const D = useData();
   const live = useLiveData();
