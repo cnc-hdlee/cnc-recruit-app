@@ -288,7 +288,16 @@ export const ALL_TEAMS: string[] = [...new Set(Object.values(TEAM_LEADS).map((t)
   (a, b) => b.length - a.length
 );
 
+/**
+ * Slack 조직도와 실제 채용 업무가 다른 경우의 예외.
+ * 김현수 팀장은 조직도상 공정혁신팀이지만 면접·채용은 포장2팀 건으로 들어오므로 포장2팀으로 본다.
+ * (2026-09-01 사용자 지정)
+ */
+export const TEAM_LEAD_OVERRIDES: Record<string, string> = {
+  hskim3: '포장2팀',
+};
+
 // PEOPLE에 병합 — 수기로 넣어둔 값보다 Slack 조직도를 우선한다(소속이 바뀐 사람 반영).
 for (const [id, v] of Object.entries(TEAM_LEADS)) {
-  PEOPLE[id] = { name: v.name, title: v.title, team: v.team };
+  PEOPLE[id] = { name: v.name, title: v.title, team: TEAM_LEAD_OVERRIDES[id] || v.team };
 }

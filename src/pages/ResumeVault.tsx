@@ -25,20 +25,32 @@ const UNCLASSIFIED = '확인 필요';
 //   지원자 이력서_황상현(전략구매_자재개발팀).pdf
 //   지원자 이력서 조은주 경력(전략구매_자재개발팀).pdf
 const NOISE_WORDS =
-  /(지원자|이력서|경력기술서|자기소개서|자소서|포트폴리오|입사지원서|첨부|최종본?|사본|복사본|resume|cv|copy|final|ver\d*|v\d+)/gi;
+  /(지원자|이력서|경력기술서|자기소개서|자소서|포트폴리오|입사지원서|지원정보|첨부|최종본?|사본|복사본|화장품|상장사|ODM|연구원|담당자|채용|공고|신입|경력|기초|색조|resume|cv|copy|final|ver\d*|v\d+)/gi;
 // 이름으로 오인하기 쉬운 직무·부서 성격의 접미사.
 // ※ '남/여' 한 글자는 넣지 않는다 — 장광남·김영남처럼 이름이 남으로 끝나는 경우를 이름이 아니라고
 //   잘라버렸던 버그가 있었다.
 const NOT_NAME =
   /(팀|본부|실|센터|파트|그룹|담당|계획|개발|관리|생산|운영|구매|기획|디자인|영업|품질|연구|지원|공정|물류|안전|시설|회계|재무|인사|총무|마케팅|해외|국내|신입|경력|정규직|도급직|남자|여자)$/;
 // 직무 칸에 들어가면 안 되는 토큰 (구분값이지 직무가 아님)
-const NOT_JOB = /^(신입|경력|정규직|도급직|계약직|남자|여자|남|여|첨부|최종|사본|지원|입사|\d+)$/;
+const NOT_JOB =
+  /^(신입|경력|정규직|도급직|계약직|남자|여자|남|여|첨부|최종|사본|지원|입사|서류|전형|합격|불합격|면접|[a-z0-9]*\d[a-z0-9]*|\d+)$/i;
 
 const splitTokens = (s: string) =>
   s
     .split(/[_/,·()（）[\]{}<>|\-–—\s]+/)
     .map((t) => t.trim())
     .filter(Boolean);
+
+/**
+ * 이름 뒤에 붙은 조사·어미를 떼어낸다.
+ *   "김민혁의 이력서 입니다" → 김민혁 / "이력서_김동준입니다_뽑아만…" → 김동준
+ * 조사(의/은/는/이/가…)는 4자 이상 토큰에서만 뗀다 — 3자 이름(박준이 등)을 깎지 않기 위해서.
+ */
+function stripParticles(tok: string): string {
+  let t = tok.replace(/(입니다|드립니다|올림|님|씨)$/, '');
+  if (t.length >= 4) t = t.replace(/(의|은|는|이|가|을|를|와|과|도)$/, '');
+  return t;
+}
 
 export function parseResumeFileName(filename: string): {
   candidate: string;
@@ -66,20 +78,41 @@ export function parseResumeFileName(filename: string): {
   const dash =
     base.match(/[-–—]\s*([가-힣]{2,4})\s*[)\]]?\s*$/) || base.match(/[-–—]\s*([가-힣]{2,4})/);
   if (dash && !NOT_NAME.test(dash[1])) candidate = dash[1];
+  const rawTokens = splitTokens(flat).map(stripParticles);
+  // ②-1 채용사이트 지원번호(226708-000002) 바로 앞 토큰이 지원자 이름이다 — 직무 문구보다 우선
   if (!candidate) {
-    const tokens = splitTokens(flat)
+    const idx = rawTokens.findIndex((t) => /^\d{5,}(-\d+)?$/.test(t));
+    const prev = idx > 0 ? rawTokens[idx - 1] : '';
+    if (prev && /^[가-힣]{2,4}$/.test(prev) && !NOT_NAME.test(prev)) candidate = prev;
+  }
+  if (!candidate) {
+    const tokens = rawTokens
       .filter((t) => /^[가-힣]{2,4}$/.test(t))
       .filter((t) => !NOT_NAME.test(t) && t !== team);
     const rank = (t: string) => (t.length === 3 ? 0 : t.length === 2 ? 1 : 2);
     tokens.sort((a, b) => rank(a) - rank(b));
     candidate = tokens[0] || '';
   }
+  // 외국인 지원자 — 긴 한글 음차 이름(마르코바스베트라나) 또는 영문 이름
+  if (!candidate) {
+    const long = rawTokens.find((t) => /^[가-힣]{5,12}$/.test(t) && !NOT_NAME.test(t) && t !== team);
+    const en = rawTokens.find((t) => /^[A-Za-z][A-Za-z.'-]{3,}$/.test(t));
+    candidate = long || en || '';
+  }
 
   // ③ 직무 — 괄호 안을 먼저 보고, 없으면 파일명 전체에서 팀·이름을 뺀 나머지 토큰
   const pickJob = (src: string) =>
-    splitTokens(src.replace(NOISE_WORDS, ' ')).find(
-      (t) => t !== team && t !== candidate && t.length >= 2 && !NOT_JOB.test(t)
-    ) || '';
+    splitTokens(src.replace(NOISE_WORDS, ' '))
+      .map(stripParticles)
+      .find(
+        (t) =>
+          t !== team &&
+          t !== candidate &&
+          !t.includes(candidate) && // "김민혁의" 같은 이름 변형이 직무로 새는 것 방지
+          t.length >= 2 &&
+          !/^\d/.test(t) && // 0511입사, 2026년 같은 숫자 시작 토큰 제외
+          !NOT_JOB.test(t)
+      ) || '';
   const job = (paren ? pickJob(paren) : '') || pickJob(flat);
 
   return { candidate, team, job: job === team || job === candidate ? '' : job };
