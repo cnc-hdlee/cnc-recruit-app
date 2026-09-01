@@ -22,6 +22,7 @@ import { EmailToolsPage } from './pages/EmailToolsPage';
 import { CompetitorOrgPage, CompetitorsOverview } from './pages/Competitors';
 import { OrgChartPage, OrgChartsOverview } from './pages/OrgCharts';
 import { getOrgChart } from './data/orgCharts';
+import { AdminPresence } from './pages/AdminPresence';
 import { Settings } from './pages/Settings';
 import type { PageId } from './types';
 
@@ -39,6 +40,7 @@ const PAGE_TITLES: Partial<Record<PageId, string>> = {
   competitors: '경쟁사 조직도',
   comp_kolmar: '경쟁사 — 한국콜마',
   comp_cosmax: '경쟁사 — 코스맥스',
+  admin: '접속 현황 (관리자)',
   settings: '설정 / 연동',
 };
 
@@ -87,6 +89,8 @@ export default function App() {
 
   const handlePageChange = (p: PageId) => {
     setPage(p);
+    // 관리자 화면에서 "지금 어느 화면을 보고 있는지" 보이도록 알린다
+    void window.electronAPI?.presence?.setPage(p);
     setSidebarOpen(false);
   };
 
@@ -125,6 +129,7 @@ export default function App() {
           {page === 'competitors' && <CompetitorsOverview onOpen={(id) => setPage(id === 'kolmar' ? 'comp_kolmar' : 'comp_cosmax')} />}
           {page === 'comp_kolmar' && <CompetitorOrgPage companyId="kolmar" />}
           {page === 'comp_cosmax' && <CompetitorOrgPage companyId="cosmax" />}
+          {page === 'admin' && <AdminPresence />}
           {page === 'settings' && <Settings />}
         </main>
       </div>

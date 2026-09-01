@@ -128,6 +128,16 @@ export interface ResumeContact {
   cached?: boolean;
 }
 
+export interface PresenceUser {
+  email: string;
+  name?: string;
+  page?: string;
+  version?: string;
+  platform?: string;
+  host?: string;
+  lastSeen: number;
+}
+
 export interface SlackTeam {
   team: string;
   teamId: string;
@@ -353,6 +363,10 @@ interface ElectronAPI {
     readMultiple(ids: string[], lim?: number): Promise<Result<(SlackMessage & { channelId: string; userName: string })[]>>;
     search(q: string, count?: number): Promise<Result<SlackMessage[]>>;
     post(ch: string, text: string): Promise<Result<{ ok: boolean; ts: string }>>;
+  };
+  presence: {
+    list(): Promise<Result<{ configured: boolean; now?: number; users: PresenceUser[] }>>;
+    setPage(page: string): Promise<Result<{ ok: boolean }>>;
   };
   cfg: {
     get<T = unknown>(key: string): Promise<Result<T | null>>;

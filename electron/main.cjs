@@ -290,7 +290,15 @@ app.on('second-instance', () => {
   }
 });
 
-app.whenReady().then(createWindow);
+app.whenReady().then(() => {
+  createWindow();
+  // 접속 현황 하트비트 — 서버 주소·토큰이 설정돼 있을 때만 동작한다 (없으면 조용히 비활성)
+  try {
+    require('./integrations/presence.cjs').start(app.getVersion());
+  } catch {
+    /* 접속 현황은 부가 기능 — 실패해도 앱은 정상 동작 */
+  }
+});
 
 app.on('window-all-closed', () => {
   try { mobileServer.stop(); } catch {}

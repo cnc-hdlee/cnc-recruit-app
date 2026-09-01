@@ -4,6 +4,7 @@ const slack = require('./integrations/slack.cjs');
 const store = require('./integrations/store.cjs');
 const sync = require('./integrations/sync.cjs');
 const resumes = require('./integrations/resumes.cjs');
+const presence = require('./integrations/presence.cjs');
 
 function safeHandle(channel, handler) {
   ipcMain.handle(channel, async (_e, ...args) => {
@@ -130,6 +131,10 @@ function register() {
   safeHandle('s:post', async (ch, text) => slack.postMessage(ch, text));
 
   // Config (sheet IDs, etc.)
+  // 접속 현황 (관리자 화면 + 하트비트)
+  safeHandle('presence:list', async () => presence.list());
+  safeHandle('presence:page', async (page) => { presence.setPage(page); return { ok: true }; });
+
   safeHandle('cfg:get', async (key) => store.get(key));
   safeHandle('cfg:set', async (key, value) => store.set(key, value));
   safeHandle('cfg:del', async (key) => store.del(key));

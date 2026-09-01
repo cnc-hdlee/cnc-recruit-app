@@ -12,6 +12,7 @@ interface Env {
   GOOGLE_CLIENT_SECRET: string;
   GOOGLE_REFRESH_TOKEN: string;
   ACCESS_TOKEN: string; // URL token shown to the maintainer
+  PRESENCE_TOKEN: string; // 배포된 앱이 접속 현황을 보고할 때 쓰는 토큰
   SHEET_IDS: string; // JSON array
   CALENDAR_IDS: string; // JSON array
   MAPPINGS: string; // JSON object
@@ -220,6 +221,61 @@ export default {
     // Healthcheck — public
     if (url.pathname === '/healthz') {
       return Response.json({ ok: true, ts: Date.now() });
+    }
+
+    // ── 접속 현황(presence) ────────────────────────────────────────────────
+    // 배포된 앱들이 1분마다 자기 상태를 여기로 보내고, 관리자만 목록을 본다.
+    // KV TTL(5분)로 저장하므로 앱을 끄면 목록에서 자동으로 사라진다.
+    if (url.pathname === '/presence' && req.method === 'POST') {
+      // 앱에 심어둔 토큰으로만 기록 가능 (아무나 못 밀어넣게)
+      const token = req.headers.get('x-presence-token') || '';
+      if (!env.PRESENCE_TOKEN || token !== env.PRESENCE_TOKEN) {
+        return Response.json({ ok: false, error: 'unauthorized' }, { status: 401 });
+      }
+      let body: any = {};
+      try {
+        body = await req.json();
+      } catch {
+        return Response.json({ ok: false, error: 'bad json' }, { status: 400 });
+      }
+      const email = String(body.email || '').toLowerCase().trim();
+      if (!email) return Response.json({ ok: false, error: 'no email' }, { status: 400 });
+      const rec = {
+        email,
+        name: String(body.name || '').slice(0, 40),
+        page: String(body.page || '').slice(0, 40),
+        version: String(body.version || '').slice(0, 20),
+        platform: String(body.platform || '').slice(0, 20),
+        host: String(body.host || '').slice(0, 40),
+        lastSeen: Date.now(),
+      };
+      await env.SNAPSHOT_KV.put(`presence:${email}`, JSON.stringify(rec), { expirationTtl: 300 });
+      return Response.json({ ok: true });
+    }
+
+    if (url.pathname === '/presence' && req.method === 'GET') {
+      // 조회는 관리자 토큰(=뷰어 접속 토큰)을 가진 사람만
+      const q = url.searchParams.get('t');
+      if (!isAuthed(req, env.ACCESS_TOKEN) && q !== env.ACCESS_TOKEN) {
+        return Response.json({ ok: false, error: 'unauthorized' }, { status: 401 });
+      }
+      const list = await env.SNAPSHOT_KV.list({ prefix: 'presence:' });
+      const users: any[] = [];
+      for (const k of list.keys) {
+        const v = await env.SNAPSHOT_KV.get(k.name);
+        if (v) {
+          try {
+            users.push(JSON.parse(v));
+          } catch {
+            /* skip */
+          }
+        }
+      }
+      users.sort((a, b) => (b.lastSeen || 0) - (a.lastSeen || 0));
+      return Response.json(
+        { ok: true, now: Date.now(), users },
+        { headers: { 'Cache-Control': 'no-store' } }
+      );
     }
 
     // Auth: URL token → set cookie & redirect to /

@@ -1,4 +1,6 @@
+import { useEffect, useState } from 'react';
 import type { PageId } from '../types';
+import { api } from '../lib/api';
 import { useData, getTodayStr } from '../store';
 import { useLiveData, liveByKindOrScan } from '../store/liveData';
 import { IS_VIEWER } from '../lib/mode';
@@ -10,6 +12,8 @@ interface NavItem {
   label: string;
   badgeKey?: 'todayIntv' | 'incoming';
   maintainerOnly?: boolean;
+  /** 관리자(이형도)에게만 보이는 메뉴 */
+  adminOnly?: boolean;
   // 서브 카테고리 — 부모 또는 자식이 active일 때 들여쓰기로 표시
   subItems?: SubNavItem[];
 }
@@ -54,6 +58,7 @@ const NAV: NavItem[] = [
       { id: 'comp_cosmax', icon: '🅒', label: '코스맥스' },
     ],
   },
+  { id: 'admin', icon: '🛡️', label: '접속 현황', adminOnly: true },
   { id: 'settings', icon: '⚙️', label: '설정 / 연동' },
 ];
 
@@ -64,7 +69,23 @@ interface SidebarProps {
   onClose?: () => void;
 }
 
+/** 접속 현황 등 관리자 전용 메뉴를 볼 수 있는 계정 */
+const ADMIN_EMAILS = ['hdlee@cnccosmetic.com'];
+
 export function Sidebar({ active, onChange, isOpen = false, onClose }: SidebarProps) {
+  const [isAdmin, setIsAdmin] = useState(false);
+  useEffect(() => {
+    // 로그인한 계정이 관리자일 때만 관리자 메뉴를 노출한다
+    void (async () => {
+      try {
+        const r = await api?.cfg?.get<{ email?: string }>('googleProfile');
+        const email = (r?.ok ? r.data?.email : '') || '';
+        setIsAdmin(ADMIN_EMAILS.includes(email.toLowerCase()));
+      } catch {
+        setIsAdmin(false);
+      }
+    })();
+  }, []);
   const D = useData();
   const live = useLiveData();
   const today = getTodayStr();
@@ -112,7 +133,7 @@ export function Sidebar({ active, onChange, isOpen = false, onClose }: SidebarPr
         )}
       </div>
       <nav className="flex-1 p-3 space-y-0.5 overflow-y-auto">
-        {NAV.filter((item) => !item.maintainerOnly || !IS_VIEWER).map((item) => {
+        {NAV.filter((item) => (!item.maintainerOnly || !IS_VIEWER) && (!item.adminOnly || isAdmin)).map((item) => {
           const isActive = item.id === active;
           const badge = item.badgeKey ? counts[item.badgeKey] : 0;
           // sub-item이 active이거나 본인이 active이면 sub-item 펼침

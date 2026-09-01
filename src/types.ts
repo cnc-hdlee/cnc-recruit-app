@@ -103,4 +103,5 @@ export type PageId =
   | 'competitors'
   | 'comp_kolmar'
   | 'comp_cosmax'
-  | 'settings';
+  | 'settings'
+  | 'admin';

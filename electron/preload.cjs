@@ -88,6 +88,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
     post: (ch, text) => invoke('s:post', ch, text),
   },
 
+  presence: {
+    list: () => invoke('presence:list'),
+    setPage: (page) => invoke('presence:page', page),
+  },
+
   cfg: {
     get: (key) => invoke('cfg:get', key),
     set: (key, value) => invoke('cfg:set', key, value),
