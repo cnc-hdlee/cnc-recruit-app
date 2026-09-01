@@ -634,6 +634,9 @@ async function listCalendar(timeMin, timeMax, calendarId = 'primary') {
     timeZone: e.start?.timeZone || null,
     htmlLink: e.htmlLink,
     status: e.status,
+    // 남의 캘린더를 reader로 읽으면 private 일정은 제목 없이 온다 — 화면에서 '비공개'로 구분하려고 그대로 전달
+    visibility: e.visibility || null,
+    transparency: e.transparency || null,
     conferenceUrl: e.conferenceData?.entryPoints?.[0]?.uri || e.hangoutLink || null,
     creator: e.creator ? { email: e.creator.email || null, self: !!e.creator.self } : null,
     organizer: e.organizer ? { email: e.organizer.email || null, self: !!e.organizer.self } : null,

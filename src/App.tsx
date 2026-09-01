@@ -13,6 +13,7 @@ import { InstallPrompt } from './components/InstallPrompt';
 import { Headcount } from './pages/Headcount';
 import { IncomingHires } from './pages/IncomingHires';
 import { CalendarPage } from './pages/CalendarPage';
+import { InterviewAgenda } from './pages/InterviewAgenda';
 import { InterviewInsights } from './pages/InterviewInsights';
 import { RecruitFunnel } from './pages/RecruitFunnel';
 import { MeetingRooms } from './pages/MeetingRooms';
@@ -32,6 +33,7 @@ const PAGE_TITLES: Partial<Record<PageId, string>> = {
   orgcharts: '부서별 업무 편제표',
   incoming: '입사예정자',
   calendar: '면접 캘린더',
+  agenda: '면접 일정표 (날짜별)',
   insights: '면접 인사이트',
   funnel: '채용 Funnel (전형별 진행)',
   rooms: '회의실 예약',
@@ -120,6 +122,7 @@ export default function App() {
           )}
           {page === 'incoming' && <IncomingHires />}
           {page === 'calendar' && <CalendarPage />}
+          {page === 'agenda' && <InterviewAgenda />}
           {page === 'insights' && <InterviewInsights />}
           {page === 'funnel' && <RecruitFunnel />}
           {page === 'rooms' && <MeetingRooms />}

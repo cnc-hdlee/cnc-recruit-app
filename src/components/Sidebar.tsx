@@ -39,6 +39,7 @@ const NAV: NavItem[] = [
     label: '면접 캘린더',
     badgeKey: 'todayIntv',
     subItems: [
+      { id: 'agenda', icon: '🗓', label: '면접 일정표' },
       { id: 'insights', icon: '📊', label: '면접 인사이트' },
       { id: 'funnel', icon: '🪜', label: '채용 Funnel' },
     ],

@@ -94,6 +94,7 @@ export type PageId =
   | `orgchart:${string}`
   | 'incoming'
   | 'calendar'
+  | 'agenda'
   | 'insights'
   | 'funnel'
   | 'rooms'

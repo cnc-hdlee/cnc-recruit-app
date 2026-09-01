@@ -61,6 +61,9 @@ export interface GCalEvent {
   timeZone: string | null;
   htmlLink?: string;
   status: string;
+  // 'private'이면 남의 캘린더에서 제목이 비어 온다 (바쁨 표시만) — 면접 일정표에서 🔒로 표기
+  visibility?: string | null;
+  transparency?: string | null;
   conferenceUrl: string | null;
   creator?: { email: string | null; self: boolean } | null;
   organizer?: { email: string | null; self: boolean } | null;
