@@ -10,12 +10,9 @@ import { useHireCalendarSync } from './lib/useHireCalendarSync';
 import { Sidebar } from './components/Sidebar';
 import { TopBar } from './components/TopBar';
 import { InstallPrompt } from './components/InstallPrompt';
-import { Headcount } from './pages/Headcount';
 import { IncomingHires } from './pages/IncomingHires';
 import { CalendarPage } from './pages/CalendarPage';
 import { InterviewAgenda } from './pages/InterviewAgenda';
-import { InterviewInsights } from './pages/InterviewInsights';
-import { RecruitFunnel } from './pages/RecruitFunnel';
 import { MeetingRooms } from './pages/MeetingRooms';
 import { JobCenters } from './pages/JobCenters';
 import { CampusRecruiting } from './pages/CampusRecruiting';
@@ -26,17 +23,13 @@ import { CompetitorOrgPage, CompetitorsOverview } from './pages/Competitors';
 import { OrgChartPage, OrgChartsOverview } from './pages/OrgCharts';
 import { getOrgChart } from './data/orgCharts';
 import { Settings } from './pages/Settings';
-import { Usage } from './pages/Usage';
 import type { PageId } from './types';
 
 const PAGE_TITLES: Partial<Record<PageId, string>> = {
-  headcount: '인원현황',
   orgcharts: '부서별 업무 편제표',
   incoming: '입사예정자',
   calendar: '면접 캘린더',
   agenda: '면접 일정표 (날짜별)',
-  insights: '면접 인사이트',
-  funnel: '채용 Funnel (전형별 진행)',
   rooms: '회의실 예약',
   jobcenters: '일자리센터',
   campus: '캠퍼스 리쿠르팅',
@@ -47,7 +40,6 @@ const PAGE_TITLES: Partial<Record<PageId, string>> = {
   comp_kolmar: '경쟁사 — 한국콜마',
   comp_cosmax: '경쟁사 — 코스맥스',
   settings: '설정 / 연동',
-  usage: '사용법 (필독)',
 };
 
 const ORGCHART_PREFIX = 'orgchart:';
@@ -62,7 +54,7 @@ function pageTitle(page: PageId): string {
 }
 
 export default function App() {
-  const [page, setPage] = useState<PageId>('headcount');
+  const [page, setPage] = useState<PageId>('calendar');
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   // 입사자 관리 시트 자동 동기화 — 어느 페이지에 있든 입사예정(정규직)DB 변경 시 자동 반영.
@@ -115,7 +107,6 @@ export default function App() {
       <div className="flex-1 flex flex-col min-w-0">
         <TopBar title={pageTitle(page)} onMenuClick={() => setSidebarOpen(true)} />
         <main className="flex-1 overflow-y-auto overflow-x-auto p-3 sm:p-4 md:p-6 animate-fade-in">
-          {page === 'headcount' && <Headcount />}
           {page === 'orgcharts' && (
             <OrgChartsOverview onOpen={(id) => setPage(`orgchart:${id}`)} />
           )}
@@ -125,8 +116,6 @@ export default function App() {
           {page === 'incoming' && <IncomingHires />}
           {page === 'calendar' && <CalendarPage />}
           {page === 'agenda' && <InterviewAgenda />}
-          {page === 'insights' && <InterviewInsights />}
-          {page === 'funnel' && <RecruitFunnel />}
           {page === 'rooms' && <MeetingRooms />}
           {page === 'jobcenters' && <JobCenters />}
           {page === 'campus' && <CampusRecruiting />}
@@ -137,7 +126,6 @@ export default function App() {
           {page === 'comp_kolmar' && <CompetitorOrgPage companyId="kolmar" />}
           {page === 'comp_cosmax' && <CompetitorOrgPage companyId="cosmax" />}
           {page === 'settings' && <Settings />}
-          {page === 'usage' && <Usage />}
         </main>
       </div>
       <InstallPrompt />

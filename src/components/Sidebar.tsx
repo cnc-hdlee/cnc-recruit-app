@@ -20,7 +20,6 @@ interface SubNavItem {
 }
 
 const NAV: NavItem[] = [
-  { id: 'headcount', icon: '👥', label: '인원현황' },
   {
     id: 'orgcharts',
     icon: '📋',
@@ -38,21 +37,13 @@ const NAV: NavItem[] = [
     icon: '📅',
     label: '면접 캘린더',
     badgeKey: 'todayIntv',
-    subItems: [
-      { id: 'agenda', icon: '🗓', label: '면접 일정표' },
-      { id: 'insights', icon: '📊', label: '면접 인사이트' },
-      { id: 'funnel', icon: '🪜', label: '채용 Funnel' },
-    ],
+    subItems: [{ id: 'agenda', icon: '🗓', label: '면접 일정표' }],
   },
   { id: 'rooms', icon: '🚪', label: '회의실 예약' },
   { id: 'jobcenters', icon: '🏢', label: '일자리센터' },
   { id: 'campus', icon: '🎓', label: '캠퍼스 리쿠르팅' },
-  {
-    id: 'lookup',
-    icon: '🔍',
-    label: '후보자 검색',
-    subItems: [{ id: 'resumes', icon: '🗂', label: '이력서 보관함' }],
-  },
+  { id: 'lookup', icon: '🔍', label: '후보자 검색' },
+  { id: 'resumes', icon: '🗂', label: '이력서' },
   { id: 'comms', icon: '📨', label: '후보자 안내 메일' },
   {
     id: 'competitors',
@@ -64,7 +55,6 @@ const NAV: NavItem[] = [
     ],
   },
   { id: 'settings', icon: '⚙️', label: '설정 / 연동' },
-  { id: 'usage', icon: '📖', label: '사용법 (필독)' },
 ];
 
 interface SidebarProps {

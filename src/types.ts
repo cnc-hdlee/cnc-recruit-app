@@ -89,14 +89,11 @@ export interface DataShape {
 // 편제표는 부서가 계속 늘어나므로 'orgchart:<부서id>' 형태로 열어둔다.
 // 부서를 추가할 때 이 타입을 고칠 필요가 없다 (src/data/orgCharts.ts 에만 추가).
 export type PageId =
-  | 'headcount'
   | 'orgcharts'
   | `orgchart:${string}`
   | 'incoming'
   | 'calendar'
   | 'agenda'
-  | 'insights'
-  | 'funnel'
   | 'rooms'
   | 'jobcenters'
   | 'campus'
@@ -106,5 +103,4 @@ export type PageId =
   | 'competitors'
   | 'comp_kolmar'
   | 'comp_cosmax'
-  | 'settings'
-  | 'usage';
+  | 'settings';
