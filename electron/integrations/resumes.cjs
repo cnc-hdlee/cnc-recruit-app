@@ -267,18 +267,27 @@ function zipEntries(filePath) {
     if (buf.readUInt32LE(off) !== 0x02014b50) break;
     const flags = buf.readUInt16LE(off + 8);
     const method = buf.readUInt16LE(off + 10);
+    const crc = buf.readUInt32LE(off + 16);
     const compSize = buf.readUInt32LE(off + 20);
     const nameLen = buf.readUInt16LE(off + 28);
     const extraLen = buf.readUInt16LE(off + 30);
     const commentLen = buf.readUInt16LE(off + 32);
     const localOff = buf.readUInt32LE(off + 42);
     const rawName = buf.subarray(off + 46, off + 46 + nameLen);
-    // 비트 11 = UTF-8 파일명. 아니면 일단 utf8로 시도하고 깨지면 latin1.
+    // 비트 11 = UTF-8 파일명. 아니면 한국어 zip은 대개 CP949(EUC-KR)다.
+    // (예전엔 latin1로 읽어 "±èÀç¿µ"처럼 깨져서 지원자 이름을 못 뽑았다)
     let name = rawName.toString('utf8');
-    if (!(flags & 0x800) && name.includes('�')) name = rawName.toString('latin1');
+    if (!(flags & 0x800) || name.includes('�')) {
+      try {
+        name = new TextDecoder('euc-kr').decode(rawName);
+      } catch {
+        name = rawName.toString('latin1');
+      }
+    }
     out.push({
       name,
       method,
+      crc,
       compSize,
       localOff,
       dir: name.endsWith('/'),
@@ -290,13 +299,72 @@ function zipEntries(filePath) {
   return out.map((e) => ({ ...e, buf }));
 }
 
-function zipRead(entry) {
-  const { buf, localOff, method, compSize } = entry;
+// ZipCrypto(전통 PKWARE 암호) 해제 — 채용사이트가 내려주는 비밀번호 zip이 이 방식이다.
+const CRC_TABLE = (() => {
+  const t = new Int32Array(256);
+  for (let n = 0; n < 256; n += 1) {
+    let c = n;
+    for (let k = 0; k < 8; k += 1) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+    t[n] = c;
+  }
+  return t;
+})();
+const crcByte = (crc, b) => (CRC_TABLE[(crc ^ b) & 0xff] ^ (crc >>> 8)) >>> 0;
+
+/**
+ * @param {Buffer} data 암호화된 원본(앞 12바이트는 암호 헤더)
+ * @param {string} password
+ * @param {number|null} checkByte 헤더 마지막 바이트와 비교할 값 (비밀번호 검증용)
+ * @returns {Buffer|null} 비밀번호가 틀리면 null
+ */
+function zipDecrypt(data, password, checkByte) {
+  let k0 = 305419896;
+  let k1 = 591751049;
+  let k2 = 878082192;
+  const upd = (b) => {
+    k0 = crcByte(k0, b);
+    k1 = (k1 + (k0 & 0xff)) >>> 0;
+    k1 = (Math.imul(k1, 134775813) + 1) >>> 0;
+    k2 = crcByte(k2, (k1 >>> 24) & 0xff);
+  };
+  for (const ch of Buffer.from(password, 'latin1')) upd(ch);
+  const nextByte = () => {
+    const t = (k2 | 2) & 0xffff;
+    return ((t * (t ^ 1)) >>> 8) & 0xff;
+  };
+  const hdr = Buffer.alloc(12);
+  for (let i = 0; i < 12; i += 1) {
+    const c = data[i] ^ nextByte();
+    upd(c);
+    hdr[i] = c;
+  }
+  if (checkByte != null && hdr[11] !== checkByte) return null; // 비밀번호 불일치
+  const out = Buffer.alloc(Math.max(0, data.length - 12));
+  for (let i = 12; i < data.length; i += 1) {
+    const c = data[i] ^ nextByte();
+    upd(c);
+    out[i - 12] = c;
+  }
+  return out;
+}
+
+function zipRead(entry, password) {
+  const { buf, localOff, method, compSize, encrypted } = entry;
   if (buf.readUInt32LE(localOff) !== 0x04034b50) return null;
   const nameLen = buf.readUInt16LE(localOff + 26);
   const extraLen = buf.readUInt16LE(localOff + 28);
   const start = localOff + 30 + nameLen + extraLen;
-  const data = buf.subarray(start, start + compSize);
+  let data = buf.subarray(start, start + compSize);
+  if (encrypted) {
+    if (!password) return null;
+    // 데이터 디스크립터(bit 3)를 쓰면 CRC 대신 수정시각 상위 바이트로 비밀번호를 검증한다
+    const flags = buf.readUInt16LE(localOff + 6);
+    const check =
+      flags & 0x8 ? (buf.readUInt16LE(localOff + 10) >> 8) & 0xff : (entry.crc >>> 24) & 0xff;
+    const dec = zipDecrypt(data, password, check);
+    if (!dec) return null;
+    data = dec;
+  }
   if (method === 0) return Buffer.from(data);
   if (method === 8) {
     try {
@@ -421,13 +489,13 @@ function scanForResumes(opt = {}) {
  * 스캔으로 찾은 파일을 보관함에 넣는다 (내용 해시가 같으면 건너뜀 — 원본 파일은 그대로 둔다).
  * zip이면 안의 이력서 항목만 각각 별도 이력서로 편입한다.
  */
-function importPath(filePath, meta) {
+function importPath(filePath, meta, password) {
   if (!fs.existsSync(filePath)) throw new Error('파일이 없습니다');
   if (/\.zip$/i.test(filePath)) {
     const entries = resumeEntriesInZip(filePath);
     const results = [];
     for (const e of entries) {
-      const data = zipRead(e);
+      const data = zipRead(e, password);
       if (!data || !data.length) continue;
       const base = (e.name.split('/').pop() || e.name).trim();
       try {
@@ -573,6 +641,22 @@ async function pdfText(buf) {
   return pdfTextCandidates(buf).layer.join('\n');
 }
 
+// 이력서 본문에서 이름 뽑기 — 파일명이 깨졌거나(암호 zip은 파일명이 CP949라 깨진다)
+// 이름이 안 들어간 파일에 쓴다. "성 명  황 상 현" 처럼 글자 사이에 공백이 끼는 경우가 흔하다.
+const NAME_LABEL_RE =
+  /(?:성\s*명|이\s*름|지원자\s*명|성명\/생년월일)\s*[:：]?\s*((?:[가-힣]\s*){2,5})/;
+const NOT_PERSON = /(주민|등록|번호|사항|기본|지원|경력|학력|자격|사진|정보|담당|부서|회사)/;
+
+function nameFromResumeText(text) {
+  if (!text) return '';
+  const m = text.match(NAME_LABEL_RE);
+  if (m) {
+    const n = m[1].replace(/\s+/g, '');
+    if (n.length >= 2 && n.length <= 4 && !NOT_PERSON.test(n)) return n;
+  }
+  return '';
+}
+
 async function extractContacts(id) {
   const list = readIndex();
   const r = list.find((x) => x.id === id);
@@ -620,13 +704,23 @@ async function extractContacts(id) {
     phone: [...phones][0] || '',
     phones: [...phones],
   };
+  // 파일명으로 이름을 못 읽은 항목은 본문에서 이름을 찾아 채운다
+  let nameFilled = '';
+  if (!(r.candidate || '').trim()) {
+    nameFilled = nameFromResumeText(parsed.layer.join('\n'));
+    if (nameFilled) {
+      r.candidate = nameFilled;
+      r.matchedBy = '이력서 본문';
+    }
+  }
   // 인덱스에 캐시 — 같은 이력서를 다시 파싱하지 않게 (메일 화면에서 즉시 뜬다)
-  if (out.email !== r.contactEmail || out.phone !== r.contactPhone) {
+  if (out.email !== r.contactEmail || out.phone !== r.contactPhone || nameFilled) {
     r.contactEmail = out.email;
     r.contactPhone = out.phone;
     r.contactAt = new Date().toISOString();
     writeIndex(list);
   }
+  out.candidate = r.candidate;
   return out;
 }
 

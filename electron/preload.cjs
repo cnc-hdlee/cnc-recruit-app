@@ -70,7 +70,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     contactsByName: (name) => invoke('rv:contactsByName', name),
     contactsFromData: (base64, mimeType) => invoke('rv:contactsFromData', base64, mimeType),
     scan: (opt) => invoke('rv:scan', opt),
-    importPath: (filePath, meta) => invoke('rv:importPath', filePath, meta),
+    importPath: (filePath, meta, password) => invoke('rv:importPath', filePath, meta, password),
     stats: () => invoke('rv:stats'),
     driveFolder: () => invoke('rv:driveFolder'),
   },

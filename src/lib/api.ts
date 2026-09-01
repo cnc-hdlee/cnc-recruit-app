@@ -306,7 +306,11 @@ interface ElectronAPI {
       Result<{ roots: string[]; files: { path: string; filename: string; size: number; mtime: string; matchedBy: string }[] }>
     >;
     /** 찾은 파일을 보관함에 편입 (원본은 그대로 두고 사본만) */
-    importPath(filePath: string, meta?: Partial<ResumeEntry>): Promise<Result<{ entry: ResumeEntry; duplicate: boolean }>>;
+    importPath(
+      filePath: string,
+      meta?: Partial<ResumeEntry>,
+      password?: string
+    ): Promise<Result<{ entry?: ResumeEntry; duplicate?: boolean; zip?: boolean; count?: number; added?: number; entries?: ResumeEntry[] }>>;
     /** 저장하지 않고 파일 데이터에서만 연락처를 뽑는다 (메일 첨부 이력서용) */
     contactsFromData(base64: string, mimeType?: string): Promise<Result<ResumeContact>>;
     organize(): Promise<

@@ -421,6 +421,16 @@ export function ResumeVault() {
         setTidyMsg('내 PC에서 새로 찾은 이력서가 없습니다.');
         return;
       }
+      // 채용사이트가 내려주는 zip은 비밀번호가 걸려 있다 — 한 번 물어보고 저장해 재사용
+      let zipPw = '';
+      if (files.some((f) => (f as { encrypted?: boolean }).encrypted)) {
+        const saved = await api.cfg.get<string>('resumeZipPassword');
+        zipPw = (saved.ok && saved.data) || '';
+        if (!zipPw) {
+          zipPw = window.prompt('비밀번호가 걸린 이력서 zip이 있습니다. 압축 비밀번호를 입력하세요.') || '';
+          if (zipPw) await api.cfg.set('resumeZipPassword', zipPw);
+        }
+      }
       let added = 0;
       let dup = 0;
       for (let i = 0; i < files.length; i += 1) {
@@ -433,12 +443,16 @@ export function ResumeVault() {
         const folderTeam =
           ix >= 0 && parts[ix + 1] && !/부서미상|미분류|기타/.test(parts[ix + 1]) ? parts[ix + 1] : '';
         try {
-          const r = await api.resumes.importPath(f.path, {
-            candidate: meta.candidate,
-            team: meta.team || folderTeam,
-            job: meta.job,
-            appliedAt: (f.mtime || '').slice(0, 10),
-          });
+          const r = await api.resumes.importPath(
+            f.path,
+            {
+              candidate: meta.candidate,
+              team: meta.team || folderTeam,
+              job: meta.job,
+              appliedAt: (f.mtime || '').slice(0, 10),
+            },
+            zipPw
+          );
           const data = r.ok ? (r.data as { zip?: boolean; added?: number; entries?: ResumeEntry[]; duplicate?: boolean; entry?: ResumeEntry }) : null;
           if (data?.zip) {
             // zip은 항목마다 사람이 다르다 — 각 파일명으로 이름/직무를 다시 매긴다
