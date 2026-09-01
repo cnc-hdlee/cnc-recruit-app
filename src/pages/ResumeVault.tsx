@@ -50,9 +50,14 @@ export function parseResumeFileName(filename: string): {
   const paren = [...base.matchAll(/[(（[]([^)）\]]+)[)）\]]/g)].map((m) => m[1]).join(' ');
   const flat = `${base} ${paren}`.replace(NOISE_WORDS, ' ');
 
-  // ① 팀 — 팀/본부/실/센터/Lab 로 끝나는 토큰
-  const teamM = flat.match(/([가-힣A-Za-z0-9&]{2,}(?:팀|본부|실|센터|Lab)|연구소)/);
-  const team = teamM ? teamM[1] : '';
+  // ① 팀 — "○○팀"을 최우선으로, 없으면 실/센터/연구소, 마지막이 본부
+  //    ("생산본부_전략구매_원료파트_임재은.pdf"처럼 본부와 팀이 같이 있으면 팀이 더 유용하다)
+  const teamAll = flat.match(/[가-힣A-Za-z0-9&]{2,}(?:팀|본부|실|센터|Lab)|연구소/g) || [];
+  const team =
+    teamAll.find((t) => t.endsWith('팀')) ||
+    teamAll.find((t) => /(실|센터|Lab)$/.test(t) || t === '연구소') ||
+    teamAll[0] ||
+    '';
 
   // ② 후보자 이름
   //    · 대시(-) 뒤 토큰 우선 — "…_충전계획 - 김가연" 패턴
@@ -401,6 +406,67 @@ export function ResumeVault() {
     },
     [dir, refresh, searchMailSlack]
   );
+
+  // ── 내 PC에서 이력서 찾아 보관함에 넣기 ──────────────────────────────────
+  // 바탕화면·다운로드·문서·OneDrive를 훑어 이력서 파일을 찾아 편입한다.
+  // 원본 파일은 그대로 두고 사본만 보관함에 넣으며, 같은 내용은 중복 저장하지 않는다.
+  const scanPc = useCallback(async () => {
+    if (!api?.resumes) return;
+    setBusy('내 PC에서 이력서 찾는 중…');
+    try {
+      const names = [...new Set(entries.map((e) => e.candidate).filter(Boolean))];
+      const s = await api.resumes.scan({ names });
+      const files = s.ok && s.data ? s.data.files : [];
+      if (!files.length) {
+        setTidyMsg('내 PC에서 새로 찾은 이력서가 없습니다.');
+        return;
+      }
+      let added = 0;
+      let dup = 0;
+      for (let i = 0; i < files.length; i += 1) {
+        const f = files[i];
+        setBusy(`이력서 편입 중… ${i + 1}/${files.length}`);
+        const meta = parseResumeFileName(f.filename);
+        // 폴더 이름이 팀인 경우(…\이력서정리\전략구매팀\2026-06\)에는 그걸 소속으로 쓴다
+        const parts = f.path.replace(/\\/g, '/').split('/');
+        const ix = parts.findIndex((x) => x === '이력서정리');
+        const folderTeam =
+          ix >= 0 && parts[ix + 1] && !/부서미상|미분류|기타/.test(parts[ix + 1]) ? parts[ix + 1] : '';
+        try {
+          const r = await api.resumes.importPath(f.path, {
+            candidate: meta.candidate,
+            team: meta.team || folderTeam,
+            job: meta.job,
+            appliedAt: (f.mtime || '').slice(0, 10),
+          });
+          const data = r.ok ? (r.data as { zip?: boolean; added?: number; entries?: ResumeEntry[]; duplicate?: boolean; entry?: ResumeEntry }) : null;
+          if (data?.zip) {
+            // zip은 항목마다 사람이 다르다 — 각 파일명으로 이름/직무를 다시 매긴다
+            added += data.added || 0;
+            for (const en of data.entries || []) {
+              if (en.candidate) continue;
+              const m = parseResumeFileName(en.filename);
+              if (m.candidate || m.job) {
+                await api.resumes.update(en.id, {
+                  candidate: m.candidate,
+                  team: en.team || m.team || meta.team || folderTeam,
+                  job: en.job || m.job,
+                });
+              }
+            }
+          } else if (data?.duplicate) dup += 1;
+          else if (r.ok) added += 1;
+        } catch {
+          // 읽을 수 없는 파일은 건너뛴다
+        }
+      }
+      await refresh();
+      await tidy(true);
+      setTidyMsg(`내 PC 스캔 완료 — 새로 편입 ${added}건 · 이미 있던 파일 ${dup}건`);
+    } finally {
+      setBusy(null);
+    }
+  }, [entries, refresh, tidy]);
 
   // 인명부가 준비되면 한 번 자동 실행 — 사용자가 버튼을 누르지 않아도 정리돼 있어야 한다
   useEffect(() => {
@@ -849,6 +915,9 @@ export function ResumeVault() {
                 ☁ 드라이브
               </a>
             )}
+            <button className="btn text-[12px]" onClick={() => void scanPc()}>
+              🔎 내 PC 이력서 찾기
+            </button>
             <button className="btn btn-primary text-[12px]" onClick={() => void tidy()}>
               🔧 자동 정리
             </button>

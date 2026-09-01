@@ -81,6 +81,8 @@ function register() {
   safeHandle('rv:organize', async () => resumes.organizeVault());
   safeHandle('rv:contacts', async (id) => resumes.extractContacts(id));
   safeHandle('rv:contactsByName', async (name) => resumes.contactsByName(name));
+  safeHandle('rv:scan', async (opt) => resumes.scanForResumes(opt));
+  safeHandle('rv:importPath', async (p, meta) => resumes.importPath(p, meta));
   safeHandle('rv:contactsFromData', async (base64, mimeType) => resumes.extractContactsFromData(base64, mimeType));
   safeHandle('rv:stats', async () => resumes.stats());
   safeHandle('rv:driveFolder', async () => google.getResumeFolderLink());

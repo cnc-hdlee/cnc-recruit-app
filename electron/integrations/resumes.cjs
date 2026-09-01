@@ -231,6 +231,234 @@ async function deleteResume(id) {
   return { ok: true };
 }
 
+// ── 내 PC에서 이력서 찾기 ───────────────────────────────────────────────────
+// 메일 보낼 때 주소가 비어 있는 지원자를 없애려면 이력서가 보관함에 있어야 한다.
+// 바탕화면·다운로드·문서·OneDrive를 훑어 이력서로 보이는 파일을 모아온다(읽기만 한다).
+const SCAN_EXT = /\.(pdf|docx?|hwpx?|zip)$/i;
+const RESUME_NAME_RE =
+  /(이력서|경력기술서|자기소개서|자소서|입사지원|지원자|지원정보|잡코리아지원|잡코지원|사람인|그리팅지원|포트폴리오|resume|curriculum ?vitae|(^|[^a-z])cv([^a-z]|$))/i;
+// 이력서가 아닌 게 확실한 것들 — 사내 문서·양식이 딸려오지 않게
+const SCAN_EXCLUDE_FILE = /(사전질문|평가표|면접표|안내문|양식|가이드|매뉴얼|공고|템플릿|기안|품의)/i;
+const SCAN_SKIP_DIR =
+  /(^|[\\/])(node_modules|\.git|AppData|Windows|Program Files|Program Files \(x86\)|\$Recycle\.Bin|OneDriveTemp|Temp|\.cache|dist|build|out)([\\/]|$)/i;
+
+// 입사확정자가 낸 제출서류 — 이력서가 아니므로 보관함에 넣지 않는다
+const NOT_RESUME_DOC =
+  /(주민등록|등본|초본|통장|계좌|증명사진|성적증명|졸업증명|수료증명|재직증명|경력증명서|건강검진|채용검진|신체검사|검진|영수증|자격득실|건강보험|병적|급여명세|버스노선|명함)/;
+
+// ── ZIP 안의 이력서 읽기 ────────────────────────────────────────────────────
+// 현업/채용사이트가 여러 명 이력서를 zip으로 묶어 보내는 경우가 많다.
+// 중앙 디렉터리만 읽어 목록을 만들고, 필요한 항목만 풀어서 편입한다(원본 zip은 그대로 둔다).
+function zipEntries(filePath) {
+  const buf = fs.readFileSync(filePath);
+  // End of Central Directory 찾기 (뒤에서부터)
+  let eocd = -1;
+  for (let i = buf.length - 22; i >= 0 && i > buf.length - 66000; i -= 1) {
+    if (buf.readUInt32LE(i) === 0x06054b50) {
+      eocd = i;
+      break;
+    }
+  }
+  if (eocd < 0) return [];
+  const count = buf.readUInt16LE(eocd + 10);
+  let off = buf.readUInt32LE(eocd + 16);
+  const out = [];
+  for (let i = 0; i < count && off + 46 <= buf.length; i += 1) {
+    if (buf.readUInt32LE(off) !== 0x02014b50) break;
+    const flags = buf.readUInt16LE(off + 8);
+    const method = buf.readUInt16LE(off + 10);
+    const compSize = buf.readUInt32LE(off + 20);
+    const nameLen = buf.readUInt16LE(off + 28);
+    const extraLen = buf.readUInt16LE(off + 30);
+    const commentLen = buf.readUInt16LE(off + 32);
+    const localOff = buf.readUInt32LE(off + 42);
+    const rawName = buf.subarray(off + 46, off + 46 + nameLen);
+    // 비트 11 = UTF-8 파일명. 아니면 일단 utf8로 시도하고 깨지면 latin1.
+    let name = rawName.toString('utf8');
+    if (!(flags & 0x800) && name.includes('�')) name = rawName.toString('latin1');
+    out.push({
+      name,
+      method,
+      compSize,
+      localOff,
+      dir: name.endsWith('/'),
+      // 비트 0 = 비밀번호 암호화. 채용사이트가 내려주는 zip이 대체로 여기 해당한다.
+      encrypted: !!(flags & 0x1),
+    });
+    off += 46 + nameLen + extraLen + commentLen;
+  }
+  return out.map((e) => ({ ...e, buf }));
+}
+
+function zipRead(entry) {
+  const { buf, localOff, method, compSize } = entry;
+  if (buf.readUInt32LE(localOff) !== 0x04034b50) return null;
+  const nameLen = buf.readUInt16LE(localOff + 26);
+  const extraLen = buf.readUInt16LE(localOff + 28);
+  const start = localOff + 30 + nameLen + extraLen;
+  const data = buf.subarray(start, start + compSize);
+  if (method === 0) return Buffer.from(data);
+  if (method === 8) {
+    try {
+      return zlib.inflateRawSync(data);
+    } catch {
+      return null;
+    }
+  }
+  return null;
+}
+
+/** zip 안에서 "이력서로 보이는" 항목만 고른다 */
+function resumeEntriesInZip(filePath) {
+  const zipName = path.basename(filePath);
+  const zipLooksResume = RESUME_NAME_RE.test(zipName) && !NOT_RESUME_DOC.test(zipName);
+  let entries;
+  try {
+    entries = zipEntries(filePath);
+  } catch {
+    return [];
+  }
+  return entries.filter((e) => {
+    if (e.dir) return false;
+    const base = e.name.split('/').pop() || e.name;
+    if (!/\.(pdf|docx?|hwpx?)$/i.test(base)) return false;
+    if (NOT_RESUME_DOC.test(base) || SCAN_EXCLUDE_FILE.test(base)) return false;
+    return zipLooksResume || RESUME_NAME_RE.test(base);
+  });
+}
+
+function defaultScanRoots() {
+  const home = app.getPath('home');
+  const cands = [
+    app.getPath('desktop'),
+    app.getPath('downloads'),
+    app.getPath('documents'),
+    path.join(home, 'OneDrive'),
+    path.join(home, 'OneDrive - CNC'),
+  ];
+  return [...new Set(cands.filter((p) => p && fs.existsSync(p)))];
+}
+
+/**
+ * 이력서로 보이는 파일 목록을 돌려준다 (파일을 옮기거나 고치지 않는다).
+ * @param {{roots?:string[], names?:string[], maxDepth?:number, limit?:number}} opt
+ *   names: 후보자 이름 목록 — 파일명에 이름이 들어 있으면 "이력서" 단어가 없어도 잡는다.
+ */
+function scanForResumes(opt = {}) {
+  const roots = (opt.roots && opt.roots.length ? opt.roots : defaultScanRoots()).filter((p) =>
+    fs.existsSync(p)
+  );
+  const names = (opt.names || []).filter((n) => n && n.length >= 2);
+  const maxDepth = opt.maxDepth ?? 6;
+  const limit = opt.limit ?? 4000;
+  const vault = filesDir().toLowerCase();
+  const out = [];
+  const seen = new Set();
+  const walk = (dir, depth) => {
+    if (out.length >= limit || depth > maxDepth) return;
+    if (SCAN_SKIP_DIR.test(dir) || dir.toLowerCase().startsWith(vault)) return;
+    let entries;
+    try {
+      entries = fs.readdirSync(dir, { withFileTypes: true });
+    } catch {
+      return; // 권한 없는 폴더는 조용히 건너뛴다
+    }
+    for (const e of entries) {
+      if (out.length >= limit) return;
+      const p = path.join(dir, e.name);
+      if (e.isDirectory()) {
+        if (e.name.startsWith('.') || SCAN_SKIP_DIR.test(e.name)) continue;
+        walk(p, depth + 1);
+        continue;
+      }
+      if (!SCAN_EXT.test(e.name)) continue;
+      if (SCAN_EXCLUDE_FILE.test(e.name)) continue;
+      const isZip = /\.zip$/i.test(e.name);
+      let zipCount = 0;
+      let zipLocked = false;
+      if (isZip) {
+        // zip은 안을 들여다보고 이력서가 들어 있을 때만 목록에 올린다 (입사서류 zip 제외)
+        try {
+          const zes = resumeEntriesInZip(p);
+          zipCount = zes.length;
+          zipLocked = zes.some((z) => z.encrypted);
+        } catch {
+          zipCount = 0;
+        }
+        if (!zipCount) continue;
+      } else {
+        if (NOT_RESUME_DOC.test(e.name)) continue;
+        const byKeyword = RESUME_NAME_RE.test(e.name);
+        const byName = names.some((n) => e.name.includes(n));
+        if (!byKeyword && !byName) continue;
+      }
+      const key = p.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      let st;
+      try {
+        st = fs.statSync(p);
+      } catch {
+        continue;
+      }
+      if (!st.size || st.size > 40 * 1024 * 1024) continue;
+      out.push({
+        path: p,
+        filename: e.name,
+        size: st.size,
+        mtime: st.mtime.toISOString(),
+        matchedBy: isZip ? 'zip' : 'file',
+        zipCount,
+        encrypted: zipLocked,
+      });
+    }
+  };
+  for (const r of roots) walk(r, 0);
+  return { roots, files: out };
+}
+
+/**
+ * 스캔으로 찾은 파일을 보관함에 넣는다 (내용 해시가 같으면 건너뜀 — 원본 파일은 그대로 둔다).
+ * zip이면 안의 이력서 항목만 각각 별도 이력서로 편입한다.
+ */
+function importPath(filePath, meta) {
+  if (!fs.existsSync(filePath)) throw new Error('파일이 없습니다');
+  if (/\.zip$/i.test(filePath)) {
+    const entries = resumeEntriesInZip(filePath);
+    const results = [];
+    for (const e of entries) {
+      const data = zipRead(e);
+      if (!data || !data.length) continue;
+      const base = (e.name.split('/').pop() || e.name).trim();
+      try {
+        results.push(
+          saveResume({
+            filename: base,
+            base64: data.toString('base64'),
+            // 팀/직무는 zip 파일명에서 넘어온 값을 기본값으로 쓰되, 이름은 항목마다 다르므로 비워 둔다
+            meta: { ...(meta || {}), candidate: '', source: 'zip' },
+          })
+        );
+      } catch {
+        // 개별 항목 실패는 건너뛴다
+      }
+    }
+    return {
+      zip: true,
+      count: results.length,
+      added: results.filter((r) => !r.duplicate).length,
+      duplicate: results.length > 0 && results.every((r) => r.duplicate),
+      entries: results.map((r) => r.entry),
+    };
+  }
+  const base64 = fs.readFileSync(filePath).toString('base64');
+  return saveResume({
+    filename: path.basename(filePath),
+    base64,
+    meta: { ...(meta || {}), source: 'scan' },
+  });
+}
+
 // ── 이력서에서 연락처 뽑기 ──────────────────────────────────────────────────
 // 후보자 안내 메일의 받는 사람을 손으로 치지 않게, 이력서 원본에서 이메일/전화를 읽어온다.
 //
@@ -670,6 +898,8 @@ module.exports = {
   backupToDrive,
   applyClassification,
   organizeVault,
+  scanForResumes,
+  importPath,
   extractContacts,
   extractContactsFromData,
   contactsByName,

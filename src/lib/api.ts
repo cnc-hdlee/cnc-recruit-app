@@ -301,6 +301,12 @@ interface ElectronAPI {
     contacts(id: string): Promise<Result<ResumeContact>>;
     /** 이름으로 보관함을 찾아 연락처를 돌려준다 (가장 최근 이력서 기준) */
     contactsByName(name: string): Promise<Result<ResumeContact>>;
+    /** 내 PC(바탕화면·다운로드·문서·OneDrive)에서 이력서로 보이는 파일을 찾는다 */
+    scan(opt?: { roots?: string[]; names?: string[]; maxDepth?: number; limit?: number }): Promise<
+      Result<{ roots: string[]; files: { path: string; filename: string; size: number; mtime: string; matchedBy: string }[] }>
+    >;
+    /** 찾은 파일을 보관함에 편입 (원본은 그대로 두고 사본만) */
+    importPath(filePath: string, meta?: Partial<ResumeEntry>): Promise<Result<{ entry: ResumeEntry; duplicate: boolean }>>;
     /** 저장하지 않고 파일 데이터에서만 연락처를 뽑는다 (메일 첨부 이력서용) */
     contactsFromData(base64: string, mimeType?: string): Promise<Result<ResumeContact>>;
     organize(): Promise<
