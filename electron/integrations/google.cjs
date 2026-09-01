@@ -955,6 +955,7 @@ module.exports = {
   uploadResumeFile,
   moveResumeFile,
   ensureResumeTeamFolder,
+  downloadDriveFile,
   deleteDriveFile,
   getResumeFolderLink,
   // Calendar: read + WRITE (user explicitly authorized)

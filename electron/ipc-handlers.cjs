@@ -16,7 +16,34 @@ function safeHandle(channel, handler) {
   });
 }
 
+/**
+ * 모듈에서 export를 빠뜨린 함수를 앱 시작 때 바로 잡아낸다.
+ * sendGmail이 export에서 누락돼 "발송 버튼이 조용히 실패"하던 사고(2026-09-01) 재발 방지.
+ * 사용자가 버튼을 누를 때까지 모르는 대신, 실행 즉시 콘솔에 남는다.
+ */
+function assertExports(modName, mod, names) {
+  const missing = names.filter((n) => typeof mod[n] !== 'function');
+  if (missing.length) {
+    console.error(`[ipc] ${modName} 모듈에 없는 함수: ${missing.join(', ')} — export 확인 필요`);
+  }
+}
+
 function register() {
+  assertExports('google', google, [
+    'startAuth', 'getStatus', 'signOut', 'listSheetTabs', 'readSheetRange', 'createSheetWithData',
+    'syncHiresWorkbook', 'listGmail', 'sendGmail', 'openGmailAttachment', 'fetchGmailAttachmentBase64',
+    'listCalendar', 'listCalendars', 'listCalendarsFull', 'patchCalendarListEntry',
+    'insertCalendarEvent', 'updateCalendarEvent', 'deleteCalendarEvent', 'createCalendarForUser',
+    'listCalendarAcl', 'insertCalendarAcl', 'deleteCalendarAcl',
+    'uploadResumeFile', 'moveResumeFile', 'downloadDriveFile', 'deleteDriveFile', 'getResumeFolderLink',
+  ]);
+  assertExports('resumes', resumes, [
+    'saveResume', 'listResumes', 'updateResume', 'readResumeBase64', 'openResume',
+    'revealResumeFolder', 'deleteResume', 'deleteResumes', 'backupToDrive', 'applyClassification',
+    'organizeVault', 'scanForResumes', 'importPath', 'extractContacts', 'extractContactsFromData',
+    'contactsByName', 'stats',
+  ]);
+
   // Google
   safeHandle('g:setCreds', async (creds) => google.setCreds(creds));
   safeHandle('g:clearCreds', async () => google.clearCreds());

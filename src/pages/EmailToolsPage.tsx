@@ -145,6 +145,8 @@ async function emailFromGmailResume(name: string): Promise<string> {
  * 김범준 팀장처럼 다른 사람이 등록한 면접은 이력서가 내 PC에도, 내 메일에도 없고
  * 일정 첨부(드라이브)에만 있다. 드라이브 읽기 전용 권한으로 그 파일만 받아 파싱한다.
  */
+export let driveScopeMissing = false;
+
 async function emailFromCalendarAttachment(name: string, dt: string): Promise<string> {
   if (!api?.google?.driveFile || !api?.resumes) return '';
   try {
@@ -164,7 +166,12 @@ async function emailFromCalendarAttachment(name: string, dt: string): Promise<st
           if (NOT_RESUME_FILE_RE.test(att.title)) continue;
           if (!/\.(pdf|docx?)$/i.test(att.title) && !RESUME_FILE_RE.test(att.title)) continue;
           const f = await api.google.driveFile(att.fileId);
-          if (!f.ok || !f.data?.base64) continue;
+          if (!f.ok) {
+            // 403 = 드라이브 읽기 권한이 아직 없음(스코프 추가 후 재로그인 전)
+            if (/403|scope|permission/i.test(f.error || '')) driveScopeMissing = true;
+            continue;
+          }
+          if (!f.data?.base64) continue;
           const c = await api.resumes.contactsFromData(f.data.base64, f.data.mimeType);
           if (c.ok && c.data?.email) return c.data.email;
         }
@@ -209,6 +216,8 @@ export function EmailToolsPage() {
   const [modal, setModal] = useState<{ template: EmailTemplate; candidate: CalCandidate } | null>(null);
   const [showSettings, setShowSettings] = useState(false);
   const [showLog, setShowLog] = useState(false);
+  // 드라이브 읽기 권한이 없어 일정 첨부 이력서를 못 읽는 상태 (스코프 추가 후 최초 1회 재로그인 필요)
+  const [needDriveAuth, setNeedDriveAuth] = useState(false);
 
   useEffect(() => {
     loadSites().then(setSites);
@@ -319,6 +328,7 @@ export function EmailToolsPage() {
           // 이력서가 없거나 못 읽는 형식 — 수기 입력으로 남겨둔다
         }
       }
+      if (driveScopeMissing && !cancelled) setNeedDriveAuth(true);
     })();
     return () => {
       cancelled = true;
@@ -599,6 +609,35 @@ export function EmailToolsPage() {
           </div>
         )}
       </div>
+
+      {/* 드라이브 권한이 없으면 일정 첨부 이력서를 못 읽는다 — 한 번만 재로그인하면 끝난다 */}
+      {needDriveAuth && (
+        <div
+          className="card p-3 flex flex-wrap items-center gap-2 text-[12px]"
+          style={{ background: '#fff7ed', borderColor: '#fdba74' }}
+        >
+          <span className="text-amber-900">
+            ⚠ 면접 일정에 <b>첨부된 이력서</b>를 읽으려면 구글 드라이브 읽기 권한이 필요합니다. 한 번만
+            다시 로그인하면 주소가 자동으로 채워집니다.
+          </span>
+          <div className="flex-1" />
+          <button
+            className="px-3 py-1.5 rounded-lg bg-[#2a2640] text-white text-[12px] font-bold"
+            onClick={async () => {
+              const r = await api.google.startAuth();
+              if (r.ok) {
+                setNeedDriveAuth(false);
+                autoTried.current.clear();
+                alert('로그인 완료 — 이제 일정에 첨부된 이력서에서도 주소를 읽어옵니다.');
+              } else {
+                alert(`로그인 실패: ${r.error || '알 수 없는 오류'}`);
+              }
+            }}
+          >
+            구글 다시 로그인
+          </button>
+        </div>
+      )}
 
       {/* ── 3) 면접 캘린더 후보자 → 메일 주소만 넣고 발송 ──── */}
       <div className="card p-3">

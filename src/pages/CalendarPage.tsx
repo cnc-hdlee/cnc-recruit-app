@@ -424,18 +424,29 @@ export function parseInterviewTitle(title: string): {
   // 부서명은 성으로 시작하지 않는다.
   const SURNAME =
     /^[김이박최정강조윤장임한오서신권황안송전홍유고문양손배백허남심노하곽성차주우구원천방공현함변염여추도소석선설마길연위표명기반왕금옥육인맹제탁국진어편용봉피]/;
+  // 토큰 안의 "단어" 단위로 이름을 찾는다.
+  //   "영업관리팀 김광태" 처럼 한 칸에 팀과 이름이 같이 오는 제목이 많다.
+  //   단독 토큰(3점) > 구(句) 안의 단어(2점), 부서성 접미사 -2, 성(姓)으로 시작 +1.
   const nameScore = (p: string): { name: string; score: number } | null => {
     const bare = withoutParens(p).replace(/\s+/g, ' ').trim();
-    const m = bare.match(/^([가-힣]{2,4})(?:\s+(.*))?$/);
-    if (!m) return null;
-    if (NOT_NAME_KEYWORDS.test(m[1])) return null;
-    if (TEAM_KEYWORDS.test(bare)) return null;
+    if (!bare) return null;
     if (SITE_KEYWORDS.some((s) => bare.includes(s)) || ROOM_KEYWORDS.test(bare)) return null;
-    const rest = (m[2] || '').trim();
-    const penalty = (DEPT_TAIL.test(m[1]) ? 2 : 0) - (SURNAME.test(m[1]) ? 1 : 0);
-    if (!rest) return { name: m[1], score: 3 - penalty };
-    if (rest.split(/\s+/).every((w) => ROLE_TAIL.test(w))) return { name: m[1], score: Math.max(1, 2 - penalty) };
-    return { name: m[1], score: Math.max(1, 1 - penalty) };
+    const words = bare.split(/\s+/);
+    let best: { name: string; score: number } | null = null;
+    for (const w of words) {
+      const word = w.replace(/[(),]/g, '');
+      if (!/^[가-힣]{2,4}$/.test(word)) continue;
+      if (NOT_NAME_KEYWORDS.test(word)) continue;
+      if (/(팀|본부|실|센터)$/.test(word)) continue;
+      const solo = words.length === 1;
+      const restWords = words.filter((x) => x !== w);
+      const roleOnly = restWords.length > 0 && restWords.every((x) => ROLE_TAIL.test(x));
+      const base = solo ? 3 : roleOnly ? 2 : 2;
+      const adj = base - (DEPT_TAIL.test(word) ? 2 : 0) + (SURNAME.test(word) ? 1 : 0);
+      const score = Math.max(1, adj);
+      if (!best || score > best.score) best = { name: word, score };
+    }
+    return best;
   };
   let bestIdx = -1;
   let bestScore = 0;
@@ -450,7 +461,16 @@ export function parseInterviewTitle(title: string): {
   if (bestIdx >= 0) candidate = nameScore(parts[bestIdx])!.name;
 
   for (const [idx, p] of parts.entries()) {
-    if (idx === bestIdx) continue; // 이름으로 확정된 토큰은 다른 항목으로 재사용하지 않는다
+    if (idx === bestIdx) {
+      // 이름을 뽑아낸 토큰에 팀명이 같이 들어있으면("영업관리팀 김광태") 나머지를 소속으로 쓴다
+      const rest = p
+        .replace(candidate, ' ')
+        .replace(/[(（][^)）]*[)）]/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+      if (rest && !team && !ROLE_TAIL.test(rest)) team = rest;
+      continue;
+    }
     // 시간: 토큰 내 어디든
     if (!time) {
       const tm = p.match(/(\d{1,2}:\d{2})/);
@@ -580,7 +600,6 @@ export function CalendarPage() {
   const [showPast, setShowPast] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [, forceTick] = useState(0);
-  const [creating, setCreating] = useState(false);
   const [editingEvent, setEditingEvent] = useState<InterviewEvent | null>(null);
   const [dismissed, setDismissed] = useState<Set<string>>(new Set());
   const [dismissedLoaded, setDismissedLoaded] = useState(false);
@@ -1585,13 +1604,11 @@ export function CalendarPage() {
       {/* 필터 + 동기화 상태 */}
       <div className="card p-3">
         <div className="flex flex-wrap items-center gap-2">
-          <button
-            onClick={() => setCreating(true)}
-            className="px-3 py-1.5 rounded-full text-xs font-bold border bg-indigo-600 text-white border-indigo-600 hover:bg-indigo-700 shadow-sm flex items-center gap-1"
-          >
-            <span>+</span>
-            새 면접 일정
-          </button>
+          {/* 면접 생성은 회의실 예약 화면으로 일원화 (2026-09-01 사용자 지정).
+              여기서 따로 만들면 회의실 예약 없는 면접이 생겨 표기·점유가 갈린다. */}
+          <span className="text-[11px] text-slate-500 px-1">
+            면접 등록은 <b className="text-slate-700">회의실 예약</b>에서 진행합니다
+          </span>
           <Pill active={showPast} onClick={() => setShowPast((v) => !v)}>
             지난 면접 포함
           </Pill>
@@ -1694,20 +1711,8 @@ export function CalendarPage() {
         </div>
       )}
 
-      {creating && (
-        <InterviewCreateModal
-          rooms={roomsMeta}
-          roomBookings={roomBookings}
-          myEmail={myEmail}
-          onClose={() => setCreating(false)}
-          onCreated={() => {
-            // 모달 즉시 닫음 + refresh는 백그라운드 (await 안 함) — 사용자 체감 속도 우선.
-            setCreating(false);
-            void refreshCalendarFromGoogle();
-            void refreshRoomBookings();
-          }}
-        />
-      )}
+      {/* 새 면접 생성 모달은 제거 — 면접은 회의실 예약에서만 만든다 (2026-09-01).
+          수정/삭제는 그대로 유지한다. */}
 
       {editingEvent && (
         <InterviewEditModal
@@ -1729,6 +1734,8 @@ export function CalendarPage() {
 
 type RoomBookingItem = { id: string; resourceId: string; shortName: string; startMs: number; endMs: number; summary: string; description: string; htmlLink?: string; creatorEmail?: string };
 
+// (사용 안 함) 면접 생성은 회의실 예약으로 일원화 — 되돌릴 때를 대비해 코드는 남겨둔다.
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function InterviewCreateModal({ onClose, onCreated, rooms, roomBookings, myEmail }: { onClose: () => void; onCreated: () => void; rooms: RoomMeta[]; roomBookings: RoomBookingItem[]; myEmail: string | null }) {
   const init = nextHalfHour();
   const [form, setForm] = useState<InterviewForm>({
