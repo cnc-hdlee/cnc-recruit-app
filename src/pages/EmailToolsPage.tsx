@@ -14,6 +14,7 @@ import { INTERVIEW_CAL_IDS } from '../lib/sharedCalendars';
 import { useLiveData, liveCalendarEventsNormalized } from '../store/liveData';
 import { isInterviewKind, parseInterviewTitle } from './CalendarPage';
 import { api } from '../lib/api';
+import type { SmsConfig } from '../lib/api';
 import {
   loadTemplates,
   saveTemplate,
@@ -88,6 +89,11 @@ function defaultRange(_stage: TemplateStage): RangeMode {
 // 앱이 직접 문자를 쏘려면 발신번호 사전등록 + 유료 문자 API 계약이 필요하다(회사 명의).
 // 그 전까지는 "번호와 문구를 완성해서 손에 쥐여주는" 데까지 앱이 한다 —
 // 클립보드에 넣고 구글 메시지 웹 / Windows 휴대폰과 연결을 열면 붙여넣기만 하면 된다.
+// 발송 흐름을 실제 후보자에게 쏘기 전에 끝까지 확인해보기 위한 가짜 후보자.
+// 캘린더·시트에는 전혀 손대지 않고 목록에만 얹는다. [🧪 테스트] 버튼으로 켜고 끈다.
+const TEST_CANDIDATE_NAME = 'test 이형도';
+const TEST_PHONE_CFG_KEY = 'smsTestPhone';
+
 const SMS_APPS = [
   { id: 'google', label: '구글 메시지 웹', url: 'https://messages.google.com/web', help: '안드로이드 폰 QR 연결 — PC에서 바로 문자 발송' },
   { id: 'phonelink', label: '휴대폰과 연결', url: 'ms-phone:', help: 'Windows 기본 앱 — 안드로이드/아이폰 문자 송수신' },
@@ -338,6 +344,11 @@ export function EmailToolsPage() {
   // 이력서에서 자동으로 뽑은 휴대폰 번호 (메일 주소와 같은 경로로 채워진다)
   const [autoPhone, setAutoPhone] = useState<Record<string, string>>({});
   const [smsFor, setSmsFor] = useState<CalCandidate | null>(null);
+  const [testOn, setTestOn] = useState(false);
+  const [testPhone, setTestPhone] = useState('');
+  const [smsCfg, setSmsCfg] = useState<SmsConfig | null>(null);
+  const [showSmsSetup, setShowSmsSetup] = useState(false);
+  const [myEmail, setMyEmail] = useState('');
   const [showHandled, setShowHandled] = useState(false);
   // 목록에서 걸러낸 일정과 사유 — 조용히 사라지지 않게 화면에 남긴다
   const dropsRef = useRef<{ title: string; reason: string }[]>([]);
@@ -393,6 +404,9 @@ export function EmailToolsPage() {
     })();
     loadSendLog().then(setLog);
     loadHandled().then(setHandled);
+    api.cfg.get<string>(TEST_PHONE_CFG_KEY).then((r) => r.ok && r.data && setTestPhone(r.data));
+    api.sms?.config().then((r) => r.ok && r.data && setSmsCfg(r.data));
+    api.cfg.get<{ email?: string }>('googleProfile').then((r) => r.ok && r.data?.email && setMyEmail(r.data.email));
     loadSignature().then(setSignature);
     loadAutoBcc().then(setAutoBcc);
   }, []);
@@ -546,6 +560,24 @@ export function EmailToolsPage() {
 
   const inRange = (dt: string) => (range === 'all' ? true : range === 'past' ? dt < today : dt >= today);
 
+  // 테스트 후보자 — 본인에게 실제로 메일/문자를 보내 흐름을 확인하는 용도
+  const testCandidate = useMemo<CalCandidate | null>(() => {
+    if (!testOn) return null;
+    return {
+      key: 'test-self',
+      name: TEST_CANDIDATE_NAME,
+      team: 'TA팀 (테스트)',
+      dt: today,
+      tm: '',
+      when: '테스트',
+      siteId: '',
+      hqId: 'unset',
+      location: '',
+      email: myEmail,
+      status: '',
+    };
+  }, [testOn, today, myEmail]);
+
   const candidates = useMemo(() => {
     const q = search.trim().toLowerCase();
     const out = allCandidates.filter((c) => {
@@ -558,8 +590,10 @@ export function EmailToolsPage() {
       return true;
     });
     // 지난 면접을 볼 때는 최근에 면접 본 사람이 맨 위로 (오래된 건이 위를 덮지 않게)
-    return range === 'past' ? [...out].reverse() : out;
-  }, [allCandidates, range, today, siteId, hqId, search, includeAbsent]);
+    const sorted = range === 'past' ? [...out].reverse() : out;
+    // 테스트 후보자는 어떤 필터에도 걸리지 않고 항상 맨 위에 붙는다
+    return testCandidate ? [testCandidate, ...sorted] : sorted;
+  }, [allCandidates, range, today, siteId, hqId, search, includeAbsent, testCandidate]);
 
   // 본부 탭 카운트 (사업장·기간 필터까지 반영한 수)
   const hqCounts = useMemo(() => {
@@ -1043,6 +1077,28 @@ export function EmailToolsPage() {
             </button>
           )}
           <button
+            onClick={() => setTestOn((v) => !v)}
+            className={
+              'px-2 py-1 rounded-lg text-xs font-bold border ' +
+              (testOn
+                ? 'bg-amber-400 text-slate-900 border-amber-500'
+                : 'bg-white text-slate-900 border-slate-300 hover:bg-slate-100')
+            }
+            title="본인에게 실제로 메일·문자를 보내 흐름을 끝까지 확인합니다. 캘린더·시트는 건드리지 않습니다."
+          >
+            🧪 테스트 {testOn ? 'ON' : ''}
+          </button>
+          <button
+            onClick={() => setShowSmsSetup((v) => !v)}
+            className="px-2 py-1 rounded-lg border border-slate-300 bg-white text-xs font-bold text-slate-900 hover:bg-slate-100"
+            title="문자를 앱에서 바로 쏘려면 문자 API를 연결합니다"
+          >
+            ⚙ 문자 설정
+            {smsCfg && smsCfg.provider !== 'phone' && smsCfg.ready && (
+              <span className="ml-1 text-emerald-700">● 연결됨</span>
+            )}
+          </button>
+          <button
             onClick={async () => {
               const rows = shown.map((c) => `${c.name}\t${prettyPhone(autoPhone[c.name] || '')}\t${c.team}\t${c.when}`);
               const ok = await copyToClipboard(['이름\t휴대폰\t소속\t면접일시', ...rows].join('\n'));
@@ -1066,6 +1122,14 @@ export function EmailToolsPage() {
             className="ml-auto px-3 py-1.5 border border-slate-300 rounded-lg text-sm text-slate-900 w-56"
           />
         </div>
+
+        {showSmsSetup && (
+          <SmsSetupPanel
+            config={smsCfg}
+            onSaved={(c) => setSmsCfg(c)}
+            onClose={() => setShowSmsSetup(false)}
+          />
+        )}
 
         {/* 걸러낸 일정 — 왜 목록에 없는지 바로 확인할 수 있게 (조용한 누락 방지) */}
         {showDrops && dropsRef.current.length > 0 && (
@@ -1211,8 +1275,14 @@ export function EmailToolsPage() {
       {smsFor && (
         <SmsModal
           candidate={smsFor}
-          phone={autoPhone[smsFor.name] || ''}
+          phone={smsFor.name === TEST_CANDIDATE_NAME ? testPhone : autoPhone[smsFor.name] || ''}
           template={currentTpl}
+          config={smsCfg}
+          onSavePhone={async (v) => {
+            if (smsFor.name !== TEST_CANDIDATE_NAME) return;
+            setTestPhone(v);
+            await api.cfg.set(TEST_PHONE_CFG_KEY, v);
+          }}
           onClose={() => setSmsFor(null)}
           onDone={async (c) => {
             await markHandled(c, 'manual');
@@ -1670,12 +1740,16 @@ function SmsModal({
   candidate,
   phone,
   template,
+  config,
+  onSavePhone,
   onClose,
   onDone,
 }: {
   candidate: CalCandidate;
   phone: string;
   template: EmailTemplate | null;
+  config: SmsConfig | null;
+  onSavePhone?: (v: string) => void | Promise<void>;
   onClose: () => void;
   onDone: (c: CalCandidate) => void;
 }) {
@@ -1690,6 +1764,40 @@ function SmsModal({
     return smsFromBody(body);
   });
   const [copied, setCopied] = useState<string | null>(null);
+  const [sending, setSending] = useState(false);
+  const [result, setResult] = useState<string | null>(null);
+
+  // 유료 API가 연결돼 있으면 진짜 발송, 아니면 내 휴대폰 문자 앱을 채워서 연다
+  const direct = !!config && config.provider !== 'phone' && config.ready;
+
+  async function fire() {
+    if (!digits) {
+      setResult('휴대폰 번호를 먼저 입력해주세요.');
+      return;
+    }
+    if (direct) {
+      const ok = window.confirm(
+        `${candidate.name}님(${prettyPhone(digits)})께 문자를 지금 발송합니다.\n\n${text.slice(0, 200)}`
+      );
+      if (!ok) return;
+    }
+    setSending(true);
+    setResult(null);
+    try {
+      const r = await api.sms.send({ to: digits, text, title: template?.name });
+      if (!r.ok) {
+        setResult(`실패: ${r.error || '알 수 없는 오류'}`);
+        return;
+      }
+      if (r.data?.sent) setResult(`✓ 발송 완료 (${r.data.via})`);
+      else setResult('문자 앱을 열었습니다 — 내용 확인하고 보내기만 누르세요.');
+      await onSavePhone?.(to);
+    } catch (e) {
+      setResult(`실패: ${(e as Error).message}`);
+    } finally {
+      setSending(false);
+    }
+  }
 
   const digits = normalizePhone(to);
   const bytes = smsBytes(text);
@@ -1751,8 +1859,15 @@ function SmsModal({
 
         <div className="flex flex-wrap gap-1.5 mt-3">
           <button
+            onClick={fire}
+            disabled={sending || !digits}
+            className="px-4 py-2 rounded-lg bg-accent-purple text-white text-xs font-bold hover:bg-accent-purple/90 disabled:opacity-40"
+          >
+            {sending ? '보내는 중…' : direct ? '📨 지금 발송' : '📱 내 폰으로 열기'}
+          </button>
+          <button
             onClick={() => copy('both')}
-            className="px-3 py-2 rounded-lg bg-accent-purple text-white text-xs font-bold hover:bg-accent-purple/90"
+            className="px-3 py-2 rounded-lg border border-slate-300 bg-white text-xs font-bold text-slate-900 hover:bg-slate-100"
           >
             {copied === 'both' ? '✓ 복사됨' : '번호 + 문구 복사'}
           </button>
@@ -1774,10 +1889,34 @@ function SmsModal({
           ))}
         </div>
 
+        {result && (
+          <div
+            className={
+              'mt-2 rounded-lg border p-2 text-xs font-bold ' +
+              (result.startsWith('실패')
+                ? 'border-rose-300 bg-rose-50 text-rose-900'
+                : 'border-emerald-300 bg-emerald-50 text-slate-900')
+            }
+          >
+            {result}
+          </div>
+        )}
+
         <div className="mt-3 rounded-lg border border-slate-300 bg-slate-50 p-2 text-[11px] text-slate-900 leading-relaxed">
-          <b>순서</b> — ① [번호 + 문구 복사] ② [구글 메시지 웹] 또는 [휴대폰과 연결] 열기 ③ 붙여넣고 발송.
-          <br />
-          앱에서 버튼 한 번으로 바로 쏘려면 회사 명의 <b>발신번호 사전등록 + 문자 API 계약</b>이 필요합니다.
+          {direct ? (
+            <>
+              <b>{config?.provider === 'aligo' ? '알리고' : '솔라피'} 연결됨</b> — [지금 발송]을 누르면 발신번호{' '}
+              {prettyPhone(config?.sender || '')} 로 바로 나갑니다.
+            </>
+          ) : (
+            <>
+              <b>내 휴대폰으로 보내기</b> — [내 폰으로 열기]를 누르면 Windows <b>휴대폰과 연결</b>에 번호와 문구가
+              채워진 채로 대화창이 뜹니다. 보내기만 누르면 끝이고, 요금은 본인 요금제 안이라 추가 비용이 없습니다.
+              <br />
+              열리지 않으면 [번호 + 문구 복사] 후 아래 앱에 붙여넣으세요. 앱에서 <b>버튼 한 번으로 바로</b> 쏘려면{' '}
+              <b>⚙ 문자 설정</b>에서 문자 API를 연결하면 됩니다.
+            </>
+          )}
         </div>
 
         <div className="flex gap-1.5 mt-3">
@@ -1794,6 +1933,186 @@ function SmsModal({
             닫기
           </button>
         </div>
+      </div>
+    </div>
+  );
+}
+
+// ── 문자 발송 설정 ──────────────────────────────────────────────────────────
+// 기본값(내 휴대폰)은 설정이 필요 없다. 앱에서 버튼 한 번으로 바로 쏘고 싶을 때만
+// 문자 사업자 API를 연결한다. 키는 암호화 저장되고 화면에는 뒤 4자리만 보인다.
+function SmsSetupPanel({
+  config,
+  onSaved,
+  onClose,
+}: {
+  config: SmsConfig | null;
+  onSaved: (c: SmsConfig) => void;
+  onClose: () => void;
+}) {
+  const [provider, setProvider] = useState<SmsConfig['provider']>(config?.provider || 'phone');
+  const [sender, setSender] = useState(config?.sender || '');
+  const [userId, setUserId] = useState(config?.userId || '');
+  const [apiKey, setApiKey] = useState('');
+  const [apiSecret, setApiSecret] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+
+  async function save() {
+    setBusy(true);
+    setMsg(null);
+    try {
+      const r = await api.sms.setConfig({ provider, sender, userId, apiKey, apiSecret });
+      if (!r.ok || !r.data) {
+        setMsg(`저장 실패: ${r.error || '알 수 없는 오류'}`);
+        return;
+      }
+      onSaved(r.data);
+      setApiKey('');
+      setApiSecret('');
+      setMsg(r.data.ready ? '✓ 저장했습니다. 이제 [지금 발송]으로 바로 나갑니다.' : '저장했습니다 — 아직 빈 항목이 있습니다.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function checkBalance() {
+    setBusy(true);
+    try {
+      const r = await api.sms.balance();
+      if (!r.ok || !r.data) {
+        setMsg(`조회 실패: ${r.error || '알 수 없는 오류'}`);
+        return;
+      }
+      const d = r.data;
+      setMsg(
+        d.note
+          ? d.note
+          : d.provider === 'aligo'
+            ? `잔여 SMS ${d.sms}건 · LMS ${d.lms}건`
+            : `충전금 ${(d.balance || 0).toLocaleString()}원`
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const paid = provider !== 'phone';
+
+  return (
+    <div className="mb-3 rounded-xl border border-slate-300 bg-slate-50 p-3">
+      <div className="flex items-center gap-2 mb-2">
+        <h4 className="text-sm font-bold text-slate-900">⚙ 문자 발송 설정</h4>
+        <button onClick={onClose} className="ml-auto text-slate-900 font-bold px-2">
+          ✕
+        </button>
+      </div>
+
+      <div className="flex flex-wrap gap-1.5 mb-3">
+        {(
+          [
+            { id: 'phone', label: '내 휴대폰 (무료)', help: '휴대폰과 연결에 번호·문구를 채워서 열어줍니다' },
+            { id: 'aligo', label: '알리고', help: 'SMS 8.4원 내외 — 가장 단순한 국내 문자 API' },
+            { id: 'solapi', label: '솔라피', help: '구 쿨SMS — 문서·기능이 풍부' },
+          ] as { id: SmsConfig['provider']; label: string; help: string }[]
+        ).map((o) => (
+          <button
+            key={o.id}
+            onClick={() => setProvider(o.id)}
+            title={o.help}
+            className={
+              'px-3 py-1.5 rounded-lg text-xs font-bold border ' +
+              (provider === o.id
+                ? 'bg-slate-900 text-white border-slate-900'
+                : 'bg-white text-slate-900 border-slate-300 hover:bg-slate-100')
+            }
+          >
+            {o.label}
+          </button>
+        ))}
+      </div>
+
+      {!paid && (
+        <div className="text-xs text-slate-900 leading-relaxed">
+          설정할 것이 없습니다. 문자 창에서 <b>[내 폰으로 열기]</b>를 누르면 Windows{' '}
+          <b>휴대폰과 연결</b>에 번호와 문구가 채워진 채로 뜹니다. 보내기만 누르시면 됩니다.
+          <br />
+          <b>단점</b> — 마지막 보내기는 사람이 눌러야 하고, 여러 명 한 번에 쏘는 건 안 됩니다.
+        </div>
+      )}
+
+      {paid && (
+        <>
+          <div className="grid grid-cols-2 gap-2">
+            <label className="text-xs font-bold text-slate-900">
+              발신번호 (사전등록된 번호)
+              <input
+                value={sender}
+                onChange={(e) => setSender(e.target.value)}
+                placeholder="02-0000-0000 또는 010-0000-0000"
+                className="mt-1 w-full px-2 py-1.5 border border-slate-300 rounded-lg text-sm font-normal text-slate-900"
+              />
+            </label>
+            {provider === 'aligo' && (
+              <label className="text-xs font-bold text-slate-900">
+                알리고 아이디
+                <input
+                  value={userId}
+                  onChange={(e) => setUserId(e.target.value)}
+                  className="mt-1 w-full px-2 py-1.5 border border-slate-300 rounded-lg text-sm font-normal text-slate-900"
+                />
+              </label>
+            )}
+            <label className="text-xs font-bold text-slate-900">
+              API Key {config?.apiKey && <span className="font-normal">(현재 {config.apiKey})</span>}
+              <input
+                value={apiKey}
+                onChange={(e) => setApiKey(e.target.value)}
+                placeholder="바꿀 때만 입력"
+                className="mt-1 w-full px-2 py-1.5 border border-slate-300 rounded-lg text-sm font-normal text-slate-900"
+              />
+            </label>
+            {provider === 'solapi' && (
+              <label className="text-xs font-bold text-slate-900">
+                API Secret {config?.apiSecret && <span className="font-normal">(현재 {config.apiSecret})</span>}
+                <input
+                  value={apiSecret}
+                  onChange={(e) => setApiSecret(e.target.value)}
+                  placeholder="바꿀 때만 입력"
+                  className="mt-1 w-full px-2 py-1.5 border border-slate-300 rounded-lg text-sm font-normal text-slate-900"
+                />
+              </label>
+            )}
+          </div>
+
+          <div className="mt-2 rounded-lg border border-amber-300 bg-amber-50 p-2 text-[11px] text-slate-900 leading-relaxed">
+            <b>가입 순서</b> — ① {provider === 'aligo' ? 'smartsms.aligo.in' : 'solapi.com'} 가입 ②{' '}
+            <b>발신번호 사전등록</b> (통신서비스 이용증명원 또는 ARS 인증 — 전기통신사업법 의무, 보통 당일~1영업일) ③
+            선불 충전 ④ 여기에 키 붙여넣기.
+            <br />
+            회사 대표번호로 보내려면 총무/IT를 통해 회사 명의로 등록해야 합니다.
+          </div>
+        </>
+      )}
+
+      <div className="flex gap-1.5 mt-3">
+        <button
+          onClick={save}
+          disabled={busy}
+          className="px-3 py-2 rounded-lg bg-slate-900 text-white text-xs font-bold hover:bg-slate-800 disabled:opacity-40"
+        >
+          {busy ? '저장 중…' : '저장'}
+        </button>
+        {paid && (
+          <button
+            onClick={checkBalance}
+            disabled={busy}
+            className="px-3 py-2 rounded-lg border border-slate-300 bg-white text-xs font-bold text-slate-900 hover:bg-slate-100 disabled:opacity-40"
+          >
+            잔액 확인
+          </button>
+        )}
+        {msg && <span className="self-center text-xs font-bold text-slate-900">{msg}</span>}
       </div>
     </div>
   );

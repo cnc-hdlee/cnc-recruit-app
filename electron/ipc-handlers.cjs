@@ -5,6 +5,7 @@ const store = require('./integrations/store.cjs');
 const sync = require('./integrations/sync.cjs');
 const resumes = require('./integrations/resumes.cjs');
 const presence = require('./integrations/presence.cjs');
+const sms = require('./integrations/sms.cjs');
 
 function safeHandle(channel, handler) {
   ipcMain.handle(channel, async (_e, ...args) => {
@@ -44,6 +45,7 @@ function register() {
     'organizeVault', 'scanForResumes', 'importPath', 'extractContacts', 'extractContactsFromData',
     'contactsByName', 'stats',
   ]);
+  assertExports('sms', sms, ['getConfigMasked', 'setConfig', 'send', 'sendMany', 'balance']);
 
   // Google
   safeHandle('g:setCreds', async (creds) => google.setCreds(creds));
@@ -122,6 +124,13 @@ function register() {
   safeHandle('rv:importPath', async (p, meta, password) => resumes.importPath(p, meta, password));
   safeHandle('rv:contactsFromData', async (base64, mimeType) => resumes.extractContactsFromData(base64, mimeType));
   safeHandle('rv:stats', async () => resumes.stats());
+
+  // ── 문자(SMS) ──
+  safeHandle('sms:config', async () => sms.getConfigMasked());
+  safeHandle('sms:setConfig', async (patch) => sms.setConfig(patch));
+  safeHandle('sms:send', async (payload) => sms.send(payload));
+  safeHandle('sms:sendMany', async (list) => sms.sendMany(list));
+  safeHandle('sms:balance', async () => sms.balance());
   safeHandle('rv:driveFolder', async () => google.getResumeFolderLink());
 
   safeHandle('s:saveToken', async (token) => {

@@ -128,6 +128,31 @@ export interface DriveVaultFile {
   owner: string;
 }
 
+// 문자 발송 방식 — phone은 내 휴대폰으로 열기(무료), 나머지는 문자 사업자 API로 직접 발송
+export type SmsProvider = 'phone' | 'aligo' | 'solapi';
+
+export interface SmsConfig {
+  provider: SmsProvider;
+  /** 발신번호 — 유료 API에서만 쓴다(사전등록 필수) */
+  sender: string;
+  userId: string;
+  /** 화면에는 뒤 4자리만 마스킹돼서 온다 */
+  apiKey: string;
+  apiSecret: string;
+  ready: boolean;
+}
+
+export interface SmsSendResult {
+  to: string;
+  via: SmsProvider;
+  /** provider='phone' — 문자 앱을 채워서 열었다 (마지막 보내기는 사람이 누른다) */
+  opened?: boolean;
+  /** 유료 API — 실제로 발송됐다 */
+  sent?: boolean;
+  id?: string;
+  count?: number;
+}
+
 // 이력서에서 뽑아낸 지원자 연락처
 export interface ResumeContact {
   id: string | null;
@@ -324,6 +349,22 @@ interface ElectronAPI {
     ): Promise<Result<{ id: string; role: string }>>;
     deleteCalAcl(calendarId: string, ruleId: string): Promise<Result<{ ok: boolean }>>;
   };
+  /**
+   * 문자(SMS/LMS).
+   * provider='phone'(기본·무료)이면 실제 발송이 아니라 내 휴대폰 문자 앱을 번호·문구가
+   * 채워진 상태로 열어준다 → 결과의 `opened`가 true. 유료 API(aligo/solapi)를 설정하면
+   * 앱이 직접 쏘고 `sent`가 true로 온다.
+   */
+  sms: {
+    config(): Promise<Result<SmsConfig>>;
+    setConfig(patch: Partial<SmsConfig> & { apiKey?: string; apiSecret?: string }): Promise<Result<SmsConfig>>;
+    send(payload: { to: string; text: string; title?: string }): Promise<Result<SmsSendResult>>;
+    sendMany(
+      list: { to: string; text: string; title?: string; name?: string }[]
+    ): Promise<Result<{ results: (SmsSendResult & { name: string; ok: boolean; error?: string })[]; sent: number; failed: number }>>;
+    balance(): Promise<Result<{ provider: string; sms?: number; lms?: number; balance?: number; note?: string }>>;
+  };
+
   resumes: {
     save(payload: {
       filename: string;

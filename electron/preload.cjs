@@ -57,6 +57,15 @@ contextBridge.exposeInMainWorld('electronAPI', {
     deleteCalAcl: (calendarId, ruleId) => invoke('g:deleteCalAcl', calendarId, ruleId),
   },
 
+  // 문자(SMS) — 내 휴대폰으로 열기(무료) 또는 문자 API로 직접 발송
+  sms: {
+    config: () => invoke('sms:config'),
+    setConfig: (patch) => invoke('sms:setConfig', patch),
+    send: (payload) => invoke('sms:send', payload),
+    sendMany: (list) => invoke('sms:sendMany', list),
+    balance: () => invoke('sms:balance'),
+  },
+
   // 이력서 보관함 — 드래그앤드랍한 원본을 로컬에 쌓고 드라이브에 백업
   resumes: {
     save: (payload) => invoke('rv:save', payload),
