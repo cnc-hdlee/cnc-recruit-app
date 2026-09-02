@@ -14,8 +14,12 @@ export interface ChartMember {
 }
 
 export interface ChartGroup {
-  /** 사이트·파트 이름 (퍼플카운티 / 그린카운티 / 3공장 …) */
+  /** 업무 그룹 이름 (부자재 / 기기분석 / 벌크 …) */
   name: string;
+  /** 사업장 — 원본 조직도의 최상위 가지 (퍼플 / 3공장). 없으면 이 단계를 그리지 않는다 */
+  site?: string;
+  /** 파트 — 파트장이 관장하는 묶음 ("파트장 : 류성곤 대리"). 없으면 이 단계를 건너뛴다 */
+  part?: string;
   /** 편제 인원 */
   headcount?: number;
   /** 이 파트가 맡는 업무 */
@@ -185,7 +189,298 @@ const STRATEGIC_PURCHASING: DeptChart = {
   ],
 };
 
-export const ORG_CHARTS: DeptChart[] = [PRODUCTION_OPS, STRATEGIC_PURCHASING];
+
+const QUALITY_1: DeptChart = {
+  id: 'quality1',
+  dept: '품질관리1팀',
+  hq: '품질본부',
+  headcount: 57,
+  lead: '정기현 팀장',
+  asOf: '2026-09-02',
+  source: '품질관리1팀 조직도_202609.png',
+  groups: [
+    {
+      name: '부자재',
+      site: '퍼플',
+      part: '파트장 : 류성곤 대리',
+      headcount: 4,
+      members: [
+        { role: '부자재', person: '김병수', grade: '사원' },
+        { role: '부자재', person: '김준석', grade: '사원' },
+        { role: '부자재', person: '김민혁', grade: '사원' },
+        { role: '부자재', person: '이희훈', grade: '사원' },
+      ],
+    },
+    {
+      name: '기기분석',
+      site: '퍼플',
+      part: '파트장 : 류성곤 대리',
+      headcount: 3,
+      members: [
+        { role: '기기분석', person: '주혜린', grade: '대리' },
+        { role: '기기분석', person: '한상희', grade: '주임' },
+        { role: '기기분석', person: '이지현', grade: '주임' },
+      ],
+    },
+    {
+      name: '사양서',
+      site: '퍼플',
+      part: '파트장 : 류성곤 대리',
+      headcount: 3,
+      members: [
+        { role: '사양서', person: '정희영', grade: '주임' },
+        { role: '사양서', person: '이예지', grade: '사원' },
+        { role: '사양서', person: '김진선', grade: '사원' },
+      ],
+    },
+    {
+      name: '관리품',
+      site: '퍼플',
+      part: '파트장 : 류성곤 대리',
+      headcount: 3,
+      members: [
+        { role: '관리품', person: '김수민', grade: '주임' },
+        { role: '관리품', person: '경수현', grade: '사원' },
+        { role: '관리품', person: '주혜빈', grade: '사원' },
+      ],
+    },
+    {
+      name: '외주',
+      site: '퍼플',
+      part: '파트장 : 류성곤 대리',
+      headcount: 1,
+      members: [
+        { role: '외주', person: '김승화', grade: '사원' },
+      ],
+    },
+    {
+      name: '원료',
+      site: '퍼플',
+      part: '파트장 : 안은희 대리',
+      headcount: 2,
+      members: [
+        { role: '원료', person: '이현정', grade: '주임' },
+        { role: '원료', person: '서윤아', grade: '사원' },
+      ],
+    },
+    {
+      name: '미생물',
+      site: '퍼플',
+      part: '파트장 : 안은희 대리',
+      headcount: 3,
+      members: [
+        { role: '미생물', person: '강민채', grade: '주임' },
+        { role: '미생물', person: '김라영', grade: '사원' },
+        { role: '미생물', person: '김진주', grade: '사원' },
+      ],
+    },
+    {
+      name: '벌크',
+      site: '퍼플',
+      part: '파트장 : 이선영 과장',
+      headcount: 5,
+      members: [
+        { role: '벌크', person: '신지현', grade: '주임' },
+        { role: '벌크', person: '조서연', grade: '사원' },
+        { role: '벌크', person: '권혜영', grade: '사원' },
+        { role: '벌크', person: '박희연', grade: '사원' },
+        { role: '벌크', person: '정유나', grade: '사원' },
+      ],
+    },
+    {
+      name: '충전',
+      site: '퍼플',
+      part: '파트장 : 이선영 과장',
+      headcount: 6,
+      members: [
+        { role: '충전', person: '김정은', grade: '주임' },
+        { role: '충전', person: '김주희', grade: '사원' },
+        { role: '충전', person: '박소정', grade: '사원' },
+        { role: '충전', person: '김연우', grade: '사원' },
+        { role: '충전', person: '손가현', grade: '사원' },
+        { role: '충전', person: '황수현', grade: '사원' },
+      ],
+    },
+    {
+      name: '포장',
+      site: '퍼플',
+      part: '파트장 : 이선영 과장',
+      headcount: 6,
+      members: [
+        { role: '포장', person: '최진실', grade: '주임' },
+        { role: '포장', person: '이혜빈', grade: '사원' },
+        { role: '포장', person: '박지민', grade: '사원' },
+        { role: '포장', person: '김민정', grade: '사원' },
+        { role: '포장', person: '문다희', grade: '사원' },
+        { role: '포장', person: '민수현', grade: '사원' },
+      ],
+    },
+    {
+      name: '솔테크',
+      site: '3공장',
+      part: '파트장 : 김지은 차장',
+      headcount: 5,
+      members: [
+        { role: '솔테크', person: '김현주', grade: '사원' },
+        { role: '솔테크', person: '조아라', grade: '사원' },
+        { role: '솔테크', person: '문빛나', grade: '사원' },
+        { role: '솔테크', person: '장은우', grade: '사원' },
+        { role: '솔테크', person: '이현수', grade: '사원' },
+      ],
+    },
+    {
+      name: '제너럴',
+      site: '3공장',
+      part: '파트장 : 김지은 차장',
+      headcount: 6,
+      members: [
+        { role: '제너럴', person: '김승희', grade: '사원' },
+        { role: '제너럴', person: '김하나', grade: '사원' },
+        { role: '제너럴', person: '문희원', grade: '사원' },
+        { role: '제너럴', person: '오유빈', grade: '사원' },
+        { role: '제너럴', person: '권도영', grade: '사원' },
+        { role: '제너럴', person: '황지수', grade: '사원' },
+      ],
+    },
+    {
+      name: '제너럴/동성정밀',
+      site: '3공장',
+      part: '파트장 : 김지은 차장',
+      headcount: 5,
+      members: [
+        { role: '제너럴/동성정밀', person: '김태규', grade: '대리' },
+        { role: '제너럴/동성정밀', person: '하정민', grade: '사원' },
+        { role: '제너럴/동성정밀', person: '홍준기', grade: '사원' },
+        { role: '제너럴/동성정밀', person: '김준우', grade: '사원' },
+        { role: '제너럴/동성정밀', person: '신선아', grade: '사원' },
+      ],
+    },
+  ],
+  notes: [
+    '파트장 4명(류성곤 대리 · 안은희 대리 · 이선영 과장 · 김지은 차장)은 파트 상자에 표시되며 인원 집계에는 별도로 잡힌다',
+  ],
+};
+
+const QUALITY_2: DeptChart = {
+  id: 'quality2',
+  dept: '품질관리2팀',
+  hq: '품질본부',
+  headcount: 39,
+  lead: '이민호 팀장',
+  asOf: '2026-08-26',
+  source: '품질관리2팀 조직도_20260826.pptx',
+  groups: [
+    {
+      name: '벌크',
+      part: '벌크/충전 파트 (14) — 공석',
+      headcount: 5,
+      members: [
+        { role: '벌크', person: '노희진' },
+        { role: '벌크', person: '심유리' },
+        { role: '벌크', person: '이정현' },
+        { role: '벌크', person: '박수아' },
+        { role: '벌크', person: '양지혜' },
+      ],
+    },
+    {
+      name: '충전',
+      part: '벌크/충전 파트 (14) — 공석',
+      headcount: 9,
+      members: [
+        { role: '충전', person: '전소민', grade: '주임' },
+        { role: '충전', person: '주예은' },
+        { role: '충전', person: '이수빈' },
+        { role: '충전', person: '이지현' },
+        { role: '충전', person: '한결' },
+        { role: '충전', person: '구소연' },
+        { role: '충전', person: '서현주' },
+        { role: '충전', person: '윤가영' },
+        { role: '충전', person: '윤송희' },
+      ],
+    },
+    {
+      name: '포장',
+      part: '포장/관리품/자재 파트 (15) — 박혜영 대리',
+      headcount: 5,
+      members: [
+        { role: '포장', person: '김윤슬' },
+        { role: '포장', person: '이화령' },
+        { role: '포장', person: '진유림' },
+        { role: '포장', person: '최은정' },
+        { role: '포장', person: '안수진' },
+      ],
+    },
+    {
+      name: '사양서',
+      part: '포장/관리품/자재 파트 (15) — 박혜영 대리',
+      headcount: 2,
+      members: [
+        { role: '사양서', person: '최수림', grade: '주임' },
+        { role: '사양서', person: '박소진', grade: '주임' },
+      ],
+    },
+    {
+      name: '관리품',
+      part: '포장/관리품/자재 파트 (15) — 박혜영 대리',
+      headcount: 2,
+      members: [
+        { role: '관리품', person: '김윤지' },
+        { role: '관리품', person: '황지혜' },
+      ],
+    },
+    {
+      name: '자재/외주관리',
+      part: '포장/관리품/자재 파트 (15) — 박혜영 대리',
+      headcount: 5,
+      members: [
+        { role: '자재/외주관리', person: '이승우', grade: '주임 (외주관리)' },
+        { role: '자재/외주관리', person: '천병진' },
+        { role: '자재/외주관리', person: '이세인' },
+        { role: '자재/외주관리', person: '김병민' },
+        { role: '자재/외주관리', person: '', grade: '충원예정', vacant: true },
+      ],
+    },
+    {
+      name: '원료',
+      part: '원료/기기/미생물 파트 (9) — 봉다솜 대리',
+      headcount: 2,
+      members: [
+        { role: '원료', person: '최슬기', grade: '대리' },
+        { role: '원료', person: '장예리', grade: '주임' },
+      ],
+    },
+    {
+      name: '기기분석',
+      part: '원료/기기/미생물 파트 (9) — 봉다솜 대리',
+      headcount: 3,
+      members: [
+        { role: '기기분석', person: '한주리', grade: '주임' },
+        { role: '기기분석', person: '김민주' },
+        { role: '기기분석', person: '제갈서현' },
+      ],
+    },
+    {
+      name: '미생물',
+      part: '원료/기기/미생물 파트 (9) — 봉다솜 대리',
+      headcount: 3,
+      members: [
+        { role: '미생물', person: '박현채', grade: '주임' },
+        { role: '미생물', person: '박수진' },
+        { role: '미생물', person: '이수화' },
+      ],
+    },
+  ],
+  notes: [
+    '정규 39명 · 도급 0명 · 인턴(실습) 0명 — 계 39명',
+    '휴직 — 최우종 대리(2027년 1월 복귀), 고우정 주임(2027년 10월 복귀)',
+    '잔여 T/O — 자재QC 1명, 포장QC 1명',
+    '증원 검토 — 벌크/충전 파트 관리자 1명(경력)',
+    '신제품 공정감리(PT) — 전소민 주임',
+    '벌크/충전 파트장 공석',
+  ],
+};
+
+export const ORG_CHARTS: DeptChart[] = [PRODUCTION_OPS, STRATEGIC_PURCHASING, QUALITY_1, QUALITY_2];
 
 export function getOrgChart(id: string): DeptChart | null {
   return ORG_CHARTS.find((c) => c.id === id) || null;
