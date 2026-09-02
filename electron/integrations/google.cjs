@@ -1076,6 +1076,23 @@ async function upsertPresenceFile(json, shareWith) {
   return { id: fileId };
 }
 
+/** 기존 파일에 이력서 표식을 붙인다 — 팀원이 소유자와 무관하게 검색으로 찾을 수 있게 */
+async function tagResumeFile(fileId, { team, candidate } = {}) {
+  const auth = buildClient();
+  const drive = google.drive({ version: 'v3', auth });
+  await drive.files.update({
+    fileId,
+    requestBody: {
+      appProperties: {
+        cncResume: '1',
+        team: String(team || ''),
+        candidate: String(candidate || ''),
+      },
+    },
+  });
+  return { ok: true };
+}
+
 /**
  * 파일 하나가 팀 전원에게 공유돼 있는지 확인하고, 빠진 사람만 채운다.
  * @returns {{added:string[], already:number}}
@@ -1341,6 +1358,7 @@ module.exports = {
   lockResumeFolder,
   shareResumeFolder,
   ensureFileShared,
+  tagResumeFile,
   ensureAllShared,
   listDriveVault,
   downloadDriveFile,

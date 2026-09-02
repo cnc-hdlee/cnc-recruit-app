@@ -1084,9 +1084,48 @@ async function organizeVault({ skipDrive = false } = {}) {
  */
 async function syncTeamShare() {
   const team = readTeamShare();
-  if (!team.length) return { checked: 0, fixed: 0, team };
-  const res = await gapi().ensureAllShared(team);
-  return { ...res, team };
+  if (!team.length) return { checked: 0, fixed: 0, tagged: 0, team };
+
+  // ① 내 보관함 목록에 있는 드라이브 파일 — 옛 버전으로 올려 표식이 없는 것까지 확실히 처리한다.
+  //    (표식 검색만 쓰면 구버전 업로드분이 통째로 누락된다 — 2026-09-02)
+  const list = readIndex();
+  let checked = 0;
+  let fixed = 0;
+  let tagged = 0;
+  for (const r of list) {
+    if (!r.driveFileId) continue;
+    checked += 1;
+    try {
+      const res = await gapi().ensureFileShared(r.driveFileId, team);
+      if (res.added.length) {
+        fixed += 1;
+        r.sharedWith = team;
+      }
+    } catch {
+      continue; // 다음 점검에서 재시도
+    }
+    // 팀원이 검색으로 찾을 수 있도록 표식도 함께 붙인다
+    if (!r.driveTagged) {
+      try {
+        await gapi().tagResumeFile(r.driveFileId, { team: r.team || '', candidate: r.candidate || '' });
+        r.driveTagged = true;
+        tagged += 1;
+      } catch {
+        /* 다음에 다시 */
+      }
+    }
+  }
+  writeIndex(list);
+
+  // ② 표식이 붙은 내 파일 전체 — 목록에 없는 것까지 훑는다
+  try {
+    const res = await gapi().ensureAllShared(team);
+    checked += res.checked;
+    fixed += res.fixed;
+  } catch {
+    /* 검색 실패는 무시 — ①로 대부분 커버된다 */
+  }
+  return { checked, fixed, tagged, team };
 }
 
 // ── 드라이브 백업 ───────────────────────────────────────────────────────────
