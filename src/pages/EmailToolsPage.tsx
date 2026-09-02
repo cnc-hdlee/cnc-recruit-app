@@ -1765,14 +1765,20 @@ function SmsModal({
   });
   const [copied, setCopied] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
+  const [needQr, setNeedQr] = useState(false);
+  const phoneRef = useRef<HTMLInputElement>(null);
   const [result, setResult] = useState<string | null>(null);
 
-  // 유료 API가 연결돼 있으면 진짜 발송, 아니면 내 휴대폰 문자 앱을 채워서 연다
-  const direct = !!config && config.provider !== 'phone' && config.ready;
+  // phonelink(기본) = 휴대폰과 연결에 번호·문구가 채워진 대화창을 띄운다 (보내기만 누르면 끝)
+  // gmessages       = 구글 메시지 웹을 앱이 조작해 보내기까지 자동
+  // aligo/solapi    = 유료 API로 앱이 직접 발송
+  const provider = config?.provider || 'phonelink';
+  const direct = provider === 'phonelink' || provider === 'gmessages' || ((provider === 'aligo' || provider === 'solapi') && !!config?.ready);
 
   async function fire() {
     if (!digits) {
       setResult('휴대폰 번호를 먼저 입력해주세요.');
+      phoneRef.current?.focus();
       return;
     }
     if (direct) {
@@ -1793,13 +1799,18 @@ function SmsModal({
     try {
       const r = await api.sms.send({ to: digits, text, title: template?.name });
       if (!r.ok) {
-        // 열지 못했으면 최소한 붙여넣을 수 있게 클립보드에 넣어두고 원인을 그대로 보여준다
+        // 막혔으면 최소한 붙여넣을 수 있게 클립보드에 넣어두고 원인을 그대로 보여준다
         await copyToClipboard(`${digits}\n\n${text}`);
-        setResult(`실패: ${r.error || '알 수 없는 오류'} — 번호와 문구는 복사해뒀습니다.`);
+        setResult(`실패: ${r.error || '알 수 없는 오류'}`);
+        if (/QR|연결되지/.test(r.error || '')) setNeedQr(true);
         return;
       }
       if (r.data?.sent) setResult(`✓ 발송 완료 (${r.data.via})`);
-      else if (r.data?.partial) {
+      else if (r.data?.autoSendFailed) {
+        setResult('대화창은 떴는데 자동 발송이 막혔습니다 (' + r.data.autoSendFailed + ') — 창에서 엔터만 눌러주세요.');
+      } else if (r.data?.via === 'phonelink') {
+        setResult('휴대폰과 연결에 대화창을 띄웠습니다 — 엔터만 누르세요.');
+      } else if (r.data?.partial) {
         await copyToClipboard(`${digits}\n\n${text}`);
         setResult('문자 앱은 열렸는데 번호·문구를 못 넘겼습니다 — 복사해뒀으니 붙여넣어 주세요.');
       } else setResult('문자 앱을 열었습니다 — 내용 확인하고 보내기만 누르세요. (창이 안 뜨면 작업표시줄을 확인해주세요)');
@@ -1835,13 +1846,22 @@ function SmsModal({
           </button>
         </div>
 
-        <label className="block text-xs font-bold text-slate-900 mb-1">받는 번호</label>
+        <label className="block text-xs font-bold text-slate-900 mb-1">
+          받는 번호
+          {!digits && <span className="ml-1 text-rose-700">— 먼저 입력해주세요</span>}
+        </label>
         <div className="flex gap-1 mb-1">
           <input
+            ref={phoneRef}
+            autoFocus={!phone}
             value={to}
             onChange={(e) => setTo(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && fire()}
             placeholder="010-0000-0000"
-            className="flex-1 px-3 py-2 border border-slate-300 rounded-lg text-sm text-slate-900"
+            className={
+              'flex-1 px-3 py-2 border rounded-lg text-sm text-slate-900 ' +
+              (digits ? 'border-slate-300' : 'border-rose-400 bg-rose-50')
+            }
           />
           <button
             onClick={() => copy('phone')}
@@ -1852,7 +1872,11 @@ function SmsModal({
           </button>
         </div>
         <div className="text-[11px] text-slate-900 mb-3">
-          {phone ? '이력서에서 자동으로 읽어온 번호입니다.' : '이력서에 번호가 없어 직접 입력해야 합니다.'}
+          {phone
+            ? '이력서에서 자동으로 읽어온 번호입니다.'
+            : candidate.name === TEST_CANDIDATE_NAME
+              ? '테스트용 — 형도님 휴대폰 번호를 넣으세요. 한 번 넣으면 다음부터 자동으로 채워집니다.'
+              : '이력서에 번호가 없어 직접 입력해야 합니다.'}
         </div>
 
         <label className="block text-xs font-bold text-slate-900 mb-1">
@@ -1872,10 +1896,10 @@ function SmsModal({
         <div className="flex flex-wrap gap-1.5 mt-3">
           <button
             onClick={fire}
-            disabled={sending || !digits}
+            disabled={sending}
             className="px-4 py-2 rounded-lg bg-accent-purple text-white text-xs font-bold hover:bg-accent-purple/90 disabled:opacity-40"
           >
-            {sending ? '보내는 중…' : direct ? '📨 지금 발송' : '📱 내 폰으로 열기'}
+            {sending ? '보내는 중…' : direct ? '📨 문자 바로 발송' : '📱 내 폰으로 열기'}
           </button>
           <button
             onClick={() => copy('both')}
@@ -1914,10 +1938,37 @@ function SmsModal({
           </div>
         )}
 
+        {needQr && (
+          <button
+            onClick={async () => {
+              await api.sms.gmConnect();
+              setResult('구글 메시지 창을 열었습니다 — 폰에서 QR을 스캔한 뒤 다시 [문자 보내기]를 눌러주세요.');
+            }}
+            className="mt-2 w-full px-3 py-2 rounded-lg bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-700"
+          >
+            📱 구글 메시지에 폰 연결하기 (QR 스캔 · 최초 1회)
+          </button>
+        )}
+
         <div className="mt-3 rounded-lg border border-slate-300 bg-slate-50 p-2 text-[11px] text-slate-900 leading-relaxed">
-          {direct ? (
+          {provider === 'phonelink' ? (
             <>
-              <b>{config?.provider === 'aligo' ? '알리고' : '솔라피'} 연결됨</b> — [지금 발송]을 누르면 발신번호{' '}
+              <b>휴대폰과 연결로 바로 발송</b> — 누르면 앱이 <b>휴대폰과 연결</b>에 대화창을 띄우고 번호·문구를 채운 뒤{' '}
+              <b>보내기까지 눌러</b> 실제로 발송합니다. 요금은 본인 요금제 안이라 추가 비용이 없고 발신번호 등록도
+              필요 없습니다.
+              <br />
+              Windows 기본 앱 설정과 무관하게 <b>휴대폰과 연결로 직접 전달</b>하므로 브라우저로 새지 않습니다.
+              발송 중에는 휴대폰과 연결 창이 잠깐 앞으로 올라옵니다 — 그 사이 키보드를 건드리지 마세요.
+            </>
+          ) : provider === 'gmessages' ? (
+            <>
+              <b>내 폰으로 진짜 발송</b> — [문자 보내기]를 누르면 앱이 구글 메시지 창에 번호와 문구를 채우고{' '}
+              <b>보내기까지 누릅니다.</b> 폰 연결은 최초 1회 QR 스캔만 하면 되고, 요금은 본인 요금제 안이라 추가 비용이
+              없습니다.
+            </>
+          ) : direct ? (
+            <>
+              <b>{config?.provider === 'aligo' ? '알리고' : '솔라피'} 연결됨</b> — [문자 보내기]를 누르면 발신번호{' '}
               {prettyPhone(config?.sender || '')} 로 바로 나갑니다.
             </>
           ) : (
@@ -1962,7 +2013,7 @@ function SmsSetupPanel({
   onSaved: (c: SmsConfig) => void;
   onClose: () => void;
 }) {
-  const [provider, setProvider] = useState<SmsConfig['provider']>(config?.provider || 'phone');
+  const [provider, setProvider] = useState<SmsConfig['provider']>(config?.provider || 'phonelink');
   const [sender, setSender] = useState(config?.sender || '');
   const [userId, setUserId] = useState(config?.userId || '');
   const [apiKey, setApiKey] = useState('');
@@ -2009,7 +2060,7 @@ function SmsSetupPanel({
     }
   }
 
-  const paid = provider !== 'phone';
+  const paid = provider === 'aligo' || provider === 'solapi';
 
   return (
     <div className="mb-3 rounded-xl border border-slate-300 bg-slate-50 p-3">
@@ -2023,7 +2074,9 @@ function SmsSetupPanel({
       <div className="flex flex-wrap gap-1.5 mb-3">
         {(
           [
-            { id: 'phone', label: '내 휴대폰 (무료)', help: '휴대폰과 연결에 번호·문구를 채워서 열어줍니다' },
+            { id: 'phonelink', label: '휴대폰과 연결 (무료·추천)', help: '대화창을 띄우고 보내기까지 앱이 눌러 실제로 발송합니다' },
+            { id: 'gmessages', label: '구글 메시지', help: '앱 안에서 보내기까지 자동 — 최초 1회 QR 스캔' },
+            { id: 'phone', label: '문자 앱 열기', help: 'sms: 링크만 엽니다 — 기본 앱에 따라 브라우저로 샐 수 있음' },
             { id: 'aligo', label: '알리고', help: 'SMS 8.4원 내외 — 가장 단순한 국내 문자 API' },
             { id: 'solapi', label: '솔라피', help: '구 쿨SMS — 문서·기능이 풍부' },
           ] as { id: SmsConfig['provider']; label: string; help: string }[]
@@ -2044,12 +2097,75 @@ function SmsSetupPanel({
         ))}
       </div>
 
-      {!paid && (
+      {provider === 'phonelink' && (
         <div className="text-xs text-slate-900 leading-relaxed">
-          설정할 것이 없습니다. 문자 창에서 <b>[내 폰으로 열기]</b>를 누르면 Windows{' '}
-          <b>휴대폰과 연결</b>에 번호와 문구가 채워진 채로 뜹니다. 보내기만 누르시면 됩니다.
-          <br />
-          <b>단점</b> — 마지막 보내기는 사람이 눌러야 하고, 여러 명 한 번에 쏘는 건 안 됩니다.
+          설정할 것이 없습니다. 문자 창에서 <b>[문자 바로 발송]</b>을 누르면 앱이 대화창을 띄우고 보내기까지 눌러
+          실제로 발송합니다.
+          <div className="mt-2 flex gap-1.5">
+            <button
+              onClick={async () => {
+                setBusy(true);
+                try {
+                  const r = await api.sms.plStatus();
+                  setMsg(
+                    r.ok && r.data?.installed
+                      ? '✓ 휴대폰과 연결 설치됨 (v' + r.data.version + ') — 바로 쓸 수 있습니다.'
+                      : '휴대폰과 연결이 설치돼 있지 않습니다 — Microsoft Store에서 설치해주세요.'
+                  );
+                } finally {
+                  setBusy(false);
+                }
+              }}
+              disabled={busy}
+              className="px-3 py-1.5 rounded-lg border border-slate-300 bg-white text-xs font-bold text-slate-900 hover:bg-slate-100 disabled:opacity-40"
+            >
+              설치 상태 확인
+            </button>
+          </div>
+        </div>
+      )}
+
+      {provider === 'gmessages' && (
+        <div className="text-xs text-slate-900 leading-relaxed">
+          앱 안에 구글 메시지 창을 띄워 <b>번호·문구를 채우고 보내기까지 자동으로</b> 누릅니다. 내 폰·내 계정으로
+          나가서 추가 비용이 없습니다. 최초 1회만 폰에서 QR을 스캔하면 됩니다.
+          <div className="mt-2 flex gap-1.5">
+            <button
+              onClick={async () => {
+                setBusy(true);
+                try {
+                  const r = await api.sms.gmStatus();
+                  const st = r.ok ? r.data?.state : 'error';
+                  setMsg(
+                    st === 'ready'
+                      ? '✓ 폰이 연결돼 있습니다 — 바로 보낼 수 있습니다.'
+                      : st === 'qr'
+                        ? 'QR 스캔이 필요합니다 — [폰 연결하기]를 눌러주세요.'
+                        : '상태: ' + st
+                  );
+                } finally {
+                  setBusy(false);
+                }
+              }}
+              disabled={busy}
+              className="px-3 py-1.5 rounded-lg border border-slate-300 bg-white text-xs font-bold text-slate-900 hover:bg-slate-100 disabled:opacity-40"
+            >
+              연결 상태 확인
+            </button>
+            <button
+              onClick={() => api.sms.gmConnect()}
+              className="px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-700"
+            >
+              📱 폰 연결하기 (QR)
+            </button>
+          </div>
+        </div>
+      )}
+
+      {provider === 'phone' && (
+        <div className="text-xs text-slate-900 leading-relaxed">
+          sms: 링크로 문자 앱만 열어줍니다. 보내기는 직접 누르셔야 하고, Windows가 브라우저로 넘겨버리면 아무것도 안
+          뜰 수 있습니다 — <b>구글 메시지</b>를 쓰시는 편이 확실합니다.
         </div>
       )}
 

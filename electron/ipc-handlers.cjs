@@ -45,7 +45,7 @@ function register() {
     'organizeVault', 'scanForResumes', 'importPath', 'extractContacts', 'extractContactsFromData',
     'contactsByName', 'stats',
   ]);
-  assertExports('sms', sms, ['getConfigMasked', 'setConfig', 'send', 'sendMany', 'balance']);
+  assertExports('sms', sms, ['getConfigMasked', 'setConfig', 'send', 'sendMany', 'balance', 'gmStatus', 'gmConnect', 'plStatus']);
 
   // Google
   safeHandle('g:setCreds', async (creds) => google.setCreds(creds));
@@ -131,6 +131,9 @@ function register() {
   safeHandle('sms:send', async (payload) => sms.send(payload));
   safeHandle('sms:sendMany', async (list) => sms.sendMany(list));
   safeHandle('sms:balance', async () => sms.balance());
+  safeHandle('sms:gmStatus', async () => sms.gmStatus());
+  safeHandle('sms:gmConnect', async () => sms.gmConnect());
+  safeHandle('sms:plStatus', async () => sms.plStatus());
   safeHandle('rv:driveFolder', async () => google.getResumeFolderLink());
 
   safeHandle('s:saveToken', async (token) => {

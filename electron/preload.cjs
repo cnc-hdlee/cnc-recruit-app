@@ -64,6 +64,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
     send: (payload) => invoke('sms:send', payload),
     sendMany: (list) => invoke('sms:sendMany', list),
     balance: () => invoke('sms:balance'),
+    gmStatus: () => invoke('sms:gmStatus'),
+    gmConnect: () => invoke('sms:gmConnect'),
+    plStatus: () => invoke('sms:plStatus'),
   },
 
   // 이력서 보관함 — 드래그앤드랍한 원본을 로컬에 쌓고 드라이브에 백업

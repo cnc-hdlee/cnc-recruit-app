@@ -14,6 +14,8 @@
 const crypto = require('node:crypto');
 const { shell } = require('electron');
 const store = require('./store.cjs');
+const gmessages = require('./gmessages.cjs');
+const phonelink = require('./phonelink.cjs');
 
 const CFG_KEY = 'smsConfig';
 
@@ -33,7 +35,11 @@ function byteLen(text) {
 }
 
 function getConfig() {
-  return store.get(CFG_KEY) || { provider: 'phone', sender: '', apiKey: '', apiSecret: '', userId: '' };
+  // 기본값은 phonelink — Windows "휴대폰과 연결"에 번호·문구가 채워진 대화창을 띄운다.
+  // 그냥 sms: 를 열면 Windows가 브라우저로 넘겨버려서(형도님 PC에서 실제로 그랬다)
+  // WinRT Launcher에 패키지를 못박아 휴대폰과 연결이 반드시 받게 한다.
+  const c = store.get(CFG_KEY) || {};
+  return { provider: 'phonelink', sender: '', apiKey: '', apiSecret: '', userId: '', autoSend: true, ...c };
 }
 
 /** 화면에 돌려줄 안전한 형태 — 키는 뒤 4자리만 남긴다 */
@@ -41,7 +47,8 @@ function getConfigMasked() {
   const c = getConfig();
   const mask = (v) => (v ? `••••••${String(v).slice(-4)}` : '');
   return {
-    provider: c.provider || 'phone',
+    provider: c.provider || 'phonelink',
+    autoSend: c.autoSend !== false,
     sender: c.sender || '',
     userId: c.userId || '',
     apiKey: mask(c.apiKey),
@@ -52,7 +59,8 @@ function getConfigMasked() {
 
 function isReady(c) {
   const cfg = c || getConfig();
-  if ((cfg.provider || 'phone') === 'phone') return true; // 폰 연결은 별도 설정이 없다
+  // 내 폰으로 보내는 경로들은 별도 설정이 없다
+  if (cfg.provider === 'phonelink' || cfg.provider === 'phone' || cfg.provider === 'gmessages') return true;
   if (!cfg.sender) return false;
   if (cfg.provider === 'aligo') return !!(cfg.apiKey && cfg.userId);
   if (cfg.provider === 'solapi') return !!(cfg.apiKey && cfg.apiSecret);
@@ -63,6 +71,7 @@ function isReady(c) {
 function setConfig(patch) {
   const cur = getConfig();
   const next = { ...cur };
+  if (typeof patch?.autoSend === 'boolean') next.autoSend = patch.autoSend;
   for (const k of ['provider', 'sender', 'apiKey', 'apiSecret', 'userId']) {
     const v = patch?.[k];
     if (v === undefined || v === null) continue;
@@ -160,7 +169,11 @@ async function send({ to, text, title }) {
   if (!normalize(to)) throw new Error('휴대폰 번호가 없습니다');
   if (!String(text || '').trim()) throw new Error('문구가 비어 있습니다');
   const cfg = getConfig();
-  const provider = cfg.provider || 'phone';
+  const provider = cfg.provider || 'phonelink';
+  // 휴대폰과 연결 — 번호·문구가 채워진 대화창을 띄운다 (보내기만 누르면 끝)
+  if (provider === 'phonelink') return phonelink.compose(normalize(to), text, { autoSend: cfg.autoSend !== false });
+  // 구글 메시지 웹 — 앱 안 창에서 번호·문구를 채우고 보내기까지 누른다
+  if (provider === 'gmessages') return gmessages.send({ to: normalize(to), text });
   if (provider === 'phone') return openPhoneCompose(to, text);
   if (!isReady(cfg)) throw new Error('문자 API 설정이 끝나지 않았습니다 (발신번호·키 확인)');
   if (provider === 'aligo') return sendAligo(cfg, to, text, title);
@@ -185,7 +198,9 @@ async function sendMany(list) {
 /** 남은 충전금 조회 — 유료 API에서만 의미가 있다 */
 async function balance() {
   const cfg = getConfig();
-  if ((cfg.provider || 'phone') === 'phone') return { provider: 'phone', note: '내 휴대폰 요금제로 나갑니다 (앱 과금 없음)' };
+  if (cfg.provider === 'phonelink' || cfg.provider === 'phone' || cfg.provider === 'gmessages') {
+    return { provider: cfg.provider, note: '내 휴대폰 요금제로 나갑니다 (앱 과금 없음)' };
+  }
   if (!isReady(cfg)) throw new Error('문자 API 설정이 끝나지 않았습니다');
   if (cfg.provider === 'aligo') {
     const r = await fetch('https://apis.aligo.in/remain/', {
@@ -206,4 +221,20 @@ async function balance() {
   return { provider: 'solapi', balance: Number(j.balance || 0), point: Number(j.point || 0) };
 }
 
-module.exports = { getConfigMasked, setConfig, send, sendMany, balance, normalize, byteLen };
+/** 구글 메시지 웹 연결 상태 / QR 스캔 창 */
+async function gmStatus() {
+  return gmessages.status();
+}
+async function gmConnect() {
+  return gmessages.connect();
+}
+
+/** 휴대폰과 연결 설치 여부 */
+async function plStatus() {
+  return phonelink.installed();
+}
+
+module.exports = {
+  getConfigMasked, setConfig, send, sendMany, balance, normalize, byteLen,
+  gmStatus, gmConnect, plStatus,
+};

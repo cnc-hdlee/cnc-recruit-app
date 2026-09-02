@@ -129,10 +129,15 @@ export interface DriveVaultFile {
 }
 
 // 문자 발송 방식 — phone은 내 휴대폰으로 열기(무료), 나머지는 문자 사업자 API로 직접 발송
-export type SmsProvider = 'phone' | 'aligo' | 'solapi';
+// phonelink  = Windows "휴대폰과 연결"에 번호·문구가 채워진 대화창을 띄운다 (무료·기본값)
+// gmessages  = 구글 메시지 웹을 앱 창에서 조작해 자동 발송 (무료)
+// phone      = 그냥 sms: 링크 열기 — Windows 기본 앱에 따라 브라우저로 샐 수 있다
+export type SmsProvider = 'phonelink' | 'gmessages' | 'phone' | 'aligo' | 'solapi';
 
 export interface SmsConfig {
   provider: SmsProvider;
+  /** phonelink — 대화창을 띄운 뒤 앱이 보내기(엔터)까지 누른다 */
+  autoSend: boolean;
   /** 발신번호 — 유료 API에서만 쓴다(사전등록 필수) */
   sender: string;
   userId: string;
@@ -147,8 +152,10 @@ export interface SmsSendResult {
   via: SmsProvider;
   /** provider='phone' — 문자 앱을 채워서 열었다 (마지막 보내기는 사람이 누른다) */
   opened?: boolean;
-  /** 유료 API — 실제로 발송됐다 */
+  /** 실제로 발송됐다 */
   sent?: boolean;
+  /** 대화창은 떴는데 자동 보내기가 막혔다 — 사람이 엔터를 눌러야 한다 */
+  autoSendFailed?: string;
   /** 문자 앱은 열렸지만 번호·문구를 못 넘겼다 — 사용자가 붙여넣어야 한다 */
   partial?: boolean;
   id?: string;
@@ -365,6 +372,12 @@ interface ElectronAPI {
       list: { to: string; text: string; title?: string; name?: string }[]
     ): Promise<Result<{ results: (SmsSendResult & { name: string; ok: boolean; error?: string })[]; sent: number; failed: number }>>;
     balance(): Promise<Result<{ provider: string; sms?: number; lms?: number; balance?: number; note?: string }>>;
+    /** 구글 메시지 웹 연결 상태 — 'ready' | 'qr'(스캔 필요) | 'unknown' */
+    gmStatus(): Promise<Result<{ state: string; url?: string; message?: string }>>;
+    /** QR 스캔 창 띄우기 (최초 1회) */
+    gmConnect(): Promise<Result<{ opened: boolean }>>;
+    /** 휴대폰과 연결 설치 여부 */
+    plStatus(): Promise<Result<{ installed: boolean; version: string }>>;
   };
 
   resumes: {
