@@ -8,7 +8,7 @@
 // Gmail 자동 수집·캘린더 매칭·시트 미러는 의도적으로 넣지 않았다 (요청 범위 밖).
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api } from '../lib/api';
-import type { ResumeEntry } from '../lib/api';
+import type { ResumeEntry, DriveVaultFile } from '../lib/api';
 import { IS_VIEWER } from '../lib/mode';
 import { DEFAULT_TEAM_ATTENDEES, ALL_TEAMS } from '../lib/interviewAttendees';
 import { INTERVIEW_CAL_IDS } from '../lib/sharedCalendars';
@@ -245,6 +245,8 @@ export function ResumeVault() {
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const [bulk, setBulk] = useState({ team: '', job: '' });
   const [driveUrl, setDriveUrl] = useState<string | null>(null);
+  // 팀이 드라이브에 공유해 둔 이력서 (내 PC에 없는 것만 별도 표시)
+  const [shared, setShared] = useState<DriveVaultFile[]>([]);
   const [dir, setDir] = useState<Map<string, DirHit>>(new Map());
   const [dirReady, setDirReady] = useState(false);
   const [tidyMsg, setTidyMsg] = useState<string | null>(null);
@@ -270,6 +272,9 @@ export function ResumeVault() {
   useEffect(() => {
     void refresh();
     if (!IS_VIEWER && api?.resumes) {
+      void api.resumes.driveList().then((r) => {
+        if (r.ok && r.data) setShared(r.data.files || []);
+      });
       void api.resumes.driveFolder().then((r) => {
         if (r.ok && r.data?.url) setDriveUrl(r.data.url);
       });
@@ -674,6 +679,13 @@ export function ResumeVault() {
     };
   }, [entries]);
 
+  // 드라이브 공유분 중 내 보관함에 없는 것만 — 파일명 기준 비교
+  const sharedOnly = useMemo(() => {
+    const mine = new Set(entries.map((e) => (e.storedName || '').split('/').pop()));
+    const ids = new Set(entries.map((e) => e.driveFileId).filter(Boolean));
+    return shared.filter((f) => !ids.has(f.driveFileId) && !mine.has(f.filename));
+  }, [shared, entries]);
+
   // 팀이 아직 없는 항목 — 자동 인식이 실패한 건만 남는다
   const pending = useMemo(() => entries.filter((e) => !e.team?.trim()), [entries]);
 
@@ -823,6 +835,41 @@ export function ResumeVault() {
             </div>
           )}
         </div>
+      )}
+
+      {/* 팀 공유 이력서 — 내 PC에는 없고 드라이브(팀 공유)에만 있는 것 */}
+      {sharedOnly.length > 0 && (
+        <details className="card p-3">
+          <summary className="text-sm font-bold text-slate-900 cursor-pointer">
+            🤝 팀 공유 이력서 {sharedOnly.length}건
+            <span className="ml-2 text-[11px] font-normal text-slate-500">
+              다른 팀원이 올려 공유한 이력서입니다 (내 PC에는 없음)
+            </span>
+          </summary>
+          <div className="mt-2 space-y-1 max-h-[320px] overflow-y-auto pr-1">
+            {sharedOnly.map((f) => (
+              <div
+                key={f.driveFileId}
+                className="flex items-center gap-2 rounded-lg border bg-white px-2.5 py-1.5 text-[12px]"
+                style={{ borderColor: 'var(--cc-p8)' }}
+              >
+                {f.team && <span className="chip bg-slate-100 text-slate-800">{f.team}</span>}
+                <span className="text-slate-900 truncate flex-1" title={f.filename}>
+                  {f.filename}
+                </span>
+                <span className="text-[11px] text-slate-400">{fmtBytes(f.size)}</span>
+                <a
+                  className="btn text-[11px]"
+                  href={`https://drive.google.com/file/d/${f.driveFileId}/view`}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  열기
+                </a>
+              </div>
+            ))}
+          </div>
+        </details>
       )}
 
       {/* 본문 — 왼쪽 팀/직무 트리 + 오른쪽 목록 */}

@@ -805,7 +805,102 @@ async function ensureResumeTeamFolder(team) {
   return created.data.id;
 }
 
-async function uploadResumeFile({ name, mimeType, filePath, team }) {
+/**
+ * 이력서 폴더를 TA팀 멤버에게만 공유한다 (도메인 전체 공개는 절대 안 함).
+ * @param {string[]} emails 공유 대상
+ * @param {'reader'|'writer'} role
+ */
+async function shareResumeFolder(emails, role = 'reader') {
+  const auth = buildClient();
+  const drive = google.drive({ version: 'v3', auth });
+  const id = await ensureResumeFolder();
+  const cur = await drive.permissions.list({
+    fileId: id,
+    fields: 'permissions(id,type,role,emailAddress,domain)',
+  });
+  const have = new Map(
+    (cur.data.permissions || [])
+      .filter((p) => p.type === 'user' && p.emailAddress)
+      .map((p) => [p.emailAddress.toLowerCase(), p])
+  );
+  // 도메인/전체공개 권한은 남아 있으면 제거 (팀 공유는 사람 단위로만)
+  let removed = 0;
+  for (const p of cur.data.permissions || []) {
+    if (p.type === 'domain' || p.type === 'anyone') {
+      try {
+        await drive.permissions.delete({ fileId: id, permissionId: p.id });
+        removed += 1;
+      } catch {
+        /* noop */
+      }
+    }
+  }
+  const added = [];
+  for (const raw of emails || []) {
+    const email = String(raw).trim().toLowerCase();
+    if (!email) continue;
+    const exist = have.get(email);
+    if (exist && exist.role === role) continue;
+    try {
+      if (exist) {
+        await drive.permissions.update({ fileId: id, permissionId: exist.id, requestBody: { role } });
+      } else {
+        await drive.permissions.create({
+          fileId: id,
+          requestBody: { role, type: 'user', emailAddress: email },
+          sendNotificationEmail: false,
+        });
+      }
+      added.push(email);
+    } catch (e) {
+      // 개별 실패는 넘어간다 (계정 없음 등)
+    }
+  }
+  return { folderId: id, shared: added, removedPublic: removed };
+}
+
+/** 팀 공유 이력서 목록 — 드라이브 폴더(팀 하위폴더 포함)를 훑는다 */
+async function listDriveVault() {
+  const auth = buildClient();
+  const drive = google.drive({ version: 'v3', auth });
+  const root = store.get(RESUME_FOLDER_KEY);
+  if (!root) return { files: [] };
+  // 1) 팀 하위 폴더
+  const folders = await drive.files.list({
+    q: `'${root}' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false`,
+    fields: 'files(id,name)',
+    pageSize: 200,
+  });
+  const out = [];
+  const scan = async (folderId, teamName) => {
+    let pageToken;
+    do {
+      const r = await drive.files.list({
+        q: `'${folderId}' in parents and mimeType != 'application/vnd.google-apps.folder' and trashed = false`,
+        fields: 'nextPageToken, files(id,name,size,modifiedTime,mimeType,owners(displayName))',
+        pageSize: 200,
+        pageToken,
+      });
+      for (const f of r.data.files || []) {
+        out.push({
+          driveFileId: f.id,
+          filename: f.name,
+          team: teamName,
+          size: Number(f.size || 0),
+          modifiedTime: f.modifiedTime,
+          mimeType: f.mimeType,
+          owner: f.owners?.[0]?.displayName || '',
+        });
+      }
+      pageToken = r.data.nextPageToken;
+    } while (pageToken);
+  };
+  await scan(root, '');
+  for (const f of folders.data.files || []) await scan(f.id, f.name);
+  return { files: out };
+}
+
+async function uploadResumeFile({ name, mimeType, filePath, team, shareWith }) {
   const fs = require('node:fs');
   const auth = buildClient();
   const drive = google.drive({ version: 'v3', auth });
@@ -1124,6 +1219,8 @@ module.exports = {
   moveResumeFile,
   ensureResumeTeamFolder,
   lockResumeFolder,
+  shareResumeFolder,
+  listDriveVault,
   downloadDriveFile,
   upsertPresenceFile,
   readPresenceFiles,

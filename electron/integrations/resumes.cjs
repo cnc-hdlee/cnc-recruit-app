@@ -13,6 +13,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
 const { app, shell } = require('electron');
+const store = require('./store.cjs');
 
 let google = null; // 순환 참조 방지를 위해 지연 로드
 function gapi() {
@@ -71,6 +72,13 @@ function mimeFor(filename) {
 
 function safeName(filename) {
   return (filename || 'resume').replace(/[\\/:*?"<>|]/g, '_').slice(0, 180);
+}
+
+/** 이력서를 함께 보는 TA팀 (설정에 저장, 기본값 김범준·임한결) */
+const DEFAULT_TEAM_SHARE = ['bjkim4@cnccosmetic.com', 'hglim@cnccosmetic.com'];
+function readTeamShare() {
+  const v = store.get('resumeTeamShare');
+  return Array.isArray(v) ? v : DEFAULT_TEAM_SHARE;
 }
 
 // 팀이 아직 확인 안 된 이력서가 들어가는 폴더 — "미분류"가 아니라 처리해야 할 할 일 목록이다.
@@ -1077,6 +1085,9 @@ async function backupToDrive(ids) {
         mimeType: r.mimeType,
         filePath: p,
         team: r.team?.trim() || PENDING_FOLDER,
+        // 새로 올리는 이력서도 팀원이 바로 볼 수 있게 파일 단위로 공유한다
+        // (폴더 통째 공유는 drive.file 권한 범위에서 막힌다)
+        shareWith: readTeamShare(),
       });
       r.driveFileId = res.id;
       r.driveLink = res.webViewLink || null;

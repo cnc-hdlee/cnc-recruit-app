@@ -117,6 +117,17 @@ export interface ResumeEntry {
   driveError: string | null;
 }
 
+// 팀 공유 드라이브에 올라간 이력서 한 건
+export interface DriveVaultFile {
+  driveFileId: string;
+  filename: string;
+  team: string;
+  size: number;
+  modifiedTime: string;
+  mimeType: string;
+  owner: string;
+}
+
 // 이력서에서 뽑아낸 지원자 연락처
 export interface ResumeContact {
   id: string | null;
@@ -321,6 +332,10 @@ interface ElectronAPI {
       ids: string[],
       opt?: { ignore?: boolean }
     ): Promise<Result<{ deleted: number; ignored: number; driveFailed?: number }>>;
+    /** 이력서 폴더를 TA팀에게만 공유 */
+    shareVault(emails: string[], role?: 'reader' | 'writer'): Promise<Result<{ folderId: string; shared: string[]; removedPublic: number }>>;
+    /** 팀 공유 드라이브에 올라간 이력서 목록 */
+    driveList(): Promise<Result<{ files: DriveVaultFile[] }>>;
     /** 드라이브 이력서 폴더를 비공개로 강제 (회사 전체 공개 권한 제거) */
     lockDrive(): Promise<Result<{ locked: boolean; removed: number }>>;
     backup(ids?: string[]): Promise<Result<{ uploaded: number; pending: number; errors: string[] }>>;
