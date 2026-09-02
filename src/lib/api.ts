@@ -321,6 +321,8 @@ interface ElectronAPI {
       ids: string[],
       opt?: { ignore?: boolean }
     ): Promise<Result<{ deleted: number; ignored: number; driveFailed?: number }>>;
+    /** 드라이브 이력서 폴더를 비공개로 강제 (회사 전체 공개 권한 제거) */
+    lockDrive(): Promise<Result<{ locked: boolean; removed: number }>>;
     backup(ids?: string[]): Promise<Result<{ uploaded: number; pending: number; errors: string[] }>>;
     classify(
       updates: { id: string; candidate?: string; team?: string; job?: string; matchedBy?: string }[],

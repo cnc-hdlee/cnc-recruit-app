@@ -66,6 +66,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     remove: (id) => invoke('rv:delete', id),
     removeMany: (ids, opt) => invoke('rv:deleteMany', ids, opt),
     backup: (ids) => invoke('rv:backup', ids),
+    lockDrive: () => invoke('rv:lockDrive'),
     classify: (updates, opts) => invoke('rv:classify', updates, opts),
     organize: () => invoke('rv:organize'),
     contacts: (id) => invoke('rv:contacts', id),

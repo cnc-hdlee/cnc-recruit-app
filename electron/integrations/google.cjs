@@ -726,7 +726,39 @@ async function ensureResumeFolder() {
     fields: 'id',
   });
   store.set(RESUME_FOLDER_KEY, created.data.id);
+  await lockResumeFolder(created.data.id);
   return created.data.id;
+}
+
+/**
+ * 이력서 폴더를 비공개로 강제한다.
+ * 조직 기본 공유 설정 때문에 "회사 전체 읽기(domain reader)" 권한이 자동으로 붙는 경우가 있어
+ * (2026-09-02 실제로 붙어 있었음) 소유자 외 권한은 모두 제거한다. 하위 파일도 이 폴더 권한을 따른다.
+ */
+async function lockResumeFolder(folderId) {
+  const auth = buildClient();
+  const drive = google.drive({ version: 'v3', auth });
+  const id = folderId || store.get(RESUME_FOLDER_KEY);
+  if (!id) return { locked: false, removed: 0 };
+  let removed = 0;
+  try {
+    const perms = await drive.permissions.list({
+      fileId: id,
+      fields: 'permissions(id,type,role,emailAddress,domain)',
+    });
+    for (const p of perms.data.permissions || []) {
+      if (p.role === 'owner') continue;
+      try {
+        await drive.permissions.delete({ fileId: id, permissionId: p.id });
+        removed += 1;
+      } catch {
+        /* 지울 수 없는 권한(상속 등)은 넘어간다 */
+      }
+    }
+  } catch {
+    return { locked: false, removed };
+  }
+  return { locked: true, removed };
 }
 
 // 팀별 하위 폴더 — "CNC 이력서 보관함 / 생산2팀 / 김보민_생산2팀_ERP_20260901.pdf" 구조를 만든다.
@@ -1091,6 +1123,7 @@ module.exports = {
   uploadResumeFile,
   moveResumeFile,
   ensureResumeTeamFolder,
+  lockResumeFolder,
   downloadDriveFile,
   upsertPresenceFile,
   readPresenceFiles,

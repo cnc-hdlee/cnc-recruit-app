@@ -116,9 +116,27 @@ function saveResume({ filename, base64, meta }) {
   const hash = crypto.createHash('sha256').update(buf).digest('hex');
   const list = readIndex();
 
-  // 같은 내용의 파일이 이미 있으면 새로 만들지 않고 기존 항목을 돌려준다
+  // 같은 내용의 파일이 이미 있으면 새로 만들지 않고 기존 항목을 돌려준다.
+  // 단, 등록은 돼 있는데 파일이 사라졌으면 원본을 다시 써넣어 되살린다(분류·연락처는 그대로 유지).
   const dup = list.find((r) => r.hash === hash);
-  if (dup) return { entry: dup, duplicate: true };
+  if (dup) {
+    const dupAbs = dup.storedName ? path.join(filesDir(), dup.storedName) : '';
+    if (!dupAbs || !fs.existsSync(dupAbs)) {
+      const folderR = teamFolder(dup);
+      const dirR = path.join(filesDir(), folderR);
+      fs.mkdirSync(dirR, { recursive: true });
+      const nameR = uniqueIn(
+        dirR,
+        canonicalName({ ...dup, storedName: dup.storedName || filename }),
+        ''
+      );
+      fs.writeFileSync(path.join(dirR, nameR), buf);
+      dup.storedName = path.posix.join(folderR, nameR);
+      writeIndex(list);
+      return { entry: dup, duplicate: true, restored: true };
+    }
+    return { entry: dup, duplicate: true };
+  }
   // 사용자가 지웠던 파일은 다시 넣지 않는다 (스캔을 다시 돌려도 되살아나지 않게)
   if (readIgnored().has(hash)) return { entry: null, duplicate: true, ignored: true };
 
@@ -924,7 +942,7 @@ function reconcileFiles() {
   const list = readIndex();
   const known = new Set(list.map((r) => (r.storedName || '').replace(/\\/g, '/')));
   const byHash = new Map(list.map((r) => [r.hash, r]));
-  const out = { duplicatesRemoved: 0, recovered: 0 };
+  const out = { duplicatesRemoved: 0, recovered: 0, relinked: 0 };
   const walk = (absDir, rel) => {
     for (const d of fs.readdirSync(absDir, { withFileTypes: true })) {
       const abs = path.join(absDir, d.name);
@@ -936,9 +954,21 @@ function reconcileFiles() {
       if (known.has(relPath)) continue;
       const buf = fs.readFileSync(abs);
       const hash = crypto.createHash('sha256').update(buf).digest('hex');
-      if (byHash.has(hash)) {
-        fs.unlinkSync(abs); // 이미 보관 중인 이력서와 같은 파일 → 중복본 제거
-        out.duplicatesRemoved += 1;
+      const owner = byHash.get(hash);
+      if (owner) {
+        // 같은 내용이 이미 등록돼 있다.
+        // ※ 등록된 쪽 파일이 실제로 있을 때만 중복본으로 보고 지운다.
+        //   (인덱스가 옛 이름을 가리키는 상태에서 지워버려 이력서 274건이 통째로 날아간 사고가 있었다.
+        //    2026-09-02) 등록된 파일이 없으면 지우지 말고 이 파일로 다시 연결한다.
+        const ownerAbs = path.join(filesDir(), owner.storedName || '');
+        if (owner.storedName && fs.existsSync(ownerAbs)) {
+          fs.unlinkSync(abs);
+          out.duplicatesRemoved += 1;
+        } else {
+          owner.storedName = relPath;
+          known.add(relPath);
+          out.relinked += 1;
+        }
         continue;
       }
       const id = `${Date.now().toString(36)}-${crypto.randomBytes(4).toString('hex')}`;
@@ -968,7 +998,7 @@ function reconcileFiles() {
     }
   };
   walk(filesDir(), '');
-  if (out.duplicatesRemoved || out.recovered) writeIndex(list);
+  if (out.duplicatesRemoved || out.recovered || out.relinked) writeIndex(list);
   return out;
 }
 

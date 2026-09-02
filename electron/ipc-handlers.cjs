@@ -106,6 +106,7 @@ function register() {
   safeHandle('rv:reveal', async () => resumes.revealResumeFolder());
   safeHandle('rv:delete', async (id) => resumes.deleteResume(id));
   safeHandle('rv:deleteMany', async (ids, opt) => resumes.deleteResumes(ids, opt));
+  safeHandle('rv:lockDrive', async () => google.lockResumeFolder());
   safeHandle('rv:backup', async (ids) => resumes.backupToDrive(ids));
   safeHandle('rv:classify', async (updates, opts) => resumes.applyClassification(updates, opts));
   safeHandle('rv:organize', async () => resumes.organizeVault());
