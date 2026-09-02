@@ -69,6 +69,54 @@ function whenLabel(dt: string, tm: string): string {
   return `${mo}월 ${d}일(${DAY[date.getDay()]})${time}`;
 }
 
+
+// ── 후보자 목록 기간 기준 ───────────────────────────────────────────────────
+// 기본값은 항상 "전체"다. 한 화면에서 면접 안내 / 합격 / 처우협의 / 불합격 안내를
+// 다 처리하기 때문에, 기간으로 사람을 미리 잘라내면 반드시 누가 사라진다.
+// (2026-09: 면접을 마친 서현·박강선 님이 처우협의 화면에서 통째로 안 보였던 원인)
+// 좁혀 보고 싶을 때만 사용자가 예정/지난을 직접 고른다.
+type RangeMode = 'upcoming' | 'past' | 'all';
+
+// 면접을 이미 본 사람이 대상인 단계 — 안내 문구용 (목록을 자르는 데는 쓰지 않는다)
+const POST_INTERVIEW_STAGES: TemplateStage[] = ['pass', 'offer', 'onboarding', 'reject'];
+
+function defaultRange(_stage: TemplateStage): RangeMode {
+  return 'all';
+}
+
+// ── 처리 큐 ────────────────────────────────────────────────────────────────
+// 면접을 본 사람은 날짜가 지났다고 목록에서 사라지면 안 된다.
+// "작업자가 여기서 처리해야만 내려간다"가 원칙 — 발송하거나 [처리]를 누른 건만 대기열에서 빠진다.
+// 처리 기록은 <이름>::<단계>로 남아, 같은 사람도 단계별로 따로 관리된다.
+// 불합격 처리된 사람은 다른 단계에서도 대기열에 뜨지 않는다(채용이 끝난 사람이므로).
+type HandledMark = { at: string; via: 'send' | 'manual'; stage: TemplateStage };
+type HandledMap = Record<string, HandledMark>;
+const HANDLED_CFG_KEY = 'mailHandledCandidates';
+const handledKey = (name: string, stage: TemplateStage) => `${name}::${stage}`;
+
+async function loadHandled(): Promise<HandledMap> {
+  try {
+    const r = await api.cfg.get<HandledMap>(HANDLED_CFG_KEY);
+    return (r.ok && r.data) || {};
+  } catch {
+    return {};
+  }
+}
+
+async function saveHandled(map: HandledMap): Promise<void> {
+  try {
+    await api.cfg.set(HANDLED_CFG_KEY, map);
+  } catch {
+    /* 저장 실패해도 화면 상태는 유지 — 다음 처리 때 다시 저장된다 */
+  }
+}
+
+const RANGE_TABS: { id: RangeMode; label: string; help: string }[] = [
+  { id: 'all', label: '전체', help: '예정·지난 면접 모두 — 기본값' },
+  { id: 'upcoming', label: '예정 면접', help: '오늘 이후 면접 — 면접 안내 메일 대상' },
+  { id: 'past', label: '지난 면접', help: '이미 본 면접 — 합격·처우협의·입사·불합격 안내 대상' },
+];
+
 function todayStr(): string {
   const n = new Date();
   return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}-${String(n.getDate()).padStart(2, '0')}`;
@@ -210,7 +258,8 @@ export function EmailToolsPage() {
   const [hqId, setHqId] = useState<string>('all');
   const [stage, setStage] = useState<TemplateStage>('interview_1st');
   const [tplId, setTplId] = useState<string | null>(null);
-  const [onlyUpcoming, setOnlyUpcoming] = useState(true);
+  // 기간 필터 — 기본은 항상 '전체'. 사용자가 직접 좁힐 때만 예정/지난으로 간다.
+  const [range, setRange] = useState<RangeMode>('all');
   const [search, setSearch] = useState('');
   const [draftEmail, setDraftEmail] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState<string | null>(null);
@@ -219,6 +268,9 @@ export function EmailToolsPage() {
   // 메일 대상에서 뺄 내부 인원 (TA팀 등) — 설정에서 편집
   const [excludeNames, setExcludeNames] = useState<string[]>([]);
   const [showDrops, setShowDrops] = useState(false);
+  // 처리 완료 표시 — 발송했거나 작업자가 직접 [처리]를 누른 건
+  const [handled, setHandled] = useState<HandledMap>({});
+  const [showHandled, setShowHandled] = useState(false);
   // 목록에서 걸러낸 일정과 사유 — 조용히 사라지지 않게 화면에 남긴다
   const dropsRef = useRef<{ title: string; reason: string }[]>([]);
 
@@ -268,6 +320,7 @@ export function EmailToolsPage() {
       }
     })();
     loadSendLog().then(setLog);
+    loadHandled().then(setHandled);
     loadSignature().then(setSignature);
     loadAutoBcc().then(setAutoBcc);
   }, []);
@@ -396,18 +449,22 @@ export function EmailToolsPage() {
   }, [allCandidates, retryTick]);
 
   const today = todayStr();
-  // 이미 치른 면접에만 보내는 단계 — 불합격 안내. 목록을 지난 면접으로 뒤집는다.
-  const isPastStage = stage === 'reject';
+  // 면접을 이미 본 사람이 대상인 단계 — 1차 합격 / 처우협의 / 최종 입사 / 불합격 안내.
+  // 예전에는 불합격 안내만 지난 면접을 봤고 나머지는 '예정 일정만'이라,
+  // 면접을 마친 합격자가 처우협의 화면에서 통째로 안 보였다 (2026-09 서현·박강선 건).
+  const isPastStage = POST_INTERVIEW_STAGES.includes(stage);
+
+  // 단계를 고르면 그 단계에 맞는 기간으로 자동 전환한다.
+  useEffect(() => {
+    setRange(defaultRange(stage));
+  }, [stage]);
+
+  const inRange = (dt: string) => (range === 'all' ? true : range === 'past' ? dt < today : dt >= today);
+
   const candidates = useMemo(() => {
     const q = search.trim().toLowerCase();
-    return allCandidates.filter((c) => {
-      // 불합격 안내는 이미 본 면접에만 보낼 수 있다 — 지난 면접만 남긴다.
-      // (반대로 나머지 단계는 앞으로 있을 면접이 대상이라 '예정 일정만'이 기본)
-      if (isPastStage) {
-        if (c.dt >= today) return false;
-      } else if (onlyUpcoming && c.dt < today) {
-        return false;
-      }
+    const out = allCandidates.filter((c) => {
+      if (!inRange(c.dt)) return false;
       if (c.status && !includeAbsent) return false; // (불참)/(노쇼)는 기본 제외
       // 사업장 — 일정에서 사업장을 못 읽은 건은 항상 보여준다(누락 방지)
       if (c.siteId && c.siteId !== siteId) return false;
@@ -415,19 +472,55 @@ export function EmailToolsPage() {
       if (q && !(c.name.toLowerCase().includes(q) || c.team.toLowerCase().includes(q))) return false;
       return true;
     });
-  }, [allCandidates, onlyUpcoming, today, siteId, hqId, search, includeAbsent, isPastStage]);
+    // 지난 면접을 볼 때는 최근에 면접 본 사람이 맨 위로 (오래된 건이 위를 덮지 않게)
+    return range === 'past' ? [...out].reverse() : out;
+  }, [allCandidates, range, today, siteId, hqId, search, includeAbsent]);
 
   // 본부 탭 카운트 (사업장·기간 필터까지 반영한 수)
   const hqCounts = useMemo(() => {
-    const base = allCandidates.filter(
-      (c) =>
-        (isPastStage ? c.dt < today : !onlyUpcoming || c.dt >= today) &&
-        (!c.siteId || c.siteId === siteId)
-    );
+    const base = allCandidates.filter((c) => inRange(c.dt) && (!c.siteId || c.siteId === siteId));
     const m: Record<string, number> = { all: base.length };
     for (const c of base) m[c.hqId] = (m[c.hqId] || 0) + 1;
     return m;
-  }, [allCandidates, onlyUpcoming, today, siteId, isPastStage]);
+  }, [allCandidates, range, today, siteId]);
+
+  // 이 단계에서 이미 처리한 사람 / 채용이 끝난(불합격) 사람
+  const isHandled = (name: string) =>
+    !!handled[handledKey(name, stage)] || (stage !== 'reject' && !!handled[handledKey(name, 'reject')]);
+
+  // 대기 = 아직 아무 작업도 안 한 사람. 여기서 처리해야만 아래 '처리 완료'로 내려간다.
+  const pending = useMemo(() => candidates.filter((c) => !isHandled(c.name)), [candidates, handled, stage]);
+  const doneList = useMemo(() => candidates.filter((c) => isHandled(c.name)), [candidates, handled, stage]);
+  const shown = showHandled ? doneList : pending;
+
+  async function markHandled(c: CalCandidate, via: 'send' | 'manual') {
+    const next = { ...handled, [handledKey(c.name, stage)]: { at: new Date().toISOString(), via, stage } };
+    setHandled(next);
+    await saveHandled(next);
+  }
+
+  async function unmarkHandled(c: CalCandidate) {
+    const next = { ...handled };
+    delete next[handledKey(c.name, stage)];
+    // 불합격 때문에 가려진 경우라면 그 표시까지 풀어야 대기열로 돌아온다
+    if (stage !== 'reject') delete next[handledKey(c.name, 'reject')];
+    setHandled(next);
+    await saveHandled(next);
+  }
+
+  // 기간 때문에 가려진 사람 수 — 조용히 사라지지 않게 화면에 숫자로 알린다
+  const hiddenByRange = useMemo(() => {
+    if (range === 'all') return 0;
+    const q = search.trim().toLowerCase();
+    return allCandidates.filter((c) => {
+      if (inRange(c.dt)) return false;
+      if (c.status && !includeAbsent) return false;
+      if (c.siteId && c.siteId !== siteId) return false;
+      if (hqId !== 'all' && c.hqId !== hqId) return false;
+      if (q && !(c.name.toLowerCase().includes(q) || c.team.toLowerCase().includes(q))) return false;
+      return true;
+    }).length;
+  }, [allCandidates, range, today, siteId, hqId, search, includeAbsent]);
 
   // ── 양식: 사업장/본부 전용이 있으면 우선, 없으면 공통
   const stageTemplates = useMemo(() => {
@@ -516,6 +609,8 @@ export function EmailToolsPage() {
         await saveEmail(c.name, to);
         setEmailMap((p) => ({ ...p, [c.name]: to }));
       }
+      // 발송했으면 이 단계는 끝 — 대기열에서 내려간다
+      await markHandled(c, 'send');
       return true;
     } finally {
       setBusy(null);
@@ -803,17 +898,52 @@ export function EmailToolsPage() {
       <div className="card p-3">
         <div className="flex flex-wrap items-center gap-2 mb-2">
           <h3 className="text-sm font-bold text-slate-900">
-            면접 캘린더 후보자 <span className="text-slate-900">{candidates.length}명</span>
-          </h3>
-          {isPastStage ? (
-            <span className="px-2 py-1 rounded-lg bg-slate-900 text-white text-xs font-bold">
-              지난 면접만 — 불합격 안내는 면접을 본 사람에게만
+            면접 캘린더 후보자{' '}
+            <span className="text-slate-900">
+              대기 {pending.length}명
+              {doneList.length > 0 && ` · 처리됨 ${doneList.length}명`}
             </span>
-          ) : (
-            <label className="flex items-center gap-1 text-sm text-slate-900">
-              <input type="checkbox" checked={onlyUpcoming} onChange={(e) => setOnlyUpcoming(e.target.checked)} />
-              예정 일정만
-            </label>
+          </h3>
+          <button
+            onClick={() => setShowHandled((v) => !v)}
+            className={
+              'px-2 py-1 rounded-lg text-xs font-bold border ' +
+              (showHandled
+                ? 'bg-slate-900 text-white border-slate-900'
+                : 'bg-white text-slate-900 border-slate-300 hover:bg-slate-100')
+            }
+            title="처리 완료된 사람 보기 — 되돌릴 수 있습니다"
+          >
+            {showHandled ? '← 대기 목록' : `처리 완료 ${doneList.length}건`}
+          </button>
+          <div className="flex items-center rounded-lg border border-slate-300 overflow-hidden">
+            {RANGE_TABS.map((t) => (
+              <button
+                key={t.id}
+                onClick={() => setRange(t.id)}
+                title={t.help}
+                className={
+                  'px-2.5 py-1 text-xs font-bold ' +
+                  (range === t.id ? 'bg-slate-900 text-white' : 'bg-white text-slate-900 hover:bg-slate-100')
+                }
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
+          {isPastStage && range === 'past' && (
+            <span className="text-xs font-bold text-slate-900">
+              {STAGE_LABEL[stage]} — 면접을 이미 본 사람이 대상입니다
+            </span>
+          )}
+          {hiddenByRange > 0 && (
+            <button
+              onClick={() => setRange('all')}
+              className="px-2 py-1 rounded-lg border border-sky-300 bg-sky-50 text-xs font-bold text-slate-900"
+              title="기간 필터에 걸려 지금 안 보이는 후보자"
+            >
+              기간 밖 {hiddenByRange}명 — 전체 보기
+            </button>
           )}
           <label className="flex items-center gap-1 text-sm text-slate-900">
             <input type="checkbox" checked={includeAbsent} onChange={(e) => setIncludeAbsent(e.target.checked)} />
@@ -858,7 +988,7 @@ export function EmailToolsPage() {
               </tr>
             </thead>
             <tbody>
-              {candidates.map((c) => {
+              {shown.map((c) => {
                 const to = draftEmail[c.key] ?? c.email;
                 const sent = log.find((l) => l.variables?.['이름'] === c.name && l.templateId === currentTpl?.id);
                 return (
@@ -921,15 +1051,36 @@ export function EmailToolsPage() {
                       >
                         미리보기
                       </button>
+                      {showHandled ? (
+                        <button
+                          onClick={() => unmarkHandled(c)}
+                          className="ml-1 px-2 py-1 rounded border border-amber-300 bg-amber-50 text-xs font-bold text-slate-900 hover:bg-amber-100"
+                          title="대기 목록으로 되돌립니다"
+                        >
+                          ↩ 되돌리기
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => markHandled(c, 'manual')}
+                          className="ml-1 px-2 py-1 rounded border border-slate-300 bg-white text-xs text-slate-900 hover:bg-slate-100"
+                          title="메일을 보내지 않고 처리했을 때 — 대기 목록에서만 내려갑니다"
+                        >
+                          ✓ 처리
+                        </button>
+                      )}
                       {sent && <span className="ml-1 text-xs font-bold text-green-700">발송됨</span>}
                     </td>
                   </tr>
                 );
               })}
-              {candidates.length === 0 && (
+              {shown.length === 0 && (
                 <tr>
                   <td colSpan={6} className="text-center py-6 text-sm text-slate-900">
-                    조건에 맞는 면접 일정이 없습니다.
+                    {showHandled
+                      ? '처리 완료된 건이 없습니다.'
+                      : doneList.length > 0
+                        ? `대기 중인 후보자가 없습니다 — ${doneList.length}건은 [처리 완료]에 있습니다.`
+                        : '조건에 맞는 면접 일정이 없습니다.'}
                   </td>
                 </tr>
               )}
