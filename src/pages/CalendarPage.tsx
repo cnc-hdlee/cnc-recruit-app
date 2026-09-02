@@ -307,7 +307,7 @@ function diffDays(a: string, b: string): number {
 // 표준 포맷: "퍼플 / 이형도 / 인사팀 / 10:00 / 미팅룸 1번"
 //   tokens: [site, candidate, team, time, room]
 // 과거 포맷도 위치 무관 토큰 분류로 자동 인식.
-const SITE_KEYWORDS = ['퍼플', '그린', '수원', '오산', '위워크', '온라인', '본사', '판교', '강남'];
+const SITE_KEYWORDS = ['퍼플', '그린', '수원', '서울', '오산', '위워크', '온라인', '본사', '판교', '강남'];
 const ROOM_KEYWORDS = /회의실|미팅룸|VIP|대회의|소회의|Meet|Zoom|구글|줌|구내식당|식당|카페|로비|라운지|휴게실|강당|세미나실/i;
 const TEAM_KEYWORDS = /팀$|본부$|실$|센터$|매니저|기획|개발|디자이너|마케터|연구원|PM|MD|엔지니어|직무|채용/;
 // 괄호 안 부연설명 제거 — "김승우(PM)" / "최현아 (원료)" 처럼 이름 뒤에 직무가 붙는 포맷에서
@@ -316,7 +316,8 @@ const TEAM_KEYWORDS = /팀$|본부$|실$|센터$|매니저|기획|개발|디자�
 const withoutParens = (s: string) => s.replace(/[(（][^)）]*[)）]/g, ' ').replace(/\s+/g, ' ').trim();
 
 // 후보자 이름이 절대 될 수 없는 단어 (장소/시설명) — 한글 2-4자라도 이름 매칭에서 제외
-const NOT_NAME_KEYWORDS = /^(구내식당|식당|카페|로비|라운지|휴게실|강당|세미나실|회의실|미팅룸|대회의|소회의|본사|퍼플|그린|수원|판교|강남|온라인|위워크|VIP룸|VIP|회의|미팅|면접|일정|장소)/;
+const NOT_NAME_KEYWORDS =
+  /^(구내식당|식당|카페|로비|라운지|휴게실|강당|세미나실|회의실|미팅룸|대회의|소회의|본사|퍼플|그린|수원|서울|판교|강남|온라인|위워크|VIP룸|VIP|회의|미팅|면접|일정|장소|커피챗|그룹면접|협의|지원|모집|안내)/;
 
 export function parseInterviewTitle(title: string): {
   candidate: string;
@@ -343,9 +344,11 @@ export function parseInterviewTitle(title: string): {
     const isName = (tk: string) =>
       tk.length >= 2 && tk.length <= 4 &&
       !NOT_NAME_KEYWORDS.test(tk) &&
-      !/(팀|실|센터|본부|장|분석|보안|운영|관리|구매|담당|회계|법무|기획|전략|생산|영업|재무|인사|품질|물류|개발|디자인)$/.test(tk) &&
-      !/^(면접|회의|미팅|일정|장소|예약|대기|후보|차수)$/.test(tk) &&
+      !/(팀|실|센터|본부|장|분석|보안|운영|관리|구매|담당|회계|법무|기획|전략|생산|영업|재무|인사|품질|물류|개발|디자인|보조|지원|협의)$/.test(tk) &&
+      !/^(면접|회의|미팅|일정|장소|예약|대기|후보|차수|그룹|커피)$/.test(tk) &&
       !/^\d?차$/.test(tk);
+    // "천필용님" 처럼 호칭이 붙은 토큰에서 이름만 떼어낸다
+    const stripHonorific = (tk: string) => tk.replace(/(님|씨)$/, '');
 
     // 직무(소속칸 표시용) = (면접)·끝(장소)·시간·N차·이름 제거하고 남은 문자열
     //   예: "(면접) 원가분석 임소현 10:00 (퍼플-미팅2)" → "원가분석" / "재무회계팀장 1차" → "재무회계팀장"
@@ -355,7 +358,10 @@ export function parseInterviewTitle(title: string): {
       .replace(/\d{1,2}:\d{2}/g, '')
       .replace(/\d+\s*차/g, '')
       .replace(name, '')
-      .replace(/[·／/]+/g, ' ')
+      // 소속 칸에 남는 찌꺼기 정리 — "면접: SC영업팀장" / "생산1팀 면접 -" / "생산1팀 님 면접 일정 협의"
+      .replace(/일정\s*협의|협의|면접/g, '')
+      .replace(/[·／/:：\-—–[\]]+/g, ' ')
+      .replace(/(^|\s)(님|씨)(?=\s|$)/g, ' ')
       .replace(/\s+/g, ' ')
       .trim();
 
@@ -365,6 +371,13 @@ export function parseInterviewTitle(title: string): {
       const ko = t.slice(0, timeM.index).match(/[가-힣]{2,4}/g) || [];
       for (let i = ko.length - 1; i >= 0; i--) {
         if (isName(ko[i])) return { ...empty, candidate: ko[i], team: jobOf(ko[i]), time: mTime, site: mSite, room: mRoom };
+      }
+      // 제목이 시간으로 시작하면 앞에 아무것도 없다 — 뒤쪽에서 찾는다
+      //   예: "15:00 면접 SC영업팀장 이윤기" → 이윤기
+      const after = t.slice((timeM.index || 0) + timeM[0].length).match(/[가-힣]{2,5}/g) || [];
+      for (let i = after.length - 1; i >= 0; i--) {
+        const tk = stripHonorific(after[i]);
+        if (isName(tk)) return { ...empty, candidate: tk, team: jobOf(tk), time: mTime, site: mSite, room: mRoom };
       }
     }
     // ② "(면접) …" 포맷인데 시간 없음 → 끝 (장소) 괄호 제거 후 마지막 이름 토큰
@@ -392,15 +405,13 @@ export function parseInterviewTitle(title: string): {
         return { ...empty, candidate: afterDash[0], team: beforeDash, time: mTime, site: mSite, room: mRoom };
       }
     }
-    // ④ (기존) 한글 연속 토큰 fallback — 팀/실/센터 suffix·회의/면접 키워드 제외
-    const tokens = t.match(/[가-힣]+/g) || [];
-    for (const tk of tokens) {
-      if (tk.length < 2) continue;
-      if (NOT_NAME_KEYWORDS.test(tk)) continue;
-      if (/팀$|실$|센터$|본부$/.test(tk)) continue;
-      if (/^(면접|회의|미팅|일정|장소|예약)/.test(tk)) continue;
-      if (tk.length <= 4) return { ...empty, candidate: tk, time: mTime, site: mSite, room: mRoom };
-      // 5자 이상 한글 단어는 보통 합성어 → 부분 매칭 위험. 빈 candidate 유지하고 계속 탐색.
+    // ④ fallback — ①과 같은 isName 기준을 쓴다.
+    //    예전엔 "팀/실/센터/본부로 끝나는 것"만 걸러서 직무·부서가 이름으로 잡혔다.
+    //    (SC영업팀장 허진영 → '영업팀장', 생산1팀 천필용님 → '생산')
+    //    뒤에서부터 본다 — 한국어 제목은 대개 "부서 직무 이름" 순서다.
+    const tokens = (t.match(/[가-힣]+/g) || []).map(stripHonorific);
+    for (let i = tokens.length - 1; i >= 0; i--) {
+      if (isName(tokens[i])) return { ...empty, candidate: tokens[i], team: jobOf(tokens[i]), time: mTime, site: mSite, room: mRoom };
     }
     return { ...empty, candidate: t, time: mTime, site: mSite, room: mRoom };
   }
@@ -451,7 +462,12 @@ export function parseInterviewTitle(title: string): {
   let bestIdx = -1;
   let bestScore = 0;
   parts.forEach((p, i) => {
-    if (/\d{1,2}:\d{2}/.test(p)) return; // 시간 토큰은 이름 후보가 아니다
+    // 시간만 있는 토막만 건너뛴다.
+    //   예전에는 "시간이 들어있으면" 통째로 건너뛰어서
+    //   "(15:00)생산1팀 면접 - 박현석(PM) / 구내식당" 처럼 시간과 이름이 한 칸에 있는 제목에서
+    //   이름 후보가 하나도 안 남아 후보자가 통째로 사라졌다(2026-09-02 박현석 건).
+    //   nameScore는 한글 2~4자 단어만 이름으로 보므로 시간이 섞여 있어도 안전하다.
+    if (/^[(（]?\s*\d{1,2}:\d{2}\s*[)）]?$/.test(p.trim())) return;
     const s = nameScore(p);
     if (s && s.score > bestScore) {
       bestScore = s.score;
@@ -466,6 +482,11 @@ export function parseInterviewTitle(title: string): {
       const rest = p
         .replace(candidate, ' ')
         .replace(/[(（][^)）]*[)）]/g, ' ')
+        // "(15:00)생산1팀 면접 - 박현석(PM)" 처럼 한 칸에 시간·면접·dash가 같이 오는 제목에서
+        // 소속이 "생산1팀 면접 -" 로 지저분하게 남던 것 정리
+        .replace(/\d{1,2}:\d{2}/g, ' ')
+        .replace(/일정\s*협의|협의|면접/g, ' ')
+        .replace(/[·／:：\-—–[\]]+/g, ' ')
         .replace(/\s+/g, ' ')
         .trim();
       if (rest && !team && !ROLE_TAIL.test(rest)) team = rest;

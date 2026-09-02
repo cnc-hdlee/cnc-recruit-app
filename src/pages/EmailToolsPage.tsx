@@ -201,6 +201,10 @@ interface CalCandidate {
   email: string;
   /** (불참)/(노쇼) 등 제목에 붙은 상태 표기 */
   status: string;
+  /** 캘린더 제목 원문 — 이름을 못 읽었을 때 화면에 그대로 보여준다 */
+  rawTitle?: string;
+  /** 파서가 이름을 못 읽은 건 — 목록에는 남기고 사용자가 직접 채운다 */
+  needsName?: boolean;
 }
 
 // ── 후보자 판정 보정 ─────────────────────────────────────────
@@ -320,7 +324,10 @@ export function EmailToolsPage() {
   const autoTried = useRef<Set<string>>(new Set());
   const [log, setLog] = useState<SendLogEntry[]>([]);
 
-  const [siteId, setSiteId] = useState<string>('purple');
+  // 사업장 기본값은 '전체'.
+  // 예전 기본값이 '퍼플'이라, 그린·수원에서 본 면접(정태우 등)이 목록에 아예 없었다.
+  // 사업장은 좁혀 볼 때 쓰는 보조 필터일 뿐 사람을 지우는 기준이 되면 안 된다.
+  const [siteId, setSiteId] = useState<string>('all');
   const [hqId, setHqId] = useState<string>('all');
   const [stage, setStage] = useState<TemplateStage>('interview_1st');
   const [tplId, setTplId] = useState<string | null>(null);
@@ -344,6 +351,8 @@ export function EmailToolsPage() {
   const [smsCfg, setSmsCfg] = useState<SmsConfig | null>(null);
   const [showSmsSetup, setShowSmsSetup] = useState(false);
   const [smsTpls, setSmsTpls] = useState<SmsTemplate[]>([]);
+  // 파서가 못 읽은 이름을 화면에서 직접 채운 값 (key → 이름)
+  const [nameFix, setNameFix] = useState<Record<string, string>>({});
   const [showSmsTpl, setShowSmsTpl] = useState(false);
   const [myEmail, setMyEmail] = useState('');
   const [showHandled, setShowHandled] = useState(false);
@@ -426,25 +435,25 @@ export function EmailToolsPage() {
       }
 
       const p = parseInterviewTitle(e.title);
-      const name = fixCandidateName(e.title, (p.candidate || '').trim());
+      const parsed = fixCandidateName(e.title, (p.candidate || '').trim());
 
-      // ② 이름을 못 잡았거나 사람 이름이 아닌 토큰
-      if (!name || name.length > 5) {
-        drops.push({ title: e.title, reason: '이름 인식 실패' });
-        continue;
-      }
-      if (NOT_A_NAME.test(name)) {
-        drops.push({ title: e.title, reason: `'${name}'은 사람 이름이 아님` });
-        continue;
-      }
+      // ② 이름을 못 읽은 면접 — 지우지 않는다.
+      //    면접을 본 사람은 무조건 목록에 있어야 한다는 게 원칙이다(형도님, 2026-09-02).
+      //    제목 형식이 제각각이라 파서가 못 읽는 경우가 반드시 생기는데,
+      //    그때 조용히 빼버리면 불합격 연락 대상이 통째로 증발한다.
+      //    이름 칸을 비워 목록에 올리고 화면에서 직접 채우게 한다.
+      const badName = !parsed || parsed.length > 5 || NOT_A_NAME.test(parsed);
+      const name = badName ? '' : parsed;
+      if (badName) drops.push({ title: e.title, reason: '이름 인식 실패 — 목록에서 직접 입력' });
       // ③ 내부 인원(TA팀 등) — 메일 대상이 아님
-      if (excludeNames.includes(name)) {
+      if (name && excludeNames.includes(name)) {
         drops.push({ title: e.title, reason: `내부 인원(${name}) 제외` });
         continue;
       }
 
       const tm = e.tm || p.time || '';
-      const key = `${e.dt}|${tm}|${name}`;
+      // 이름을 못 읽은 건은 제목으로 구분해야 서로 뭉개지지 않는다
+      const key = `${e.dt}|${tm}|${name || 'title:' + e.title}`;
       if (out.has(key)) continue; // 캘린더 사본 중복 제거
       const teamText = [p.team, p.room, e.location].filter(Boolean).join(' ');
       const st = e.title.match(STATUS_RE);
@@ -458,8 +467,10 @@ export function EmailToolsPage() {
         siteId: inferSite([p.site, e.location, e.title].filter(Boolean).join(' '), sites),
         hqId: hqOverrides[name] || inferHq(teamText, hqs),
         location: e.location || '',
-        email: emailMap[name] || autoEmail[name] || '',
+        email: (name && (emailMap[name] || autoEmail[name])) || '',
         status: st ? st[1] : '',
+        rawTitle: e.title,
+        needsName: badName,
       });
     }
     dropsRef.current = drops;
@@ -576,26 +587,43 @@ export function EmailToolsPage() {
     };
   }, [testOn, today, myEmail]);
 
+  // 화면에서 직접 채운 이름을 반영한다 (원본 파싱값보다 우선)
+  const withFixedNames = useMemo(
+    () =>
+      allCandidates.map((c) => {
+        const fixed = (nameFix[c.key] || '').trim();
+        if (!fixed) return c;
+        return {
+          ...c,
+          name: fixed,
+          needsName: false,
+          email: c.email || emailMap[fixed] || autoEmail[fixed] || '',
+        };
+      }),
+    [allCandidates, nameFix, emailMap, autoEmail]
+  );
+
   const candidates = useMemo(() => {
     const q = search.trim().toLowerCase();
-    const out = allCandidates.filter((c) => {
+    const out = withFixedNames.filter((c) => {
       if (!inRange(c.dt)) return false;
       if (c.status && !includeAbsent) return false; // (불참)/(노쇼)는 기본 제외
       // 사업장 — 일정에서 사업장을 못 읽은 건은 항상 보여준다(누락 방지)
-      if (c.siteId && c.siteId !== siteId) return false;
+      if (siteId !== 'all' && c.siteId && c.siteId !== siteId) return false;
       if (hqId !== 'all' && c.hqId !== hqId) return false;
-      if (q && !(c.name.toLowerCase().includes(q) || c.team.toLowerCase().includes(q))) return false;
+      if (q && !(c.name.toLowerCase().includes(q) || c.team.toLowerCase().includes(q) || (c.rawTitle || '').toLowerCase().includes(q)))
+        return false;
       return true;
     });
     // 지난 면접을 볼 때는 최근에 면접 본 사람이 맨 위로 (오래된 건이 위를 덮지 않게)
     const sorted = range === 'past' ? [...out].reverse() : out;
     // 테스트 후보자는 어떤 필터에도 걸리지 않고 항상 맨 위에 붙는다
     return testCandidate ? [testCandidate, ...sorted] : sorted;
-  }, [allCandidates, range, today, siteId, hqId, search, includeAbsent, testCandidate]);
+  }, [withFixedNames, range, today, siteId, hqId, search, includeAbsent, testCandidate]);
 
   // 본부 탭 카운트 (사업장·기간 필터까지 반영한 수)
   const hqCounts = useMemo(() => {
-    const base = allCandidates.filter((c) => inRange(c.dt) && (!c.siteId || c.siteId === siteId));
+    const base = allCandidates.filter((c) => inRange(c.dt) && (siteId === 'all' || !c.siteId || c.siteId === siteId));
     const m: Record<string, number> = { all: base.length };
     for (const c of base) m[c.hqId] = (m[c.hqId] || 0) + 1;
     return m;
@@ -632,7 +660,7 @@ export function EmailToolsPage() {
     return allCandidates.filter((c) => {
       if (inRange(c.dt)) return false;
       if (c.status && !includeAbsent) return false;
-      if (c.siteId && c.siteId !== siteId) return false;
+      if (siteId !== 'all' && c.siteId && c.siteId !== siteId) return false;
       if (hqId !== 'all' && c.hqId !== hqId) return false;
       if (q && !(c.name.toLowerCase().includes(q) || c.team.toLowerCase().includes(q))) return false;
       return true;
@@ -766,6 +794,17 @@ export function EmailToolsPage() {
       <div className="card p-3">
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-sm font-bold text-slate-900">사업장</span>
+          <button
+            onClick={() => setSiteId('all')}
+            className={`px-3 py-1.5 rounded-lg text-sm font-semibold border ${
+              siteId === 'all'
+                ? 'bg-accent-purple text-white border-accent-purple'
+                : 'bg-white text-slate-900 border-slate-300 hover:bg-slate-100'
+            }`}
+            title="사업장으로 걸러내지 않습니다 — 한 명도 빠지지 않게"
+          >
+            전체
+          </button>
           {sites.map((s) => (
             <button
               key={s.id}
@@ -1175,7 +1214,21 @@ export function EmailToolsPage() {
                   <tr key={c.key} className="border-b border-slate-200 hover:bg-slate-50">
                     <td className="px-3 py-2 text-slate-900 whitespace-nowrap">{c.when}</td>
                     <td className="px-3 py-2 font-bold text-slate-900 whitespace-nowrap">
-                      {c.name}
+                      {c.needsName ? (
+                        <span className="inline-flex flex-col gap-0.5">
+                          <input
+                            value={nameFix[c.key] ?? ''}
+                            onChange={(e) => setNameFix((prev) => ({ ...prev, [c.key]: e.target.value }))}
+                            placeholder="이름 입력"
+                            className="w-24 px-1.5 py-0.5 border border-amber-400 bg-amber-50 rounded text-sm text-slate-900"
+                          />
+                          <span className="text-[10px] font-normal text-slate-900 max-w-[200px] truncate" title={c.rawTitle}>
+                            {c.rawTitle}
+                          </span>
+                        </span>
+                      ) : (
+                        c.name
+                      )}
                       {c.status && (
                         <span className="ml-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-rose-100 text-rose-900 border border-rose-200">
                           {c.status}
