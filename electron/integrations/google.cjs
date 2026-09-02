@@ -1130,6 +1130,7 @@ async function readTeamContacts() {
   const auth = buildClient();
   const drive = google.drive({ version: 'v3', auth });
   const merged = {};
+  const phones = {};
   let files = [];
   try {
     const r = await drive.files.list({
@@ -1139,20 +1140,25 @@ async function readTeamContacts() {
     });
     files = r.data.files || [];
   } catch {
-    return { contacts: merged, sources: 0 };
+    return { contacts: merged, phones, sources: 0 };
   }
   for (const f of files) {
     try {
       const c = await drive.files.get({ fileId: f.id, alt: 'media' }, { responseType: 'text' });
       const obj = typeof c.data === 'string' ? JSON.parse(c.data) : c.data;
-      for (const [name, email] of Object.entries(obj || {})) {
-        if (name && email && !merged[name]) merged[name] = email;
+      // 값은 두 가지 형태를 다 받는다 — 구버전 앱이 올린 "메일주소" 문자열, 신버전의 {email, phone}
+      for (const [name, v] of Object.entries(obj || {})) {
+        if (!name || !v) continue;
+        const email = typeof v === 'string' ? v : v.email || '';
+        const phone = typeof v === 'string' ? '' : v.phone || '';
+        if (email && !merged[name]) merged[name] = email;
+        if (phone && !phones[name]) phones[name] = phone;
       }
     } catch {
       /* 못 읽는 파일은 건너뛴다 */
     }
   }
-  return { contacts: merged, sources: files.length };
+  return { contacts: merged, phones, sources: files.length };
 }
 
 /** 기존 파일에 이력서 표식을 붙인다 — 팀원이 소유자와 무관하게 검색으로 찾을 수 있게 */

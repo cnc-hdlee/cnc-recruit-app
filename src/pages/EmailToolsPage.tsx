@@ -84,6 +84,71 @@ function defaultRange(_stage: TemplateStage): RangeMode {
   return 'all';
 }
 
+// ── 문자(SMS) ──────────────────────────────────────────────────────────────
+// 앱이 직접 문자를 쏘려면 발신번호 사전등록 + 유료 문자 API 계약이 필요하다(회사 명의).
+// 그 전까지는 "번호와 문구를 완성해서 손에 쥐여주는" 데까지 앱이 한다 —
+// 클립보드에 넣고 구글 메시지 웹 / Windows 휴대폰과 연결을 열면 붙여넣기만 하면 된다.
+const SMS_APPS = [
+  { id: 'google', label: '구글 메시지 웹', url: 'https://messages.google.com/web', help: '안드로이드 폰 QR 연결 — PC에서 바로 문자 발송' },
+  { id: 'phonelink', label: '휴대폰과 연결', url: 'ms-phone:', help: 'Windows 기본 앱 — 안드로이드/아이폰 문자 송수신' },
+];
+
+/** 010-1234-5678 / +82 10-1234-5678 → 01012345678 (붙여넣기용 정규화) */
+function normalizePhone(raw: string): string {
+  const d = (raw || '').replace(/[^0-9+]/g, '').replace(/^\+82/, '0');
+  return d.replace(/[^0-9]/g, '');
+}
+
+function prettyPhone(raw: string): string {
+  const d = normalizePhone(raw);
+  if (d.length === 11) return `${d.slice(0, 3)}-${d.slice(3, 7)}-${d.slice(7)}`;
+  if (d.length === 10) return `${d.slice(0, 3)}-${d.slice(3, 6)}-${d.slice(6)}`;
+  return raw || '';
+}
+
+/**
+ * 메일 본문을 문자용으로 줄인다 — 인사말/서명/빈 줄을 걷어내고 핵심만 남긴다.
+ * 90바이트가 넘으면 LMS로 나가므로 굳이 자르지는 않고, 길이만 화면에 표시한다.
+ */
+function smsFromBody(body: string): string {
+  return (body || '')
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter((l) => l && !/^(감사합니다|드림|올림)[.!]?$/.test(l))
+    .join('\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
+/** 한국 문자 과금 기준 — EUC-KR 기준 한글 2바이트, 90바이트까지 SMS */
+function smsBytes(text: string): number {
+  let n = 0;
+  for (const ch of text || '') n += ch.charCodeAt(0) > 0x7f ? 2 : 1;
+  return n;
+}
+
+async function copyToClipboard(text: string): Promise<boolean> {
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch {
+    // 클립보드 권한이 없는 환경 — 숨은 textarea로 폴백
+    try {
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.select();
+      const ok = document.execCommand('copy');
+      document.body.removeChild(ta);
+      return ok;
+    } catch {
+      return false;
+    }
+  }
+}
+
 // ── 처리 큐 ────────────────────────────────────────────────────────────────
 // 면접을 본 사람은 날짜가 지났다고 목록에서 사라지면 안 된다.
 // "작업자가 여기서 처리해야만 내려간다"가 원칙 — 발송하거나 [처리]를 누른 건만 대기열에서 빠진다.
@@ -270,6 +335,9 @@ export function EmailToolsPage() {
   const [showDrops, setShowDrops] = useState(false);
   // 처리 완료 표시 — 발송했거나 작업자가 직접 [처리]를 누른 건
   const [handled, setHandled] = useState<HandledMap>({});
+  // 이력서에서 자동으로 뽑은 휴대폰 번호 (메일 주소와 같은 경로로 채워진다)
+  const [autoPhone, setAutoPhone] = useState<Record<string, string>>({});
+  const [smsFor, setSmsFor] = useState<CalCandidate | null>(null);
   const [showHandled, setShowHandled] = useState(false);
   // 목록에서 걸러낸 일정과 사유 — 조용히 사라지지 않게 화면에 남긴다
   const dropsRef = useRef<{ title: string; reason: string }[]>([]);
@@ -285,6 +353,7 @@ export function EmailToolsPage() {
   const [needDriveAuth, setNeedDriveAuth] = useState(false);
   const driveAuthTried = useRef(false);
   const pushDirty = useRef(false);
+  const phoneCache = useRef<Record<string, string>>({});
   // 재로그인 후 못 채운 주소를 한 번 더 훑기 위한 트리거
   const [retryTick, setRetryTick] = useState(0);
 
@@ -314,6 +383,9 @@ export function EmailToolsPage() {
         const r = await api.google.contactsPull();
         if (r.ok && r.data && Object.keys(r.data.contacts).length) {
           setAutoEmail((prev) => ({ ...r.data!.contacts, ...prev }));
+        }
+        if (r.ok && r.data?.phones && Object.keys(r.data.phones).length) {
+          setAutoPhone((prev) => ({ ...r.data!.phones, ...prev }));
         }
       } catch {
         /* 팀 공유 파일이 아직 없으면 그냥 넘어간다 */
@@ -400,6 +472,13 @@ export function EmailToolsPage() {
           let found = '';
           const r = await api.resumes.contactsByName(c.name);
           if (r.ok && r.data?.email) found = r.data.email;
+          // 문자 발송용 휴대폰 번호도 같은 이력서에서 함께 읽어둔다
+          if (r.ok && r.data?.phone) {
+            const ph = r.data.phone;
+            setAutoPhone((prev) => (prev[c.name] ? prev : { ...prev, [c.name]: ph }));
+            phoneCache.current[c.name] = ph;
+            pushDirty.current = true;
+          }
           // ② 보관함에 없으면 — 메일에 첨부된 이력서를 찾아 그 자리에서 읽는다 (저장은 안 함)
           if (!found) found = await emailFromGmailResume(c.name);
           // ③ 그래도 없으면 면접 일정에 첨부된 이력서(드라이브)에서
@@ -420,7 +499,13 @@ export function EmailToolsPage() {
         try {
           const cache = await loadAutoEmailCache();
           const me = ((await api.cfg.get<{ email?: string }>('googleProfile'))?.data?.email || '').toLowerCase();
-          await api.google.contactsPush(cache, CONTACT_TEAM.filter((e) => e.toLowerCase() !== me));
+          // 메일 주소 + 휴대폰 번호를 한 벌로 올린다 (구버전 앱은 문자열만 읽어도 동작)
+          const payload: Record<string, { email?: string; phone?: string }> = {};
+          for (const [name, email] of Object.entries(cache)) payload[name] = { email };
+          for (const [name, phone] of Object.entries(phoneCache.current)) {
+            payload[name] = { ...(payload[name] || {}), phone };
+          }
+          await api.google.contactsPush(payload, CONTACT_TEAM.filter((e) => e.toLowerCase() !== me));
         } catch {
           /* 다음 갱신 때 다시 시도 */
         }
@@ -957,6 +1042,23 @@ export function EmailToolsPage() {
               제외됨 {dropsRef.current.length}건
             </button>
           )}
+          <button
+            onClick={async () => {
+              const rows = shown.map((c) => `${c.name}\t${prettyPhone(autoPhone[c.name] || '')}\t${c.team}\t${c.when}`);
+              const ok = await copyToClipboard(['이름\t휴대폰\t소속\t면접일시', ...rows].join('\n'));
+              const withPhone = shown.filter((c) => autoPhone[c.name]).length;
+              alert(
+                ok
+                  ? `${shown.length}명 복사했습니다 (번호 있는 사람 ${withPhone}명).\n엑셀이나 문자 발송 프로그램에 그대로 붙여넣으세요.`
+                  : '복사에 실패했습니다.'
+              );
+            }}
+            disabled={shown.length === 0}
+            className="px-2 py-1 rounded-lg border border-emerald-300 bg-emerald-50 text-xs font-bold text-slate-900 hover:bg-emerald-100 disabled:opacity-40"
+            title="이름·휴대폰·소속·면접일시를 표로 복사 — 문자 발송 프로그램에 붙여넣기"
+          >
+            💬 번호 일괄 복사
+          </button>
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
@@ -1045,6 +1147,23 @@ export function EmailToolsPage() {
                         {busy === c.key ? '발송 중…' : '✉ 발송'}
                       </button>
                       <button
+                        onClick={() => setSmsFor(c)}
+                        disabled={!currentTpl}
+                        title={
+                          autoPhone[c.name]
+                            ? `문자 보내기 — ${prettyPhone(autoPhone[c.name])}`
+                            : '이력서에서 번호를 못 찾았습니다 — 창에서 직접 입력할 수 있습니다'
+                        }
+                        className={
+                          'ml-1 px-2 py-1 rounded border text-xs font-bold disabled:opacity-40 ' +
+                          (autoPhone[c.name]
+                            ? 'border-emerald-300 bg-emerald-50 text-slate-900 hover:bg-emerald-100'
+                            : 'border-slate-300 bg-white text-slate-900 hover:bg-slate-100')
+                        }
+                      >
+                        💬 문자
+                      </button>
+                      <button
                         onClick={() => currentTpl && setModal({ template: currentTpl, candidate: { ...c, email: to } })}
                         disabled={!currentTpl}
                         className="ml-1 px-2 py-1 rounded border border-slate-300 bg-white text-xs text-slate-900 hover:bg-slate-100"
@@ -1088,6 +1207,19 @@ export function EmailToolsPage() {
           </table>
         </div>
       </div>
+
+      {smsFor && (
+        <SmsModal
+          candidate={smsFor}
+          phone={autoPhone[smsFor.name] || ''}
+          template={currentTpl}
+          onClose={() => setSmsFor(null)}
+          onDone={async (c) => {
+            await markHandled(c, 'manual');
+            setSmsFor(null);
+          }}
+        />
+      )}
 
       {/* ── 4) 발송 기록 (접힘) ───────────────────────────── */}
       <div className="card p-3">
@@ -1524,6 +1656,142 @@ function SettingsModal({
             className="px-5 py-2 rounded bg-accent-purple text-white text-sm font-bold hover:bg-accent-purple/90"
           >
             저장
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── 문자 보내기 창 ──────────────────────────────────────────────────────────
+// 앱이 직접 쏘지는 못하지만(발신번호 등록·문자 API 계약 필요), 번호와 문구를 완성해서
+// 클립보드에 넣고 문자 앱을 열어준다. 붙여넣기 한 번이면 끝나게.
+function SmsModal({
+  candidate,
+  phone,
+  template,
+  onClose,
+  onDone,
+}: {
+  candidate: CalCandidate;
+  phone: string;
+  template: EmailTemplate | null;
+  onClose: () => void;
+  onDone: (c: CalCandidate) => void;
+}) {
+  const [to, setTo] = useState(prettyPhone(phone));
+  const [text, setText] = useState(() => {
+    if (!template) return `${candidate.name}님, 안녕하세요. CNC 채용담당자입니다.`;
+    const body = template.body
+      .replace(/\{\{이름\}\}/g, candidate.name)
+      .replace(/\{\{면접일시\}\}/g, candidate.when)
+      .replace(/\{\{소속\}\}/g, candidate.team || '')
+      .replace(/\{\{부서\}\}/g, candidate.team || '');
+    return smsFromBody(body);
+  });
+  const [copied, setCopied] = useState<string | null>(null);
+
+  const digits = normalizePhone(to);
+  const bytes = smsBytes(text);
+  const kind = bytes <= 90 ? 'SMS' : bytes <= 2000 ? 'LMS' : '너무 김';
+
+  async function copy(what: 'phone' | 'text' | 'both') {
+    const v = what === 'phone' ? digits : what === 'text' ? text : `${digits}\n\n${text}`;
+    const ok = await copyToClipboard(v);
+    setCopied(ok ? what : null);
+    if (ok) setTimeout(() => setCopied(null), 2000);
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" onClick={onClose}>
+      <div
+        className="bg-white rounded-2xl w-full max-w-lg p-4 max-h-[90vh] overflow-y-auto"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center gap-2 mb-3">
+          <h3 className="text-base font-bold text-slate-900">💬 문자 보내기 — {candidate.name}님</h3>
+          <button onClick={onClose} className="ml-auto text-slate-900 font-bold px-2">
+            ✕
+          </button>
+        </div>
+
+        <label className="block text-xs font-bold text-slate-900 mb-1">받는 번호</label>
+        <div className="flex gap-1 mb-1">
+          <input
+            value={to}
+            onChange={(e) => setTo(e.target.value)}
+            placeholder="010-0000-0000"
+            className="flex-1 px-3 py-2 border border-slate-300 rounded-lg text-sm text-slate-900"
+          />
+          <button
+            onClick={() => copy('phone')}
+            disabled={!digits}
+            className="px-3 py-2 rounded-lg border border-slate-300 bg-white text-xs font-bold text-slate-900 hover:bg-slate-100 disabled:opacity-40"
+          >
+            {copied === 'phone' ? '복사됨' : '번호 복사'}
+          </button>
+        </div>
+        <div className="text-[11px] text-slate-900 mb-3">
+          {phone ? '이력서에서 자동으로 읽어온 번호입니다.' : '이력서에 번호가 없어 직접 입력해야 합니다.'}
+        </div>
+
+        <label className="block text-xs font-bold text-slate-900 mb-1">
+          문구{' '}
+          <span className="font-normal">
+            {bytes}바이트 · {kind}
+            {kind === 'LMS' && ' (90바이트 초과 — 장문으로 나갑니다)'}
+          </span>
+        </label>
+        <textarea
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          rows={8}
+          className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm text-slate-900 font-mono"
+        />
+
+        <div className="flex flex-wrap gap-1.5 mt-3">
+          <button
+            onClick={() => copy('both')}
+            className="px-3 py-2 rounded-lg bg-accent-purple text-white text-xs font-bold hover:bg-accent-purple/90"
+          >
+            {copied === 'both' ? '✓ 복사됨' : '번호 + 문구 복사'}
+          </button>
+          <button
+            onClick={() => copy('text')}
+            className="px-3 py-2 rounded-lg border border-slate-300 bg-white text-xs font-bold text-slate-900 hover:bg-slate-100"
+          >
+            {copied === 'text' ? '✓ 복사됨' : '문구만 복사'}
+          </button>
+          {SMS_APPS.map((a) => (
+            <button
+              key={a.id}
+              onClick={() => window.open(a.url, '_blank')}
+              title={a.help}
+              className="px-3 py-2 rounded-lg border border-emerald-300 bg-emerald-50 text-xs font-bold text-slate-900 hover:bg-emerald-100"
+            >
+              {a.label} 열기 ↗
+            </button>
+          ))}
+        </div>
+
+        <div className="mt-3 rounded-lg border border-slate-300 bg-slate-50 p-2 text-[11px] text-slate-900 leading-relaxed">
+          <b>순서</b> — ① [번호 + 문구 복사] ② [구글 메시지 웹] 또는 [휴대폰과 연결] 열기 ③ 붙여넣고 발송.
+          <br />
+          앱에서 버튼 한 번으로 바로 쏘려면 회사 명의 <b>발신번호 사전등록 + 문자 API 계약</b>이 필요합니다.
+        </div>
+
+        <div className="flex gap-1.5 mt-3">
+          <button
+            onClick={() => onDone(candidate)}
+            className="flex-1 px-3 py-2 rounded-lg bg-slate-900 text-white text-xs font-bold hover:bg-slate-800"
+          >
+            ✓ 보냈음 — 처리 완료로 내리기
+          </button>
+          <button
+            onClick={onClose}
+            className="px-3 py-2 rounded-lg border border-slate-300 bg-white text-xs font-bold text-slate-900 hover:bg-slate-100"
+          >
+            닫기
           </button>
         </div>
       </div>
