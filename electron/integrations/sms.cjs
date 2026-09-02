@@ -74,14 +74,40 @@ function setConfig(patch) {
   return getConfigMasked();
 }
 
-/** ① 휴대폰과 연결 / 기본 문자 앱을 번호·문구가 채워진 상태로 연다 */
+/**
+ * ① 휴대폰과 연결 / 기본 문자 앱을 번호·문구가 채워진 상태로 연다.
+ * 규격이 앱마다 조금씩 달라 세 가지를 순서대로 시도한다 —
+ *   sms:번호?body=  (RFC 5724 표준, 휴대폰과 연결·macOS 메시지)
+ *   sms:번호&body=  (일부 구형 핸들러)
+ *   sms:번호        (문구 없이 대화창만)
+ * 전부 실패하면 무엇이 왜 막혔는지 그대로 올려보낸다(조용히 실패하지 않게).
+ */
 async function openPhoneCompose(to, text) {
   const num = normalize(to);
   if (!num) throw new Error('휴대폰 번호가 없습니다');
-  // sms:번호?body=문구 — Windows 11 휴대폰과 연결, macOS 메시지, 안드로이드 모두 같은 규격
-  const uri = `sms:${num}?body=${encodeURIComponent(text || '')}`;
-  await shell.openExternal(uri);
-  return { opened: true, to: num, via: 'phone' };
+  const body = encodeURIComponent(text || '');
+  const tries = [`sms:${num}?body=${body}`, `sms:${num}&body=${body}`, `sms:${num}`];
+  const errs = [];
+  for (const uri of tries) {
+    try {
+      await shell.openExternal(uri);
+      return { opened: true, to: num, via: 'phone', uri: uri.slice(0, 40) };
+    } catch (e) {
+      errs.push((e && e.message) || String(e));
+    }
+  }
+  // 문자 앱 자체를 여는 것까지 시도 — 번호는 사람이 붙여넣게 된다
+  try {
+    await shell.openExternal('ms-phone:');
+    return { opened: true, to: num, via: 'phone', partial: true };
+  } catch (e) {
+    errs.push((e && e.message) || String(e));
+  }
+  throw new Error(
+    'Windows에서 문자 앱을 열지 못했습니다. "휴대폰과 연결"이 설치·로그인돼 있는지 확인해주세요. (' +
+      errs.join(' / ').slice(0, 200) +
+      ')'
+  );
 }
 
 /** ② 알리고 — form-urlencoded, 가장 단순한 국내 문자 API */

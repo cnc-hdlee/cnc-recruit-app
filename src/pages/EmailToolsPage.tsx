@@ -1781,16 +1781,28 @@ function SmsModal({
       );
       if (!ok) return;
     }
+    // 문자 기능은 앱 본체(메인 프로세스)에 붙어 있어서, 업데이트 직후 새로고침만 해서는 안 잡힌다.
+    // 이 경우 조용히 실패시키지 말고 무엇을 해야 하는지 알려주고, 붙여넣기용으로 복사까지 해준다.
+    if (!api?.sms?.send) {
+      await copyToClipboard(`${digits}\n\n${text}`);
+      setResult('앱을 완전히 종료한 뒤 다시 실행해주세요 (문자 기능은 재시작이 필요합니다). 번호와 문구는 복사해뒀습니다.');
+      return;
+    }
     setSending(true);
     setResult(null);
     try {
       const r = await api.sms.send({ to: digits, text, title: template?.name });
       if (!r.ok) {
-        setResult(`실패: ${r.error || '알 수 없는 오류'}`);
+        // 열지 못했으면 최소한 붙여넣을 수 있게 클립보드에 넣어두고 원인을 그대로 보여준다
+        await copyToClipboard(`${digits}\n\n${text}`);
+        setResult(`실패: ${r.error || '알 수 없는 오류'} — 번호와 문구는 복사해뒀습니다.`);
         return;
       }
       if (r.data?.sent) setResult(`✓ 발송 완료 (${r.data.via})`);
-      else setResult('문자 앱을 열었습니다 — 내용 확인하고 보내기만 누르세요.');
+      else if (r.data?.partial) {
+        await copyToClipboard(`${digits}\n\n${text}`);
+        setResult('문자 앱은 열렸는데 번호·문구를 못 넘겼습니다 — 복사해뒀으니 붙여넣어 주세요.');
+      } else setResult('문자 앱을 열었습니다 — 내용 확인하고 보내기만 누르세요. (창이 안 뜨면 작업표시줄을 확인해주세요)');
       await onSavePhone?.(to);
     } catch (e) {
       setResult(`실패: ${(e as Error).message}`);

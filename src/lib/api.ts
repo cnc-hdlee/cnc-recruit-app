@@ -149,6 +149,8 @@ export interface SmsSendResult {
   opened?: boolean;
   /** 유료 API — 실제로 발송됐다 */
   sent?: boolean;
+  /** 문자 앱은 열렸지만 번호·문구를 못 넘겼다 — 사용자가 붙여넣어야 한다 */
+  partial?: boolean;
   id?: string;
   count?: number;
 }
