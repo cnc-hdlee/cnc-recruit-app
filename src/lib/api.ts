@@ -262,6 +262,10 @@ interface ElectronAPI {
     }): Promise<Result<{ id: string; threadId: string }>>;
     openAttachment(messageId: string, filename: string, attachmentId?: string): Promise<Result<{ path: string }>>;
     fetchAttachmentBase64(messageId: string, filename: string, attachmentId?: string): Promise<Result<{ base64: string; mimeType: string; filename: string }>>;
+    /** 내가 찾은 지원자 연락처를 드라이브에 올려 팀에 공유 */
+    contactsPush(map: Record<string, string>, shareWith: string[]): Promise<Result<{ id: string; count: number }>>;
+    /** 팀 전체가 찾아둔 지원자 연락처 합본 */
+    contactsPull(): Promise<Result<{ contacts: Record<string, string>; sources: number }>>;
     /** 캘린더 일정에 첨부된 드라이브 파일 내려받기 (읽기 전용) */
     driveFile(fileId: string): Promise<Result<{ id: string; name: string; mimeType: string; base64: string }>>;
     listCalendar(min: string, max: string, id?: string): Promise<Result<GCalEvent[]>>;

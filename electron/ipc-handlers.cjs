@@ -80,6 +80,9 @@ function register() {
   // 앱 내 inline 표시용 — base64 raw 반환, 렌더러에서 Blob URL로 변환 후 iframe.
   safeHandle('g:fetchAttachmentBase64', async (messageId, filename, attachmentId) =>
     google.fetchGmailAttachmentBase64(messageId, filename, attachmentId));
+  // 후보자 연락처 팀 공유
+  safeHandle('g:contactsPush', async (map, shareWith) => google.upsertContactsFile(map, shareWith));
+  safeHandle('g:contactsPull', async () => google.readTeamContacts());
   safeHandle('g:driveFile', async (fileId) => google.downloadDriveFile(fileId));
   safeHandle('g:listCalendar', async (min, max, id) => google.listCalendar(min, max, id));
   safeHandle('g:listCalendars', async () => google.listCalendars());

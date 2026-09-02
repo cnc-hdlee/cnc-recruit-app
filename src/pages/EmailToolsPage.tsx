@@ -119,6 +119,9 @@ function fixCandidateName(title: string, parsed: string): string {
  * 첨부는 저장하지 않고 그 자리에서 파싱만 한다 (이력서 보관함은 사용자가 직접 넣은 것만 유지).
  * 사전질문지·평가표는 이력서가 아니므로 제외 — 메모리 [이력서만 엄격].
  */
+/** 연락처를 함께 쓰는 TA팀 — 내가 찾은 주소를 이들에게 공유하고, 이들이 찾은 것도 받아온다 */
+const CONTACT_TEAM = ['hdlee@cnccosmetic.com', 'bjkim4@cnccosmetic.com', 'hglim@cnccosmetic.com'];
+
 const RESUME_FILE_RE = /(이력서|경력기술서|자기소개서|resume|cv)/i;
 const NOT_RESUME_FILE_RE = /(사전질문|평가표|면접표|안내문|양식)/i;
 
@@ -229,6 +232,7 @@ export function EmailToolsPage() {
   // 드라이브 읽기 권한이 없어 일정 첨부 이력서를 못 읽는 상태 (스코프 추가 후 최초 1회 재로그인 필요)
   const [needDriveAuth, setNeedDriveAuth] = useState(false);
   const driveAuthTried = useRef(false);
+  const pushDirty = useRef(false);
   // 재로그인 후 못 채운 주소를 한 번 더 훑기 위한 트리거
   const [retryTick, setRetryTick] = useState(0);
 
@@ -252,6 +256,17 @@ export function EmailToolsPage() {
     loadTemplates().then(setTemplates);
     loadEmailCache().then(setEmailMap);
     loadAutoEmailCache().then(setAutoEmail);
+    // 팀원이 찾아둔 지원자 주소도 함께 불러온다 (누가 찾았든 셋 다 쓸 수 있게)
+    void (async () => {
+      try {
+        const r = await api.google.contactsPull();
+        if (r.ok && r.data && Object.keys(r.data.contacts).length) {
+          setAutoEmail((prev) => ({ ...r.data!.contacts, ...prev }));
+        }
+      } catch {
+        /* 팀 공유 파일이 아직 없으면 그냥 넘어간다 */
+      }
+    })();
     loadSendLog().then(setLog);
     loadSignature().then(setSignature);
     loadAutoBcc().then(setAutoBcc);
@@ -339,12 +354,24 @@ export function EmailToolsPage() {
           if (!found || cancelled) continue;
           setAutoEmail((p) => ({ ...p, [c.name]: found }));
           await saveAutoEmail(c.name, found);
+          pushDirty.current = true;
         } catch {
           // 이력서가 없거나 못 읽는 형식 — 수기 입력으로 남겨둔다
         }
       }
       // 드라이브 권한이 없어 일정 첨부 이력서를 못 읽었다면 — 물어보지 말고 바로 로그인 창을 띄운다.
       // (권한 동의 클릭만 사용자가 하면 되고, 끝나면 못 채운 주소를 자동으로 다시 채운다)
+      // 새로 찾은 주소가 있으면 팀에 올린다 (한 번에 모아서)
+      if (pushDirty.current && !cancelled) {
+        pushDirty.current = false;
+        try {
+          const cache = await loadAutoEmailCache();
+          const me = ((await api.cfg.get<{ email?: string }>('googleProfile'))?.data?.email || '').toLowerCase();
+          await api.google.contactsPush(cache, CONTACT_TEAM.filter((e) => e.toLowerCase() !== me));
+        } catch {
+          /* 다음 갱신 때 다시 시도 */
+        }
+      }
       if (driveScopeMissing && !cancelled) {
         setNeedDriveAuth(true);
         if (!driveAuthTried.current) {

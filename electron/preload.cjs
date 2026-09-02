@@ -41,6 +41,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     openAttachment: (messageId, filename, attachmentId) => invoke('g:openAttachment', messageId, filename, attachmentId),
     fetchAttachmentBase64: (messageId, filename, attachmentId) => invoke('g:fetchAttachmentBase64', messageId, filename, attachmentId),
     driveFile: (fileId) => invoke('g:driveFile', fileId),
+    contactsPush: (map, shareWith) => invoke('g:contactsPush', map, shareWith),
+    contactsPull: () => invoke('g:contactsPull'),
     listCalendar: (min, max, id) => invoke('g:listCalendar', min, max, id),
     listCalendars: () => invoke('g:listCalendars'),
     listCalendarsFull: () => invoke('g:listCalendarsFull'),

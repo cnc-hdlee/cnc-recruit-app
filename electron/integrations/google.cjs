@@ -1076,6 +1076,85 @@ async function upsertPresenceFile(json, shareWith) {
   return { id: fileId };
 }
 
+// ── 후보자 연락처 팀 공유 ───────────────────────────────────────────────────
+// 이력서에서 찾아낸 지원자 메일 주소는 각자 PC에만 쌓여서 팀원은 못 본다.
+// 각 사용자가 자기 몫을 드라이브에 JSON 한 개로 올리고 팀에게 읽기 공유하면,
+// 모든 앱이 팀 전체 파일을 합쳐서 본다 — 누가 찾았든 세 명 모두 즉시 사용 가능.
+const CONTACTS_FILE_NAME = 'cnc-candidate-contacts.json';
+const CONTACTS_TAG = "appProperties has { key='cncContacts' and value='1' }";
+
+/** 내 연락처 파일을 만들거나 갱신하고 팀에 공유한다 */
+async function upsertContactsFile(map, shareWith) {
+  const auth = buildClient();
+  const drive = google.drive({ version: 'v3', auth });
+  let fileId = store.get('contactsFileId') || null;
+  if (fileId) {
+    try {
+      await drive.files.get({ fileId, fields: 'id,trashed' });
+    } catch {
+      fileId = null;
+    }
+  }
+  const media = { mimeType: 'application/json', body: JSON.stringify(map) };
+  if (fileId) {
+    await drive.files.update({ fileId, media });
+  } else {
+    const created = await drive.files.create({
+      requestBody: {
+        name: CONTACTS_FILE_NAME,
+        mimeType: 'application/json',
+        appProperties: { cncContacts: '1' },
+      },
+      media,
+      fields: 'id',
+    });
+    fileId = created.data.id;
+    store.set('contactsFileId', fileId);
+  }
+  for (const email of shareWith || []) {
+    try {
+      await drive.permissions.create({
+        fileId,
+        requestBody: { role: 'reader', type: 'user', emailAddress: email },
+        sendNotificationEmail: false,
+      });
+    } catch {
+      /* 이미 공유돼 있으면 무시 */
+    }
+  }
+  return { id: fileId, count: Object.keys(map || {}).length };
+}
+
+/** 팀 전체(나 + 공유받은 사람들)의 연락처 파일을 합쳐서 돌려준다 */
+async function readTeamContacts() {
+  const auth = buildClient();
+  const drive = google.drive({ version: 'v3', auth });
+  const merged = {};
+  let files = [];
+  try {
+    const r = await drive.files.list({
+      q: `${CONTACTS_TAG} and trashed = false`,
+      fields: 'files(id,name,modifiedTime,owners(emailAddress))',
+      pageSize: 50,
+    });
+    files = r.data.files || [];
+  } catch {
+    return { contacts: merged, sources: 0 };
+  }
+  for (const f of files) {
+    try {
+      const c = await drive.files.get({ fileId: f.id, alt: 'media' }, { responseType: 'text' });
+      const obj = typeof c.data === 'string' ? JSON.parse(c.data) : c.data;
+      for (const [name, email] of Object.entries(obj || {})) {
+        if (name && email && !merged[name]) merged[name] = email;
+      }
+    } catch {
+      /* 못 읽는 파일은 건너뛴다 */
+    }
+  }
+  return { contacts: merged, sources: files.length };
+}
+
 /** 기존 파일에 이력서 표식을 붙인다 — 팀원이 소유자와 무관하게 검색으로 찾을 수 있게 */
 async function tagResumeFile(fileId, { team, candidate } = {}) {
   const auth = buildClient();
@@ -1359,6 +1438,8 @@ module.exports = {
   shareResumeFolder,
   ensureFileShared,
   tagResumeFile,
+  upsertContactsFile,
+  readTeamContacts,
   ensureAllShared,
   listDriveVault,
   downloadDriveFile,
