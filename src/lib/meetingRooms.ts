@@ -3,7 +3,7 @@
 
 import type { GCalListEntry } from './api';
 
-export type RoomSite = 'purple' | 'green' | 'suwon' | 'unknown';
+export type RoomSite = 'purple' | 'seoul' | 'green' | 'suwon' | 'unknown';
 export type RoomKind = 'room' | 'car';
 
 export interface RoomMeta {
@@ -22,12 +22,14 @@ export interface RoomMeta {
 
 const SITE_LABEL: Record<RoomSite, string> = {
   purple: '퍼플',
+  seoul: '서울(위워크)',
   green: '그린',
   suwon: '수원',
   unknown: '기타',
 };
 
-export const SITE_LIST: RoomSite[] = ['purple', 'green', 'suwon'];
+// 퍼플 바로 아래에 서울(위워크) — 사용자 지정 순서 (2026-09-02)
+export const SITE_LIST: RoomSite[] = ['purple', 'seoul', 'green', 'suwon'];
 
 export function siteLabel(site: RoomSite): string {
   return SITE_LABEL[site];
@@ -40,6 +42,7 @@ function classifySite(summary: string): RoomSite {
   if (/^퍼플/.test(summary) || /퍼플차량/.test(summary)) return 'purple';
   if (/^그린/.test(summary) || /그린차량/.test(summary)) return 'green';
   if (/^수원/.test(summary) || /수원차량/.test(summary)) return 'suwon';
+  if (/위워크|wework/i.test(summary)) return 'seoul';
   return 'unknown';
 }
 
@@ -90,6 +93,7 @@ export function classifyResourceCalendar(entry: GCalListEntry): RoomMeta | null 
 // 회의실 예약 시 사용할 색깔 권장
 export const PROPOSED_COLOR_BY_SITE: Record<RoomSite, string> = {
   purple: '1', // Lavender
+  seoul: '9',  // Blueberry
   green: '2',  // Sage
   suwon: '7',  // Peacock
   unknown: '1',
@@ -173,3 +177,23 @@ export const DEFAULT_RESOURCE_CALENDARS: { id: string; summary: string }[] = [
   { id: 'c_1888h6ip3vflojbgjlkmsn03cndm0@resource.calendar.google.com', summary: '(자동차)-퍼플차량_1285_레이' },
   { id: 'c_188cumtkjp98egr7j5fc31rqnnc50@resource.calendar.google.com', summary: '(자동차)-퍼플차량_7139_모닝' },
 ];
+
+// ── 리소스 캘린더가 없는 장소 (2026-09-02 사용자 요청) ──────────────────────
+// 서울 위워크는 구글 리소스 캘린더가 없어서 자동 예약 대상이 아니다.
+// 그래도 면접 장소로 자주 쓰이므로 "가상 회의실"로 올려 두고, 예약 시에는
+// 리소스 참석자 없이 일정만 만든다(장소 = 서울(위워크)).
+export const VIRTUAL_ROOMS: RoomMeta[] = [
+  {
+    id: 'virtual:wework-seoul',
+    kind: 'room',
+    site: 'seoul',
+    rawSummary: '서울 위워크',
+    label: '🏢 회의실 · 서울(위워크)',
+    shortName: '서울(위워크)',
+    resourceEmail: '', // 리소스 캘린더 없음 → attendee로 넣지 않는다
+  },
+];
+
+/** 리소스 캘린더가 없는 가상 장소인지 */
+export const isVirtualRoom = (r: { id: string; resourceEmail: string }) =>
+  r.id.startsWith('virtual:') || !r.resourceEmail;

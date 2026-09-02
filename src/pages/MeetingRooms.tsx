@@ -7,6 +7,8 @@ import {
   siteLabel,
   SITE_LIST,
   DEFAULT_RESOURCE_CALENDARS,
+  VIRTUAL_ROOMS,
+  isVirtualRoom,
   type RoomMeta,
   type RoomSite,
 } from '../lib/meetingRooms';
@@ -77,6 +79,7 @@ const ROOM_COL_WIDTH_PX = 180;
 // 사이트별 예약 블록 색 (배경/테두리/텍스트)
 const SITE_COLORS: Record<RoomSite, { bg: string; border: string; text: string; bar: string }> = {
   purple: { bg: 'bg-indigo-100', border: 'border-indigo-300', text: 'text-indigo-900', bar: 'bg-indigo-500' },
+  seoul: { bg: 'bg-violet-100', border: 'border-violet-300', text: 'text-violet-900', bar: 'bg-violet-500' },
   green: { bg: 'bg-emerald-100', border: 'border-emerald-300', text: 'text-emerald-900', bar: 'bg-emerald-500' },
   suwon: { bg: 'bg-sky-100', border: 'border-sky-300', text: 'text-sky-900', bar: 'bg-sky-500' },
   unknown: { bg: 'bg-slate-100', border: 'border-slate-300', text: 'text-slate-900', bar: 'bg-slate-500' },
@@ -265,6 +268,13 @@ export function MeetingRooms() {
           if (m) {
             meta.push(m);
             seen.add(m.id);
+          }
+        }
+        // ③ 리소스 캘린더가 없는 장소(서울 위워크) — 예약 현황은 못 보지만 일정은 만들 수 있다
+        for (const v of VIRTUAL_ROOMS) {
+          if (!seen.has(v.id)) {
+            meta.push(v);
+            seen.add(v.id);
           }
         }
         if (meta.length === 0) {
@@ -690,6 +700,15 @@ export function MeetingRooms() {
                         >
                           <span className="text-xs">{r.kind === 'car' ? '🚗' : '🏢'}</span>
                           <span className="truncate">{r.shortName}</span>
+                          {/* 위워크처럼 구글 리소스 캘린더가 없는 곳은 남의 예약을 볼 수 없다 */}
+                          {isVirtualRoom(r) && (
+                            <span
+                              className="shrink-0 px-1 py-0.5 rounded text-[9px] font-bold bg-slate-200 text-slate-600"
+                              title="구글 회의실 캘린더가 없는 장소입니다. 다른 사람의 예약 현황은 표시되지 않고, 일정만 등록됩니다."
+                            >
+                              현황 미표시
+                            </span>
+                          )}
                           {offWindow.length > 0 && (
                             <span
                               className="ml-auto shrink-0 px-1 py-0.5 rounded-full text-[9px] font-bold bg-amber-200 text-amber-900 border border-amber-300"
@@ -1183,7 +1202,11 @@ function NewBookingModal({
         start: { dateTime: `${date}T${start}:00`, timeZone: 'Asia/Seoul' },
         end: { dateTime: `${date}T${end}:00`, timeZone: 'Asia/Seoul' },
         // 회의실(리소스) + 면접 참석자. 참석자는 제목의 팀에서 자동으로 채워진다.
-        attendees: [{ email: room.resourceEmail }, ...finalAttendees.map((email) => ({ email }))],
+        // 위워크처럼 리소스 캘린더가 없는 곳은 회의실 참석자를 넣지 않는다(넣으면 초대 실패)
+        attendees: [
+          ...(isVirtualRoom(room) ? [] : [{ email: room.resourceEmail }]),
+          ...finalAttendees.map((email) => ({ email })),
+        ],
         ...(isPrivate ? { visibility: 'private' as const } : {}),
       };
       console.log('[MeetingRooms] insertCalEvent 호출', body);
