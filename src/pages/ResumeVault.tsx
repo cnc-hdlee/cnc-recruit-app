@@ -430,6 +430,11 @@ export function ResumeVault() {
         matched += r2.data?.changed || 0;
       }
       const org = await api.resumes.organize();
+      // 팀 공유 누락 자동 보정 — 내가 올린 것은 팀 전원이, 팀원이 올린 것은 내가 볼 수 있게
+      const sh = await api.resumes.syncShare();
+      if (sh.ok && sh.data && sh.data.fixed > 0) {
+        void api.resumes.driveList().then((r) => { if (r.ok && r.data) setShared(r.data.files || []); });
+      }
       // 분류가 새로 붙은 항목은 드라이브 백업도 다시 확인 (백업 대기분 업로드)
       await api.resumes.backup();
       await refresh();

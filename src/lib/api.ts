@@ -334,6 +334,8 @@ interface ElectronAPI {
     ): Promise<Result<{ deleted: number; ignored: number; driveFailed?: number }>>;
     /** 이력서 폴더를 TA팀에게만 공유 */
     shareVault(emails: string[], role?: 'reader' | 'writer'): Promise<Result<{ folderId: string; shared: string[]; removedPublic: number }>>;
+    /** 팀 공유 누락분 자동 채우기 */
+    syncShare(): Promise<Result<{ checked: number; fixed: number; team: string[] }>>;
     /** 팀 공유 드라이브에 올라간 이력서 목록 */
     driveList(): Promise<Result<{ files: DriveVaultFile[] }>>;
     /** 드라이브 이력서 폴더를 비공개로 강제 (회사 전체 공개 권한 제거) */

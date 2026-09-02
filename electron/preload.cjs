@@ -68,6 +68,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     backup: (ids) => invoke('rv:backup', ids),
     lockDrive: () => invoke('rv:lockDrive'),
     shareVault: (emails, role) => invoke('rv:share', emails, role),
+    syncShare: () => invoke('rv:syncShare'),
     driveList: () => invoke('rv:driveList'),
     classify: (updates, opts) => invoke('rv:classify', updates, opts),
     organize: () => invoke('rv:organize'),

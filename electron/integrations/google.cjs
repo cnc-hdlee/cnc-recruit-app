@@ -859,12 +859,44 @@ async function shareResumeFolder(emails, role = 'reader') {
   return { folderId: id, shared: added, removedPublic: removed };
 }
 
-/** 팀 공유 이력서 목록 — 드라이브 폴더(팀 하위폴더 포함)를 훑는다 */
+/**
+ * 팀 공유 이력서 목록.
+ * ① 표식(appProperties cncResume=1)으로 검색 — 팀원이 자기 드라이브에 올린 것도 잡힌다.
+ * ② 표식이 없는 예전 파일 대비로 내 폴더도 함께 훑는다.
+ */
 async function listDriveVault() {
   const auth = buildClient();
   const drive = google.drive({ version: 'v3', auth });
+  const tagged = [];
+  try {
+    let pageToken;
+    do {
+      const r = await drive.files.list({
+        q: "appProperties has { key='cncResume' and value='1' } and trashed = false",
+        fields:
+          'nextPageToken, files(id,name,size,modifiedTime,mimeType,appProperties,owners(displayName,emailAddress))',
+        pageSize: 200,
+        pageToken,
+      });
+      for (const f of r.data.files || []) {
+        tagged.push({
+          driveFileId: f.id,
+          filename: f.name,
+          team: f.appProperties?.team || '',
+          size: Number(f.size || 0),
+          modifiedTime: f.modifiedTime,
+          mimeType: f.mimeType,
+          owner: f.owners?.[0]?.displayName || '',
+        });
+      }
+      pageToken = r.data.nextPageToken;
+    } while (pageToken);
+  } catch {
+    /* 검색 실패 시 아래 폴더 스캔으로 대체 */
+  }
+
   const root = store.get(RESUME_FOLDER_KEY);
-  if (!root) return { files: [] };
+  if (!root) return { files: tagged };
   // 1) 팀 하위 폴더
   const folders = await drive.files.list({
     q: `'${root}' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false`,
@@ -897,19 +929,45 @@ async function listDriveVault() {
   };
   await scan(root, '');
   for (const f of folders.data.files || []) await scan(f.id, f.name);
-  return { files: out };
+  // 태그 검색 결과와 합치기 (같은 파일이 두 번 나오지 않게 id로 중복 제거)
+  const seenIds = new Set(tagged.map((f) => f.driveFileId));
+  for (const f of out) if (!seenIds.has(f.driveFileId)) tagged.push(f);
+  return { files: tagged };
 }
 
-async function uploadResumeFile({ name, mimeType, filePath, team, shareWith }) {
+/**
+ * 이력서 파일 표식 — 누가 올렸든 이 표식으로 찾는다.
+ * 팀원이 올린 이력서는 그 사람의 드라이브에 저장되므로 "내 폴더"만 뒤지면 안 보인다.
+ * appProperties로 태그해 두면 소유자와 무관하게(공유만 돼 있으면) 검색된다.
+ */
+const RESUME_TAG = { cncResume: '1' };
+
+async function uploadResumeFile({ name, mimeType, filePath, team, shareWith, candidate }) {
   const fs = require('node:fs');
   const auth = buildClient();
   const drive = google.drive({ version: 'v3', auth });
   const folderId = await ensureResumeTeamFolder(team);
   const res = await drive.files.create({
-    requestBody: { name, parents: [folderId] },
+    requestBody: {
+      name,
+      parents: [folderId],
+      appProperties: { ...RESUME_TAG, team: String(team || ''), candidate: String(candidate || '') },
+    },
     media: { mimeType: mimeType || 'application/octet-stream', body: fs.createReadStream(filePath) },
     fields: 'id,webViewLink',
   });
+  // 팀 공유 — 폴더 단위가 막혀 있어 파일마다 읽기 권한을 준다
+  for (const email of shareWith || []) {
+    try {
+      await drive.permissions.create({
+        fileId: res.data.id,
+        requestBody: { role: 'reader', type: 'user', emailAddress: email },
+        sendNotificationEmail: false,
+      });
+    } catch {
+      /* 이미 공유돼 있거나 계정 없음 — 무시 */
+    }
+  }
   return { id: res.data.id, webViewLink: res.data.webViewLink || null };
 }
 
@@ -1016,6 +1074,68 @@ async function upsertPresenceFile(json, shareWith) {
     }
   }
   return { id: fileId };
+}
+
+/**
+ * 파일 하나가 팀 전원에게 공유돼 있는지 확인하고, 빠진 사람만 채운다.
+ * @returns {{added:string[], already:number}}
+ */
+async function ensureFileShared(fileId, emails) {
+  const auth = buildClient();
+  const drive = google.drive({ version: 'v3', auth });
+  const cur = await drive.permissions.list({
+    fileId,
+    fields: 'permissions(id,type,role,emailAddress)',
+  });
+  const have = new Set(
+    (cur.data.permissions || [])
+      .filter((p) => p.emailAddress)
+      .map((p) => p.emailAddress.toLowerCase())
+  );
+  const added = [];
+  for (const raw of emails || []) {
+    const email = String(raw).trim().toLowerCase();
+    if (!email || have.has(email)) continue;
+    try {
+      await drive.permissions.create({
+        fileId,
+        requestBody: { role: 'reader', type: 'user', emailAddress: email },
+        sendNotificationEmail: false,
+      });
+      added.push(email);
+    } catch {
+      /* 개별 실패는 다음 점검 때 다시 시도된다 */
+    }
+  }
+  return { added, already: have.size };
+}
+
+/** 이력서 표식이 붙은 내 파일 전부에 팀 공유를 보장한다 (누락분 채우기) */
+async function ensureAllShared(emails) {
+  const auth = buildClient();
+  const drive = google.drive({ version: 'v3', auth });
+  let pageToken;
+  let checked = 0;
+  let fixed = 0;
+  do {
+    const r = await drive.files.list({
+      q: "appProperties has { key='cncResume' and value='1' } and 'me' in owners and trashed = false",
+      fields: 'nextPageToken, files(id,name)',
+      pageSize: 200,
+      pageToken,
+    });
+    for (const f of r.data.files || []) {
+      checked += 1;
+      try {
+        const res = await ensureFileShared(f.id, emails);
+        if (res.added.length) fixed += 1;
+      } catch {
+        /* 다음 점검 때 재시도 */
+      }
+    }
+    pageToken = r.data.nextPageToken;
+  } while (pageToken);
+  return { checked, fixed };
 }
 
 /** 관리자용 — 나에게 공유된 접속 현황 파일들을 모아 읽는다 (drive.readonly 필요) */
@@ -1220,6 +1340,8 @@ module.exports = {
   ensureResumeTeamFolder,
   lockResumeFolder,
   shareResumeFolder,
+  ensureFileShared,
+  ensureAllShared,
   listDriveVault,
   downloadDriveFile,
   upsertPresenceFile,

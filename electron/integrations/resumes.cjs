@@ -74,11 +74,22 @@ function safeName(filename) {
   return (filename || 'resume').replace(/[\\/:*?"<>|]/g, '_').slice(0, 180);
 }
 
-/** 이력서를 함께 보는 TA팀 (설정에 저장, 기본값 김범준·임한결) */
-const DEFAULT_TEAM_SHARE = ['bjkim4@cnccosmetic.com', 'hglim@cnccosmetic.com'];
+/**
+ * 이력서를 함께 보는 TA팀 명단 (이형도 · 김범준 · 임한결).
+ * 누가 올리든 "자기를 뺀 나머지 전원"에게 읽기 권한을 준다.
+ * 그래야 내가 넣은 것도 팀원이 보고, 팀원이 넣은 것도 내가 본다.
+ */
+const RESUME_TEAM = [
+  'hdlee@cnccosmetic.com',
+  'bjkim4@cnccosmetic.com',
+  'hglim@cnccosmetic.com',
+];
+
 function readTeamShare() {
   const v = store.get('resumeTeamShare');
-  return Array.isArray(v) ? v : DEFAULT_TEAM_SHARE;
+  const team = Array.isArray(v) && v.length ? v : RESUME_TEAM;
+  const me = ((store.get('googleProfile') || {}).email || '').toLowerCase();
+  return team.filter((e) => String(e).toLowerCase() !== me);
 }
 
 // 팀이 아직 확인 안 된 이력서가 들어가는 폴더 — "미분류"가 아니라 처리해야 할 할 일 목록이다.
@@ -1065,6 +1076,17 @@ async function organizeVault({ skipDrive = false } = {}) {
     // 정리 실패는 무시
   }
   return report;
+}
+
+/**
+ * 팀 공유 누락 점검 — 이력서 표식이 붙은 내 드라이브 파일 전부에 팀 권한을 보장한다.
+ * 업로드 때 공유가 실패했거나, 팀 명단이 바뀐 경우를 자동으로 메운다.
+ */
+async function syncTeamShare() {
+  const team = readTeamShare();
+  if (!team.length) return { checked: 0, fixed: 0, team };
+  const res = await gapi().ensureAllShared(team);
+  return { ...res, team };
 }
 
 // ── 드라이브 백업 ───────────────────────────────────────────────────────────

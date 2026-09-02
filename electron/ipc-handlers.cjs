@@ -106,6 +106,7 @@ function register() {
   safeHandle('rv:reveal', async () => resumes.revealResumeFolder());
   safeHandle('rv:delete', async (id) => resumes.deleteResume(id));
   safeHandle('rv:deleteMany', async (ids, opt) => resumes.deleteResumes(ids, opt));
+  safeHandle('rv:syncShare', async () => resumes.syncTeamShare());
   safeHandle('rv:share', async (emails, role) => google.shareResumeFolder(emails, role));
   safeHandle('rv:driveList', async () => google.listDriveVault());
   safeHandle('rv:lockDrive', async () => google.lockResumeFolder());
