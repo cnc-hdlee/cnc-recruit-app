@@ -81,8 +81,9 @@ export function Sidebar({ active, onChange, isOpen = false, onClose }: SidebarPr
     let t: ReturnType<typeof setInterval> | null = null;
     const run = async () => {
       try {
-        const r = await api?.cfg?.get<{ email?: string }>('googleProfile');
-        const email = (r?.ok ? r.data?.email : '') || '';
+        // TopBar와 동일한 경로(google.status)를 쓴다 — cfg 경로는 값이 늦게 잡히는 경우가 있었다
+        const r = await api?.google?.status();
+        const email = (r?.ok ? r.data?.profile?.email : '') || '';
         const ok = ADMIN_EMAILS.includes(email.toLowerCase());
         setIsAdmin(ok);
         if (ok && t) clearInterval(t);

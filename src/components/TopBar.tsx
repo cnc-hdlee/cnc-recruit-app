@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { useData, getTodayStr } from '../store';
 import { useLiveData, liveCalendarEventsNormalized } from '../store/liveData';
 import { api } from '../lib/api';
+import type { PresenceUser } from '../lib/api';
 
 const DAYS = ['일', '월', '화', '수', '목', '금', '토'];
 
@@ -20,6 +21,7 @@ export function TopBar({ title, onMenuClick }: { title: string; onMenuClick?: ()
   const [signingOut, setSigningOut] = useState(false);
   const [profileEmail, setProfileEmail] = useState<string | null>(null);
   const [appVersion, setAppVersion] = useState<string>('');
+  const [presence, setPresence] = useState<PresenceUser[]>([]);
   const [checkingUpdate, setCheckingUpdate] = useState(false);
   const [updateMsg, setUpdateMsg] = useState<string | null>(null);
   const [updateReady, setUpdateReady] = useState(false);
@@ -88,6 +90,27 @@ export function TopBar({ title, onMenuClick }: { title: string; onMenuClick?: ()
     }, 30000);
     return () => { cancelled = true; clearInterval(id); };
   }, []);
+
+  // 접속 현황 — 관리자(본인)에게만, 15초마다 갱신. 상단 동그라미로 표시된다.
+  const isAdmin = (profileEmail || '').toLowerCase() === 'hdlee@cnccosmetic.com';
+  useEffect(() => {
+    if (!isAdmin || !api?.presence) return;
+    let cancelled = false;
+    const pull = async () => {
+      try {
+        const r = await api.presence.list();
+        if (!cancelled && r.ok && r.data) setPresence(r.data.users || []);
+      } catch {
+        /* 실패해도 화면에 영향 없음 */
+      }
+    };
+    void pull();
+    const id = setInterval(pull, 15000);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
+  }, [isAdmin]);
 
   // popover 위치 계산 (버튼 기준)
   useLayoutEffect(() => {
@@ -242,6 +265,32 @@ export function TopBar({ title, onMenuClick }: { title: string; onMenuClick?: ()
         )}
       </div>
       <div className="flex items-center gap-2 md:gap-4 text-sm shrink-0">
+        {/* 접속 중인 사용자 — 구글 스프레드시트처럼 상단에 항상 표시 (관리자에게만) */}
+        {isAdmin && presence.length > 0 && (
+          <div className="flex items-center gap-1" title="앱 접속 현황">
+            {presence.slice(0, 8).map((u) => {
+              const online = Date.now() - u.lastSeen < 3 * 60 * 1000;
+              return (
+                <span
+                  key={u.email}
+                  className="w-7 h-7 rounded-full grid place-items-center text-[10px] font-bold text-white"
+                  style={{
+                    background: online ? '#10b981' : '#94a3b8',
+                    boxShadow: online ? '0 0 0 2px rgba(16,185,129,0.25)' : 'none',
+                  }}
+                  title={`${u.name || u.email} · ${online ? '접속 중' : '자리비움'}${
+                    u.page ? ` · ${u.page}` : ''
+                  }`}
+                >
+                  {(u.name || u.email).slice(0, 2)}
+                </span>
+              );
+            })}
+            <span className="hidden md:inline text-[11px] text-slate-500 ml-0.5">
+              {presence.filter((u) => Date.now() - u.lastSeen < 3 * 60 * 1000).length}명 접속
+            </span>
+          </div>
+        )}
         <div className="hidden sm:block text-brand-mid">
           <span className="font-semibold">
             {y}.{mo}.{dd}
