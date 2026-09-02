@@ -16,6 +16,15 @@ import { isInterviewKind, parseInterviewTitle } from './CalendarPage';
 import { api } from '../lib/api';
 import type { SmsConfig } from '../lib/api';
 import {
+  loadSmsTemplates,
+  saveSmsTemplate,
+  resetSmsTemplate,
+  renderSms,
+  defaultSmsText,
+  SMS_VARS,
+  type SmsTemplate,
+} from '../lib/smsTemplates';
+import {
   loadTemplates,
   saveTemplate,
   deleteTemplate,
@@ -110,20 +119,6 @@ function prettyPhone(raw: string): string {
   if (d.length === 11) return `${d.slice(0, 3)}-${d.slice(3, 7)}-${d.slice(7)}`;
   if (d.length === 10) return `${d.slice(0, 3)}-${d.slice(3, 6)}-${d.slice(6)}`;
   return raw || '';
-}
-
-/**
- * 메일 본문을 문자용으로 줄인다 — 인사말/서명/빈 줄을 걷어내고 핵심만 남긴다.
- * 90바이트가 넘으면 LMS로 나가므로 굳이 자르지는 않고, 길이만 화면에 표시한다.
- */
-function smsFromBody(body: string): string {
-  return (body || '')
-    .split(/\r?\n/)
-    .map((l) => l.trim())
-    .filter((l) => l && !/^(감사합니다|드림|올림)[.!]?$/.test(l))
-    .join('\n')
-    .replace(/\n{3,}/g, '\n\n')
-    .trim();
 }
 
 /** 한국 문자 과금 기준 — EUC-KR 기준 한글 2바이트, 90바이트까지 SMS */
@@ -348,6 +343,8 @@ export function EmailToolsPage() {
   const [testPhone, setTestPhone] = useState('');
   const [smsCfg, setSmsCfg] = useState<SmsConfig | null>(null);
   const [showSmsSetup, setShowSmsSetup] = useState(false);
+  const [smsTpls, setSmsTpls] = useState<SmsTemplate[]>([]);
+  const [showSmsTpl, setShowSmsTpl] = useState(false);
   const [myEmail, setMyEmail] = useState('');
   const [showHandled, setShowHandled] = useState(false);
   // 목록에서 걸러낸 일정과 사유 — 조용히 사라지지 않게 화면에 남긴다
@@ -405,6 +402,7 @@ export function EmailToolsPage() {
     loadSendLog().then(setLog);
     loadHandled().then(setHandled);
     api.cfg.get<string>(TEST_PHONE_CFG_KEY).then((r) => r.ok && r.data && setTestPhone(r.data));
+    loadSmsTemplates().then(setSmsTpls);
     api.sms?.config().then((r) => r.ok && r.data && setSmsCfg(r.data));
     api.cfg.get<{ email?: string }>('googleProfile').then((r) => r.ok && r.data?.email && setMyEmail(r.data.email));
     loadSignature().then(setSignature);
@@ -1089,6 +1087,13 @@ export function EmailToolsPage() {
             🧪 테스트 {testOn ? 'ON' : ''}
           </button>
           <button
+            onClick={() => setShowSmsTpl((v) => !v)}
+            className="px-2 py-1 rounded-lg border border-slate-300 bg-white text-xs font-bold text-slate-900 hover:bg-slate-100"
+            title="문자는 메일과 따로 관리합니다 — 결과는 메일로, 문자는 '메일 확인' 알림만"
+          >
+            💬 문자 양식
+          </button>
+          <button
             onClick={() => setShowSmsSetup((v) => !v)}
             className="px-2 py-1 rounded-lg border border-slate-300 bg-white text-xs font-bold text-slate-900 hover:bg-slate-100"
             title="문자를 앱에서 바로 쏘려면 문자 API를 연결합니다"
@@ -1122,6 +1127,15 @@ export function EmailToolsPage() {
             className="ml-auto px-3 py-1.5 border border-slate-300 rounded-lg text-sm text-slate-900 w-56"
           />
         </div>
+
+        {showSmsTpl && (
+          <SmsTemplatePanel
+            templates={smsTpls}
+            stage={stage}
+            onChange={setSmsTpls}
+            onClose={() => setShowSmsTpl(false)}
+          />
+        )}
 
         {showSmsSetup && (
           <SmsSetupPanel
@@ -1277,6 +1291,15 @@ export function EmailToolsPage() {
           candidate={smsFor}
           phone={smsFor.name === TEST_CANDIDATE_NAME ? testPhone : autoPhone[smsFor.name] || ''}
           template={currentTpl}
+          smsText={renderSms(
+            smsTpls.find((t) => t.stage === stage)?.text ?? defaultSmsText(stage),
+            {
+              이름: smsFor.name,
+              면접일시: smsFor.when,
+              소속: smsFor.team,
+              사업장: sites.find((x) => x.id === (smsFor.siteId || siteId))?.label || '',
+            }
+          )}
           config={smsCfg}
           onSavePhone={async (v) => {
             if (smsFor.name !== TEST_CANDIDATE_NAME) return;
@@ -1740,6 +1763,7 @@ function SmsModal({
   candidate,
   phone,
   template,
+  smsText,
   config,
   onSavePhone,
   onClose,
@@ -1748,21 +1772,16 @@ function SmsModal({
   candidate: CalCandidate;
   phone: string;
   template: EmailTemplate | null;
+  /** 단계별 문자 양식을 채운 결과 — 메일 본문과 별개다 */
+  smsText: string;
   config: SmsConfig | null;
   onSavePhone?: (v: string) => void | Promise<void>;
   onClose: () => void;
   onDone: (c: CalCandidate) => void;
 }) {
   const [to, setTo] = useState(prettyPhone(phone));
-  const [text, setText] = useState(() => {
-    if (!template) return `${candidate.name}님, 안녕하세요. CNC 채용담당자입니다.`;
-    const body = template.body
-      .replace(/\{\{이름\}\}/g, candidate.name)
-      .replace(/\{\{면접일시\}\}/g, candidate.when)
-      .replace(/\{\{소속\}\}/g, candidate.team || '')
-      .replace(/\{\{부서\}\}/g, candidate.team || '');
-    return smsFromBody(body);
-  });
+  // 문자 양식은 메일과 분리돼 있다 — [💬 문자 양식]에서 단계별로 따로 고친다
+  const [text, setText] = useState(smsText);
   const [copied, setCopied] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   const [needQr, setNeedQr] = useState(false);
@@ -2241,6 +2260,141 @@ function SmsSetupPanel({
           </button>
         )}
         {msg && <span className="self-center text-xs font-bold text-slate-900">{msg}</span>}
+      </div>
+    </div>
+  );
+}
+
+// ── 문자 양식 편집 ──────────────────────────────────────────────────────────
+// 메일 양식과 완전히 분리한다. 메일은 원문(일정·장소·처우까지 전부),
+// 문자는 "결과 나왔으니 메일 확인해달라"는 알림만. 문자에 결과나 숫자를 넣지 않는 이유는
+// 문자가 남의 눈에 잘 띄고 잘못 보내면 되돌릴 수 없기 때문이다.
+function SmsTemplatePanel({
+  templates,
+  stage,
+  onChange,
+  onClose,
+}: {
+  templates: SmsTemplate[];
+  stage: TemplateStage;
+  onChange: (list: SmsTemplate[]) => void;
+  onClose: () => void;
+}) {
+  const [editing, setEditing] = useState<TemplateStage>(stage);
+  const [draft, setDraft] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+
+  const cur = templates.find((t) => t.stage === editing);
+  // 단계를 바꾸면 그 단계 문구를 불러온다
+  useEffect(() => {
+    setDraft(templates.find((t) => t.stage === editing)?.text ?? defaultSmsText(editing));
+    setMsg(null);
+  }, [editing, templates]);
+
+  const bytes = smsBytes(draft);
+  const kind = bytes <= 90 ? 'SMS' : bytes <= 2000 ? 'LMS' : '너무 김';
+  const dirty = draft !== (cur?.text ?? defaultSmsText(editing));
+
+  return (
+    <div className="mb-3 rounded-xl border border-slate-300 bg-slate-50 p-3">
+      <div className="flex items-center gap-2 mb-2">
+        <h4 className="text-sm font-bold text-slate-900">💬 문자 양식 (메일과 별도)</h4>
+        <button onClick={onClose} className="ml-auto text-slate-900 font-bold px-2">
+          ✕
+        </button>
+      </div>
+
+      <div className="rounded-lg border border-sky-300 bg-sky-50 p-2 text-[11px] text-slate-900 leading-relaxed mb-2">
+        <b>메일</b>은 원문입니다 — 일정·장소·처우까지 필요한 정보를 다 담습니다.
+        <br />
+        <b>문자</b>는 알림입니다 — <b>&quot;결과 나왔으니 메일을 확인해달라&quot;</b>만 보냅니다. 합격 여부나 연봉 같은
+        내용은 문자에 넣지 마세요. 잘못 가면 되돌릴 수 없습니다.
+      </div>
+
+      <div className="flex flex-wrap gap-1.5 mb-2">
+        {STAGE_ORDER.map((sg) => (
+          <button
+            key={sg}
+            onClick={() => setEditing(sg)}
+            className={
+              'px-2.5 py-1 rounded-lg text-xs font-bold border ' +
+              (editing === sg
+                ? 'bg-slate-900 text-white border-slate-900'
+                : 'bg-white text-slate-900 border-slate-300 hover:bg-slate-100')
+            }
+          >
+            {sg === 'offer' && '🔒 '}
+            {STAGE_LABEL[sg]}
+            {templates.find((t) => t.stage === sg)?.modifiedAt && <span className="ml-1 text-emerald-600">•</span>}
+          </button>
+        ))}
+      </div>
+
+      <label className="block text-xs font-bold text-slate-900 mb-1">
+        문구{' '}
+        <span className="font-normal">
+          {bytes}바이트 · {kind}
+          {kind === 'LMS' && ' (90바이트 넘으면 장문으로 나갑니다)'}
+        </span>
+      </label>
+      <textarea
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        rows={5}
+        className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm text-slate-900 font-mono"
+      />
+
+      <div className="text-[11px] text-slate-900 mt-1">
+        쓸 수 있는 변수:{' '}
+        {SMS_VARS.map((v) => (
+          <button
+            key={v}
+            onClick={() => setDraft((d) => d + `{{${v}}}`)}
+            className="mx-0.5 px-1.5 py-0.5 rounded border border-slate-300 bg-white font-mono hover:bg-slate-100"
+            title="클릭하면 문구 끝에 넣습니다"
+          >
+            {`{{${v}}}`}
+          </button>
+        ))}
+      </div>
+
+      <div className="flex gap-1.5 mt-3 items-center">
+        <button
+          onClick={async () => {
+            setBusy(true);
+            try {
+              onChange(await saveSmsTemplate(editing, draft));
+              setMsg('✓ 저장했습니다.');
+            } finally {
+              setBusy(false);
+            }
+          }}
+          disabled={busy || !dirty}
+          className="px-3 py-2 rounded-lg bg-slate-900 text-white text-xs font-bold hover:bg-slate-800 disabled:opacity-40"
+        >
+          {busy ? '저장 중…' : '저장'}
+        </button>
+        <button
+          onClick={async () => {
+            if (!window.confirm(`${STAGE_LABEL[editing]} 문자 양식을 기본값으로 되돌립니다.`)) return;
+            setBusy(true);
+            try {
+              const next = await resetSmsTemplate(editing);
+              onChange(next);
+              setDraft(defaultSmsText(editing));
+              setMsg('기본 양식으로 되돌렸습니다.');
+            } finally {
+              setBusy(false);
+            }
+          }}
+          disabled={busy}
+          className="px-3 py-2 rounded-lg border border-slate-300 bg-white text-xs font-bold text-slate-900 hover:bg-slate-100 disabled:opacity-40"
+        >
+          기본값으로
+        </button>
+        {msg && <span className="text-xs font-bold text-slate-900">{msg}</span>}
+        {dirty && !msg && <span className="text-xs font-bold text-amber-700">저장 안 된 변경이 있습니다</span>}
       </div>
     </div>
   );
