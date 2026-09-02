@@ -45,7 +45,14 @@ function ChartView({ chart }: { chart: DeptChart }) {
           <span className="text-xl font-black text-slate-900">{chart.dept}</span>
           {chart.hq && <span className="text-sm font-bold text-slate-900">{chart.hq}</span>}
           {chart.lead && (
-            <span className="px-2 py-0.5 rounded-full bg-slate-900 text-white text-xs font-bold">{chart.lead}</span>
+            <span
+              className={
+                'px-2 py-0.5 rounded-full text-xs font-bold ' +
+                (chart.leadVacant ? 'bg-rose-600 text-white' : 'bg-slate-900 text-white')
+              }
+            >
+              {chart.lead}
+            </span>
           )}
           <span className="ml-auto text-sm font-bold text-slate-900">{chart.asOf} 기준</span>
         </div>
@@ -197,10 +204,17 @@ function OrgTree({ chart, groups }: { chart: DeptChart; groups: ChartGroup[] }) 
     <div className="min-w-max mx-auto">
       {/* 루트 */}
       <div className="flex justify-center">
-        <div className="px-5 py-2.5 rounded-lg bg-slate-900 text-white text-center shadow-sm">
+        <div
+          className={
+            'px-5 py-2.5 rounded-lg text-center shadow-sm ' +
+            (chart.leadVacant
+              ? 'bg-rose-50 border-2 border-dashed border-rose-500 text-slate-900'
+              : 'bg-slate-900 text-white')
+          }
+        >
           <div className="text-base font-black">{chart.dept}</div>
           {chart.lead ? (
-            <div className="text-xs mt-0.5">{chart.lead}</div>
+            <div className={'text-xs mt-0.5 ' + (chart.leadVacant ? 'font-bold text-rose-700' : '')}>{chart.lead}</div>
           ) : chart.headcount != null ? (
             <div className="text-xs mt-0.5">편제 {chart.headcount}명</div>
           ) : null}

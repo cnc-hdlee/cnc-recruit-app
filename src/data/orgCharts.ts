@@ -45,6 +45,8 @@ export interface DeptChart {
   headcount?: number;
   /** 팀장·책임자 */
   lead?: string;
+  /** 팀장이 공석이면 true — 맨 위 상자를 공석 표시로 그리고 공석 집계에 포함한다 */
+  leadVacant?: boolean;
   /** 기준일 */
   asOf: string;
   /** 원본 파일 */
@@ -63,11 +65,12 @@ const PRODUCTION_OPS: DeptChart = {
   headcount: 13,
   asOf: '2026-09-01',
   source: '생산운영팀 편제표_0814.pptx',
+  lead: '팀장 공석',
+  leadVacant: true,
   groups: [
     {
       name: '팀 직속',
       members: [
-        { role: '신제품 L/T (생산계획자)', person: '', grade: 'C-레벨', vacant: true },
         { role: '외주계획', person: '손유림', grade: '사원' },
         { role: '외주처리', person: '백승엽', grade: '사원' },
       ],
@@ -113,6 +116,7 @@ const PRODUCTION_OPS: DeptChart = {
     { category: '제심펜슬', name: '카르마' },
   ],
   notes: [
+    '팀장 공석 — 원본 편제표에 「신제품 L/T (생산계획자) · C-레벨」로 적혀 있던 자리',
     '한현영 대리 — 휴직 (2026-04-24 ~ 10-23). 신제품 L/T & ERP 고도화 담당',
     '외주계획자 — 오드컬러 / 비피에스 외주 충포장 담당자 1명 충원 필요',
     '외주업체 사이트 표기(3공장 · 퍼플 · 그린 · 그린 · 퍼플 · 퍼플)는 원본에서 행 대응이 불명확해 비워둠',
@@ -489,7 +493,8 @@ export function getOrgChart(id: string): DeptChart | null {
 /** 편제 인원 집계 — 공석 포함/제외를 나눠서 센다 */
 export function countChart(chart: DeptChart): { filled: number; vacant: number; total: number } {
   let filled = 0;
-  let vacant = 0;
+  // 팀장 공석도 채워야 할 자리다 — 편제표 맨 위에 있다고 집계에서 빠지면 안 된다
+  let vacant = chart.leadVacant ? 1 : 0;
   for (const g of chart.groups) {
     for (const m of g.members) {
       if (m.vacant || !m.person) vacant++;
