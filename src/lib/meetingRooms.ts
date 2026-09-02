@@ -153,3 +153,23 @@ export function findResourceEmailByLocation(
   if (!best) return null;
   return { resourceEmail: best.room.resourceEmail, shortName: best.room.shortName };
 }
+
+// ── 기본 회의실·차량 목록 (2026-09-02) ─────────────────────────────────────
+// 회의실은 각자 구글 캘린더에 "추가"한 사람에게만 calendarList로 내려온다.
+// 그래서 배포본을 처음 쓰는 사람은 회의실 목록이 통째로 비어 회의실 예약이 동작하지 않았다.
+// (2026-09-02 동료 제보) 회사 공용 리소스 캘린더는 고정이므로 앱에 내장해 두고,
+// 사용자의 calendarList에 있으면 그쪽 라벨/권한 정보를 우선 사용한다.
+export const DEFAULT_RESOURCE_CALENDARS: { id: string; summary: string }[] = [
+  { id: 'c_1885j8ar79lsojtok2q61knlfi9ba@resource.calendar.google.com', summary: '퍼플-6층-퍼플_대회의실 (30)' },
+  { id: 'c_18871d3hrtpjoilvinc2b61sqtbf0@resource.calendar.google.com', summary: '퍼플-6층-퍼플_미팅룸-1 (9)' },
+  { id: 'c_1885ni0ml4ldcigikdpk8431isbbo@resource.calendar.google.com', summary: '퍼플-6층-퍼플_미팅룸-2 (7)' },
+  { id: 'c_188fosfpg2sp4ih9ibd4op9q5fj7i@resource.calendar.google.com', summary: '퍼플-6층-퍼플_구내식당 (46)' },
+  { id: 'c_188bo662v0p6qjq6jieccrfcqg0qg@resource.calendar.google.com', summary: '그린-4-그린_대회의실 (30)' },
+  { id: 'c_1881r2krji1omgmcj4u492fm4ndjs@resource.calendar.google.com', summary: '그린-4-그린_소회의실 (20)' },
+  { id: 'c_1885u5n1uecasg20gvs02936q9gl4@resource.calendar.google.com', summary: '수원-4-수원_4층 회의실 (20)' },
+  { id: 'c_188182fk0g99ojcqm1jogbmqicqt8@resource.calendar.google.com', summary: '수원-3-수원_3층 회의실 (20)' },
+  { id: 'c_1880ir1hs6sp8gp7jr4jaktb6qb8c@resource.calendar.google.com', summary: '수원-3-수원_3층 카페테리아 (40)' },
+  { id: 'c_188bgkgvprnaijg1gkm1b0r69b8su@resource.calendar.google.com', summary: '수원-2-수원_2층 (회의실) (20)' },
+  { id: 'c_1888h6ip3vflojbgjlkmsn03cndm0@resource.calendar.google.com', summary: '(자동차)-퍼플차량_1285_레이' },
+  { id: 'c_188cumtkjp98egr7j5fc31rqnnc50@resource.calendar.google.com', summary: '(자동차)-퍼플차량_7139_모닝' },
+];

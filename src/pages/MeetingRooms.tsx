@@ -6,6 +6,7 @@ import {
   classifyResourceCalendar,
   siteLabel,
   SITE_LIST,
+  DEFAULT_RESOURCE_CALENDARS,
   type RoomMeta,
   type RoomSite,
 } from '../lib/meetingRooms';
@@ -231,14 +232,44 @@ export function MeetingRooms() {
       try {
         const r = await api.google.listCalendarsFull();
         if (cancelled) return;
-        if (!r.ok || !r.data) {
-          setError(r.error || '캘린더 목록을 불러오지 못했습니다.');
-          return;
-        }
         const meta: RoomMeta[] = [];
-        for (const e of r.data) {
-          const m = classifyResourceCalendar(e as GCalListEntry);
-          if (m) meta.push(m);
+        const seen = new Set<string>();
+        // ① 내 구글 캘린더에 추가돼 있는 리소스 (라벨·권한이 정확하므로 우선)
+        if (r.ok && r.data) {
+          for (const e of r.data) {
+            const m = classifyResourceCalendar(e as GCalListEntry);
+            if (m) {
+              meta.push(m);
+              seen.add(m.id);
+            }
+          }
+        }
+        // ② 앱에 내장된 회사 공용 회의실 — 캘린더에 추가하지 않은 사람도 예약할 수 있게.
+        //    (배포본 사용자에게 회의실 목록이 비어 기능이 통째로 죽어 있던 원인. 2026-09-02)
+        for (const d of DEFAULT_RESOURCE_CALENDARS) {
+          if (seen.has(d.id)) continue;
+          const m = classifyResourceCalendar({
+            id: d.id,
+            summary: d.summary,
+            summaryOverride: null,
+            primary: false,
+            selected: false,
+            hidden: false,
+            accessRole: 'reader',
+            backgroundColor: null,
+            foregroundColor: null,
+            colorId: null,
+            timeZone: null,
+            deleted: false,
+          } as GCalListEntry);
+          if (m) {
+            meta.push(m);
+            seen.add(m.id);
+          }
+        }
+        if (meta.length === 0) {
+          setError(r.ok ? '회의실 목록이 비어 있습니다.' : r.error || '캘린더 목록을 불러오지 못했습니다.');
+          return;
         }
         meta.sort((a, b) => {
           if (a.kind !== b.kind) return a.kind === 'room' ? -1 : 1;
