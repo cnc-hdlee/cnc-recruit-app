@@ -109,6 +109,16 @@ async function createOfferSheet(info) {
   });
   const gid = r.data.replies[0].duplicateSheet.properties.sheetId;
 
+  // 복제는 원본의 '숨김' 속성까지 물려받는다. 원본 탭이 숨겨져 있으면 새 탭도 숨겨져
+  // 화면 탭 목록에 아예 안 나타난다(API로는 보이는데 사람 눈에는 없다 — 2026-09-03 사고).
+  // 새로 만든 후보자 탭은 반드시 보이게 한다.
+  await s.spreadsheets.batchUpdate({
+    spreadsheetId: SHEET_ID,
+    requestBody: {
+      requests: [{ updateSheetProperties: { properties: { sheetId: gid, hidden: false }, fields: 'hidden' } }],
+    },
+  });
+
   // 이력서에서 읽을 수 있는 건 읽어서 채운다 — 손으로 옮겨 적던 것들.
   // 호출 쪽이 준 값이 항상 우선한다(면접 일정에서 온 부서·직무가 더 정확하다).
   let prof = null;
