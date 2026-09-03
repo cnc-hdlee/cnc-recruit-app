@@ -436,6 +436,9 @@ export function EmailToolsPage() {
   /** 처우산정표 현황 — 이름 → {상태, 링크}. 탭 이름이 곧 진행 상태다 */
   const [offerTabs, setOfferTabs] = useState<Record<string, { status: string; url: string; tab: string }>>({});
   const [offerBusy, setOfferBusy] = useState<string | null>(null);
+  /** 시트가 계산해 둔 산정 금액 — 앱은 계산하지 않는다. 시트가 유일한 기준이다. */
+  const [offerVals, setOfferVals] = useState<Record<string, { grade: string; step: string; annual: number }>>({});
+  const [loadingVals, setLoadingVals] = useState(false);
   const [showSmsTpl, setShowSmsTpl] = useState(false);
   const [myEmail, setMyEmail] = useState('');
   const [showHandled, setShowHandled] = useState(false);
@@ -778,8 +781,9 @@ export function EmailToolsPage() {
         return false;
       return true;
     });
-    // 지난 면접을 볼 때는 최근에 면접 본 사람이 맨 위로 (오래된 건이 위를 덮지 않게)
-    const sorted = range === 'past' ? [...out].reverse() : out;
+    // 항상 최근 면접이 맨 위 — 오래된 건이 위를 덮으면 지금 처리할 사람이 안 보인다.
+    // (allCandidates는 날짜 오름차순이라 뒤집는다)
+    const sorted = [...out].reverse();
     // 테스트 후보자는 어떤 필터에도 걸리지 않고 항상 맨 위에 붙는다
     return testCandidate ? [testCandidate, ...sorted] : sorted;
   }, [withFixedNames, range, today, siteId, hqId, search, includeAbsent, testCandidate]);
@@ -839,6 +843,37 @@ export function EmailToolsPage() {
   }, [stage]);
 
   const offerOf = (name: string) => offerTabs[(name || '').replace(/\s+/g, '')];
+
+  /**
+   * 산정표에서 계산된 금액을 앱으로 끌어온다.
+   * 호봉 코드를 넣으면 시트가 알아서 계산하므로, 앱은 그 결과만 읽어 보여준다.
+   * 화면에 보이는 사람 중 산정표가 있는 사람만 — 불필요한 시트 호출을 만들지 않는다.
+   */
+  async function loadOfferValues() {
+    const targets = shown.filter((c) => offerOf(c.name)).slice(0, 30);
+    if (!targets.length) return;
+    setLoadingVals(true);
+    try {
+      const next: Record<string, { grade: string; step: string; annual: number }> = {};
+      for (const c of targets) {
+        const tab = offerOf(c.name)!.tab;
+        try {
+          const r = await api.offer.read(tab);
+          if (!r.ok || !r.data) continue;
+          // 계약연봉이 가장 큰 옵션 = 실제로 채운 안으로 본다(빈 옵션은 0이다)
+          const best = [...r.data.options].sort((a, b) => b.계약연봉 - a.계약연봉)[0];
+          if (best && best.계약연봉 > 0) {
+            next[c.name] = { grade: best.grade, step: best.step, annual: best.계약연봉 };
+          }
+        } catch {
+          /* 한 명 실패해도 나머지는 계속 */
+        }
+      }
+      setOfferVals((prev) => ({ ...prev, ...next }));
+    } finally {
+      setLoadingVals(false);
+    }
+  }
 
   /** 처우산정표 탭을 만들고 인적사항까지 채운다. 금액은 채우지 않는다 — 직접 넣으셔야 한다. */
   async function makeOfferSheet(c: CalCandidate) {
@@ -1297,6 +1332,16 @@ export function EmailToolsPage() {
               {doneList.length > 0 && ` · 처리됨 ${doneList.length}명`}
             </span>
           </h3>
+          {stage === 'offer' && (
+            <button
+              onClick={loadOfferValues}
+              disabled={loadingVals}
+              className="px-2 py-1 rounded-lg border border-amber-400 bg-amber-50 text-xs font-bold text-slate-900 hover:bg-amber-100 disabled:opacity-40"
+              title="산정표에서 계산된 호봉·계약연봉을 앱으로 불러옵니다"
+            >
+              {loadingVals ? '불러오는 중…' : '💰 산정 금액 불러오기'}
+            </button>
+          )}
           {prevStage && readyList.length > 0 && (
             <button
               onClick={() => {
@@ -1502,6 +1547,15 @@ export function EmailToolsPage() {
                       {c.status && (
                         <span className="ml-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-rose-100 text-rose-900 border border-rose-200">
                           {c.status}
+                        </span>
+                      )}
+                      {offerVals[c.name] && (
+                        <span
+                          className="ml-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-300 align-middle tabular-nums"
+                          title={`산정표 기준 계약연봉 ${offerVals[c.name].annual.toLocaleString()}원`}
+                        >
+                          {[offerVals[c.name].grade, offerVals[c.name].step].filter(Boolean).join(' ')}{' '}
+                          {Math.round(offerVals[c.name].annual / 10000).toLocaleString()}만
                         </span>
                       )}
                       {offerOf(c.name)?.status && (

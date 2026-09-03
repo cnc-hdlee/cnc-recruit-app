@@ -404,6 +404,30 @@ interface ElectronAPI {
       careers?: { company?: string; role?: string; period?: string }[];
     }): Promise<Result<{ created: boolean; existed: boolean; tab: string; gid: number; url: string; filled?: number }>>;
     list(): Promise<Result<{ sheetId: string; items: { tab: string; gid: number; name: string; status: string; url: string }[] }>>;
+    /** 시트가 계산해 둔 산정 결과를 읽는다 — 앱은 계산하지 않는다(시트가 유일한 기준) */
+    read(tab: string): Promise<
+      Result<{
+        tab: string;
+        성명: string;
+        지원부서: string;
+        지원직무: string;
+        현재TC: number;
+        희망연봉: string;
+        options: {
+          no: number;
+          title: string;
+          grade: string;
+          step: string;
+          기본급: number;
+          시간외수당: number;
+          월급여액: number;
+          계약연봉: number;
+          TC최소: number;
+          TC최대: number;
+          산정근거: string;
+        }[];
+      }>
+    >;
   };
 
   resumes: {

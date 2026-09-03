@@ -96,6 +96,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     contacts: (id) => invoke('rv:contacts', id),
     contactsByName: (name) => invoke('rv:contactsByName', name),
     contactsAll: () => invoke('rv:contactsAll'),
+    profile: (name) => invoke('rv:profile', name),
     attachToEvent: (payload) => invoke('rv:attachToEvent', payload),
     contactsFromData: (base64, mimeType) => invoke('rv:contactsFromData', base64, mimeType),
     scan: (opt) => invoke('rv:scan', opt),

@@ -90,29 +90,41 @@ async function createOfferSheet(info) {
   });
   const gid = r.data.replies[0].duplicateSheet.properties.sheetId;
 
-  // 인적사항 — 앱이 아는 것만. 금액 칸은 손대지 않는다.
+  // 이력서에서 읽을 수 있는 건 읽어서 채운다 — 손으로 옮겨 적던 것들.
+  // 호출 쪽이 준 값이 항상 우선한다(면접 일정에서 온 부서·직무가 더 정확하다).
+  let prof = null;
+  try {
+    prof = await require('./resumes.cjs').profileByName(info.candidate);
+  } catch {
+    /* 이력서가 없거나 못 읽는 형식 — 인적사항만 비워둔 채로 만든다 */
+  }
+  const pick = (a, b) => (a !== undefined && a !== null && String(a).trim() !== '' ? a : b);
+
+  // 인적사항 — 금액 칸은 손대지 않는다.
   const put = [];
   const set = (a1, v) => {
     if (v === undefined || v === null || v === '') return;
     put.push({ range: `'${title}'!${a1}`, values: [[v]] });
   };
   set(CELL.성명, info.candidate);
-  set(CELL.연락처, info.phone);
+  set(CELL.연락처, pick(info.phone, prof && prof.phone));
   set(CELL.지원부서, info.team);
   set(CELL.지원직무, info.job);
   set(CELL.지원직급, info.grade);
-  set(CELL.생년월일, info.birth);
-  set(CELL.성별, info.gender);
-  set(CELL.최종학력, info.school);
-  set(CELL.전공, info.major);
-  set(CELL.학위, info.degree);
-  set(CELL.총경력, info.careerTotal);
+  set(CELL.생년월일, pick(info.birth, prof && prof.birth));
+  set(CELL.성별, pick(info.gender, prof && prof.gender));
+  set(CELL.최종학력, pick(info.school, prof && prof.school));
+  set(CELL.전공, pick(info.major, prof && prof.major));
+  set(CELL.학위, pick(info.degree, prof && prof.degree));
+  set(CELL.총경력, pick(info.careerTotal, prof && prof.careerTotal));
+  // 직전연봉은 이력서에 적힌 값을 참고로만 넣는다 — 산정 금액은 여전히 수기다
+  set(CELL.직전연봉, pick(info.lastSalary, prof && prof.lastSalary));
   // 템플릿 안내 문구는 후보자 탭에서는 지운다
   put.push({ range: `'${title}'!K2:K3`, values: [[''], ['']] });
 
   // 경력 3줄
   for (let i = 0; i < CAREER_ROWS.length; i++) {
-    const c = (info.careers || [])[i];
+    const c = (info.careers && info.careers[i]) || (prof && prof.careers && prof.careers[i]);
     if (!c) continue;
     const row = CAREER_ROWS[i];
     if (c.company) put.push({ range: `'${title}'!B${row}`, values: [[c.company]] });
@@ -151,4 +163,61 @@ async function listOfferSheets() {
   return { sheetId: SHEET_ID, items: out };
 }
 
-module.exports = { createOfferSheet, listOfferSheets, SHEET_ID, SHEET_URL };
+/**
+ * 산정 결과를 앱으로 읽어온다 — 호봉 코드 하나만 넣으면 시트가 나머지를 계산해 두므로,
+ * 그 계산된 값을 그대로 가져와 앱에서 보여준다. 앱은 절대 계산하지 않는다(시트가 유일한 기준).
+ * Option 1/2/3 중 확정 직급과 호봉이 채워진 것만 돌려준다.
+ */
+async function readOfferSheet(tab) {
+  const s = await api();
+  const rows = (
+    await s.spreadsheets.values.get({
+      spreadsheetId: SHEET_ID,
+      range: `'${tab}'!A1:J90`,
+      valueRenderOption: 'UNFORMATTED_VALUE',
+    })
+  ).data.values || [];
+  const at = (r, c) => {
+    const row = rows[r - 1] || [];
+    return row[c.charCodeAt(0) - 65];
+  };
+  const num = (v) => (typeof v === 'number' ? v : Number(String(v || '').replace(/[^0-9.-]/g, '')) || 0);
+
+  // Option 블록 시작 행 — 템플릿 구조 고정
+  const OPTIONS = [
+    { no: 1, head: 22, grade: 23, base: 27, ot: 28, monthly: 32, annual: 33, tcMin: 37, tcMax: 38, why: 39 },
+    { no: 2, head: 40, grade: 41, base: 45, ot: 46, monthly: 50, annual: 51, tcMin: 60, tcMax: 61, why: 62 },
+    { no: 3, head: 63, grade: 64, base: 68, ot: 69, monthly: 73, annual: 74, tcMin: 83, tcMax: 84, why: 85 },
+  ];
+  const options = [];
+  for (const o of OPTIONS) {
+    const grade = String(at(o.grade, 'C') || '').trim();
+    const step = String(at(o.grade, 'E') || '').trim();
+    const annual = num(at(o.annual, 'E'));
+    if (!grade && !step && !annual) continue; // 안 쓴 옵션
+    options.push({
+      no: o.no,
+      title: String(at(o.head, 'B') || '').trim(),
+      grade,
+      step,
+      기본급: num(at(o.base, 'E')),
+      시간외수당: num(at(o.ot, 'E')),
+      월급여액: num(at(o.monthly, 'E')),
+      계약연봉: annual,
+      TC최소: num(at(o.tcMin, 'E')),
+      TC최대: num(at(o.tcMax, 'E')),
+      산정근거: String(at(o.why, 'C') || '').trim(),
+    });
+  }
+  return {
+    tab,
+    성명: String(at(5, 'C') || '').trim(),
+    지원부서: String(at(6, 'C') || '').trim(),
+    지원직무: String(at(6, 'E') || '').trim(),
+    현재TC: num(at(18, 'E')),
+    희망연봉: String(at(20, 'C') || '').trim(),
+    options,
+  };
+}
+
+module.exports = { createOfferSheet, listOfferSheets, readOfferSheet, SHEET_ID, SHEET_URL };

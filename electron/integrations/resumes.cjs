@@ -1260,6 +1260,41 @@ function stats() {
   };
 }
 
+/**
+ * 이름으로 보관함 이력서를 찾아 처우산정표용 인적사항을 뽑는다.
+ * 출생연도·성별·학교·전공·학위·총경력·경력 3줄까지. 못 읽으면 null.
+ */
+async function profileByName(name) {
+  const key = String(name || '').replace(/s+/g, '');
+  if (!key) return null;
+  const hit = readIndex()
+    .filter((r) => (r.candidate || '').replace(/s+/g, '') === key)
+    .sort((a, b) => (b.addedAt || '').localeCompare(a.addedAt || ''))[0];
+  if (!hit) return null;
+  const abs = path.join(filesDir(), hit.storedName);
+  if (!fs.existsSync(abs)) return null;
+  const buf = fs.readFileSync(abs);
+  const isPdf = (hit.mimeType || '').includes('pdf') || buf.subarray(0, 4).toString() === '%PDF';
+  const isDocx =
+    /officedocument.wordprocessingml/.test(hit.mimeType || '') || (buf[0] === 0x50 && buf[1] === 0x4b && !isPdf);
+  let text = '';
+  try {
+    text = isPdf ? await pdfText(buf) : isDocx ? docxText(buf) : buf.toString('utf8');
+  } catch {
+    return null;
+  }
+  const p = require('./resumeProfile.cjs').profileFromText(text, hit.candidate || name);
+  return {
+    ...p,
+    candidate: hit.candidate,
+    team: hit.team,
+    job: hit.job,
+    email: hit.contactEmail || '',
+    phone: hit.contactPhone || '',
+    filename: hit.filename,
+  };
+}
+
 module.exports = {
   saveResume,
   listResumes,
@@ -1279,5 +1314,6 @@ module.exports = {
   contactsByName,
   contactsAll,
   attachToEvent,
+  profileByName,
   stats,
 };
