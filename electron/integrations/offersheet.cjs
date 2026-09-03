@@ -56,7 +56,13 @@ const safeTabName = (s) => String(s || '').replace(/[[\]:\\/?*]/g, ' ').replace(
 function findExisting(sheets, candidate) {
   const key = String(candidate || '').replace(/\s+/g, '');
   if (!key) return null;
-  return sheets.find((x) => x.properties.title.replace(/\s+/g, '').includes(key)) || null;
+  // 호봉표·TEST·템플릿은 후보자 탭이 아니다 — 이름이 짧으면 엉뚱하게 걸릴 수 있다
+  const SKIP = ['호봉표', 'TEST', TPL_TAB];
+  return (
+    sheets.find(
+      (x) => !SKIP.includes(x.properties.title) && x.properties.title.replace(/\s+/g, '').includes(key)
+    ) || null
+  );
 }
 
 /**
