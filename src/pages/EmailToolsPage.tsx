@@ -102,6 +102,13 @@ const PREV_STAGE: Partial<Record<TemplateStage, TemplateStage>> = {
   onboarding: 'offer',
 };
 
+/**
+ * 채용 흐름 순서. 단계는 순서이므로 뒷 단계를 처리했으면 앞 단계는 이미 끝난 것이다.
+ * 합격 안내를 보냈으면 면접 안내는 당연히 나갔다 — 그런데도 앞 단계 대기열에 남아 있었다
+ * (2026-09-03 김보민 님: 합격 문자까지 보냈는데 '면접 안내'에 그대로 있었다).
+ */
+const FLOW: TemplateStage[] = ['interview_1st', 'pass', 'offer', 'onboarding'];
+
 function defaultRange(_stage: TemplateStage): RangeMode {
   return 'all';
 }
@@ -770,11 +777,21 @@ export function EmailToolsPage() {
   // 이 단계에서 이미 처리한 사람 / 채용이 끝난(불합격) 사람
   // 이름이 비면 처리 여부를 판단할 수 없다. 예전엔 빈 이름으로 '::pass' 같은 키가 만들어져
   // 이름을 못 읽은 사람이 전부 한꺼번에 숨겨졌다. 빈 이름은 항상 '미처리'로 본다.
-  const isHandled = (name: string) =>
-    !!name &&
-    (!!handled[handledKey(name, stage)] || (stage !== 'reject' && !!handled[handledKey(name, 'reject')]));
+  const isHandled = (name: string) => {
+    if (!name) return false;
+    if (handled[handledKey(name, stage)]) return true;
+    // 불합격 안내가 나갔으면 채용이 끝났다 — 다른 단계 대기열에 다시 뜨지 않는다
+    if (stage !== 'reject' && handled[handledKey(name, 'reject')]) return true;
+    // 합격 쪽으로 넘어간 사람은 불합격 대기열에 있을 이유가 없다
+    if (stage === 'reject')
+      return (['pass', 'offer', 'onboarding'] as TemplateStage[]).some((sg) => !!handled[handledKey(name, sg)]);
+    // 뒷 단계를 이미 처리했으면 앞 단계는 끝난 것으로 본다
+    const i = FLOW.indexOf(stage);
+    if (i >= 0) return FLOW.slice(i + 1).some((later) => !!handled[handledKey(name, later)]);
+    return false;
+  };
 
-  /** 이 사람이 어느 단계까지 진행됐는지 — 목록에서 한눈에 보이게 */
+  /** 이 사람이 어느 단계까지 진행됐는지 — 목록에서 한눈에 보이게 (실제로 보낸 것만) */
   const doneStages = (name: string): TemplateStage[] =>
     name ? STAGE_ORDER.filter((sg) => !!handled[handledKey(name, sg)]) : [];
 
