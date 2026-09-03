@@ -1,5 +1,5 @@
 // 입사예정(형도)/채용예정 동기화 — 헤더명 기반 컬럼 탐지(컬럼 삽입/이동/이름변경에 안전). 비파괴.
-// 소스: 1CS2 입사예정(정규직/도급직)DB, 생산1/2/3팀 & 직무=생산.
+// 소스: 1CS2 입사예정(정규직/도급직)DB, 생산1/2/3/4팀 & 직무=생산.
 // 지원일 규칙(형도만): 채용결과=지원자면 소스 날짜(입사예정일 or 서류접수일)를 형도 '지원일'(B)에, '입사예정일'(A)은 공란. 비지원자는 입사예정일→A.
 // DRYRUN=1 이면 쓰기 안 하고 변경예정만 출력.
 const fs=require('node:fs'),path=require('node:path'),{google}=require('googleapis');
@@ -12,8 +12,8 @@ const TARGETS=[
  // 형도님 "내것만 신경쓰면 돼" → 형도 전용으로 제거. 상현 시트 부활 시 다시 추가.
 ];
 const HD_ID='1QEvFEWjnXC1CNw6qAZ4ooFQUIxh36ow_9EL3hnM6ZoI';
-const LINE=['생산1팀','생산2팀','생산3팀'];
-const DOG_LOC={'생산1팀':'퍼플','생산2팀':'그린','생산3팀':'3공장'};
+const LINE=['생산1팀','생산2팀','생산3팀','생산4팀']; // 생산4팀 신설(2026-09) — 소스 정규직DB에 팀명 존재
+const DOG_LOC={'생산1팀':'퍼플','생산2팀':'그린','생산3팀':'3공장','생산4팀':'그린'}; // 생산4팀 근무지=그린 (소스 정규직DB 기준)
 const norm=d=>{const t=String(d||'').trim();if(!t)return '';const m=t.match(/(\d{4})\D+(\d{1,2})\D+(\d{1,2})/);if(m)return `${m[1]}-${String(m[2]).padStart(2,'0')}-${String(m[3]).padStart(2,'0')}`;return t.slice(0,10);};
 const today=()=>new Date().toISOString().slice(0,10);
 const mapStat=v=>{const t=String(v||'').trim();if(t==='입사포기')return '입사취소';if(['지원자','입사예정','입사완료','입사취소','보류'].includes(t))return t;return '';};
