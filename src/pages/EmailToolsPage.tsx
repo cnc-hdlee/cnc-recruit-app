@@ -5,7 +5,7 @@
 // 발송은 Gmail API 직접 발송(gmail.send). 사용자가 버튼을 누른 경우에만 나간다 — 자동 발송 경로 없음.
 // 처우협의(offer)만 예외로 잠금 유지: 자동 prefill 금지 + 2단계 확인.
 //
-// 단계: 1차 면접 안내 → 1차 합격 → 처우협의 → 최종 입사 안내 (+불합격)
+// 단계: 면접 안내 → (면접) → 합격 안내 / 불합격 안내 → 처우협의 → 최종 입사 안내
 //       CPI 인성검사는 폐지(2026-08)되어 제거. 2차 면접은 아직 미구현.
 
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -520,6 +520,13 @@ export function EmailToolsPage() {
     const out = new Map<string, CalCandidate>();
     const drops: { title: string; reason: string }[] = [];
     for (const e of liveCalendarEventsNormalized()) {
+      // 종일 + 참석자 없음 + 장소 없음 = 면접이 아니라 to-do 메모다.
+      //   "전략구매팀 면접자 일정 협의" 처럼 제목에 '면접'이 들어가도 실제 면접이 아니다.
+      //   진짜 면접은 시간이 있고, 참석자나 회의실 중 하나는 반드시 있다.
+      if (e.raw.allDay && !(e.raw.attendees || []).length && !(e.location || '').trim()) {
+        drops.push({ title: e.title, reason: '종일 메모 — 면접 아님' });
+        continue;
+      }
       const classified = isInterviewKind(e.title, e.raw.colorId ?? null, e.raw.calendarId ?? null);
       // 분류기가 놓친 일정 — TA팀이 만들고 회의실을 잡은 "이름이 있는" 일정이면 면접으로 의심한다
       let suspect = false;

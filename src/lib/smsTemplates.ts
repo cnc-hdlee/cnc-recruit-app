@@ -23,13 +23,13 @@ const STORE_KEY = 'smsTemplates';
 const DEFAULTS: SmsTemplate[] = [
   {
     stage: 'interview_1st',
-    name: '1차 면접 안내 문자',
+    name: '면접 안내 문자',
     text: `[씨앤씨인터내셔널] {{이름}}님, 면접 안내 메일을 확인해 주세요.
 일정: {{면접일시}}`,
   },
   {
     stage: 'pass',
-    name: '1차 합격 안내 문자',
+    name: '합격 안내 문자',
     text: `[씨앤씨인터내셔널] {{이름}}님, 면접 결과 안내 메일을 보내드렸습니다.
 메일 확인 부탁드립니다.`,
   },
