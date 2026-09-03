@@ -13,6 +13,8 @@ const TARGETS=[
 ];
 const HD_ID='1QEvFEWjnXC1CNw6qAZ4ooFQUIxh36ow_9EL3hnM6ZoI';
 const LINE=['생산1팀','생산2팀','생산3팀','생산4팀']; // 생산4팀 신설(2026-09) — 소스 정규직DB에 팀명 존재
+// 에스텍플러스(도급) 환산인원은 사람마다 계산하지 않고 항상 이 값으로 통일한다(형도님 지시).
+const ESTECK='에스텍플러스', ESTECK_RATE=0.6;
 const DOG_LOC={'생산1팀':'퍼플','생산2팀':'그린','생산3팀':'3공장','생산4팀':'그린'}; // 생산4팀 근무지=그린 (소스 정규직DB 기준)
 const norm=d=>{const t=String(d||'').trim();if(!t)return '';const m=t.match(/(\d{4})\D+(\d{1,2})\D+(\d{1,2})/);if(m)return `${m[1]}-${String(m[2]).padStart(2,'0')}-${String(m[3]).padStart(2,'0')}`;return t.slice(0,10);};
 const today=()=>new Date().toISOString().slice(0,10);
@@ -142,16 +144,25 @@ async function syncOne(s, ID, TAB, srcList, TD, mjPath){
  let last=first; for(let i=first;i<av.length;i++){ if(av[i]&&av[i][0]) last=i+1; }
  if(last>first+1) await s.spreadsheets.batchUpdate({spreadsheetId:ID,requestBody:{requests:[{sortRange:{range:{sheetId:sid,startRowIndex:first,endRowIndex:last,startColumnIndex:0,endColumnIndex:H.length},sortSpecs:[{dimensionIndex:c.ipsa,sortOrder:'ASCENDING'}]}}]}});
  // 환산인원(형도만): 새 행 포함 전체 데이터행에 per-row 수식 자동채움(값 아님·수식). 각 행이 자기 경로 입사율=완료/(완료+취소) 계산. INDIRECT로 정렬 안정.
+ // 단, 에스텍플러스(도급)는 경로 입사율과 무관하게 항상 ESTECK_RATE 고정 — 형도님 지시로 전 인원 통일.
+ //   예전엔 이 규칙이 일회성 스크립트(_fix-esteck-060)에만 있어서, 여기서 새로 추가되는 행마다
+ //   일반 수식이 들어가 사람마다 값이 달라졌다(2026-09-03 지적).
  if(isHD && c.환산인원>=0){ const Nl=colL(c.입사경로),Ml=colL(c.입사여부),Ol=colL(c.환산인원);
    const nmv=(await s.spreadsheets.values.get({spreadsheetId:ID,range:`'${TAB}'!${colL(c.성명)}1:${colL(c.성명)}2000`})).data.values||[];
    let lastD=first; for(let i=first;i<nmv.length;i++){ if(nmv[i]&&String(nmv[i][0]||'').trim()) lastD=i+1; }
-   const rf=`=IFERROR(COUNTIFS($${Nl}:$${Nl},INDIRECT("${Nl}"&ROW()),$${Ml}:$${Ml},"입사완료")/(COUNTIFS($${Nl}:$${Nl},INDIRECT("${Nl}"&ROW()),$${Ml}:$${Ml},"입사완료")+COUNTIFS($${Nl}:$${Nl},INDIRECT("${Nl}"&ROW()),$${Ml}:$${Ml},"입사취소")),0)`;
+   const rf=`=IFERROR(COUNTIFS(${Nl}:${Nl},INDIRECT("${Nl}"&ROW()),${Ml}:${Ml},"입사완료")/(COUNTIFS(${Nl}:${Nl},INDIRECT("${Nl}"&ROW()),${Ml}:${Ml},"입사완료")+COUNTIFS(${Nl}:${Nl},INDIRECT("${Nl}"&ROW()),${Ml}:${Ml},"입사취소")),0)`;
    const startRow=first+1;
    // 수동 보호: 형도님이 직접 입력한 환산인원(숫자값)은 보존. 빈칸·기존 자동수식인 행만 자동수식으로 채움.
    const curO=(await s.spreadsheets.values.get({spreadsheetId:ID,range:`'${TAB}'!${Ol}${startRow}:${Ol}${lastD}`,valueRenderOption:'FORMULA'})).data.values||[];
+   // 입사경로 — 에스텍플러스 판정용
+   const curN=(await s.spreadsheets.values.get({spreadsheetId:ID,range:`'${TAB}'!${Nl}${startRow}:${Nl}${lastD}`,valueRenderOption:'FORMATTED_VALUE'})).data.values||[];
+   let esteck=0;
    const oform=[]; for(let r=startRow;r<=lastD;r++){ const cv=(curO[r-startRow]&&curO[r-startRow][0]); const cs=String(cv==null?'':cv).trim();
+     const 경로=String((curN[r-startRow]&&curN[r-startRow][0])||'').trim();
+     if(경로===ESTECK){ esteck++; oform.push([ESTECK_RATE]); continue; } // 통일 규칙이 수동값보다 우선
      oform.push([ (cs!=='' && !cs.startsWith('=')) ? cv : rf ]); }
-   if(oform.length) await s.spreadsheets.values.update({spreadsheetId:ID,range:`'${TAB}'!${Ol}${startRow}:${Ol}${lastD}`,valueInputOption:'USER_ENTERED',requestBody:{values:oform}}); }
+   if(oform.length) await s.spreadsheets.values.update({spreadsheetId:ID,range:`'${TAB}'!${Ol}${startRow}:${Ol}${lastD}`,valueInputOption:'USER_ENTERED',requestBody:{values:oform}});
+   console.log(`  (${ID.slice(0,8)}) 환산인원: ${ESTECK} ${esteck}행 = ${ESTECK_RATE} 고정 · 나머지 ${oform.length-esteck}행 경로 입사율`); }
  // 입사여부 드롭다운
  const ddList=isHD?['지원자','입사완료','입사예정','입사취소','보류']:['입사완료','입사예정','입사취소'];
  await s.spreadsheets.batchUpdate({spreadsheetId:ID,requestBody:{requests:[{setDataValidation:{range:{sheetId:sid,startRowIndex:first,endRowIndex:Math.max(last,first)+300,startColumnIndex:c.입사여부,endColumnIndex:c.입사여부+1},rule:{condition:{type:'ONE_OF_LIST',values:ddList.map(x=>({userEnteredValue:x}))},showCustomUi:true,strict:false}}}]}});
