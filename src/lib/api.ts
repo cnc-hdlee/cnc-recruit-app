@@ -382,6 +382,30 @@ interface ElectronAPI {
     plPressSend(): Promise<Result<{ sent: boolean; via: string }>>;
   };
 
+  /**
+   * 처우산정표 — '신규입사자 처우산정(안)' 워크북의 후보자별 탭.
+   * create: 템플릿을 복제해 '부서_이름(작성중)' 탭을 만들고 인적사항만 채운다(금액은 손대지 않는다).
+   *         같은 사람 탭이 이미 있으면 만들지 않고 그 탭을 돌려준다.
+   * list:   탭 이름에서 진행 상태를 읽는다 — (작성중)/(작성완료)/(협의완료)/(입사포기).
+   */
+  offer: {
+    create(info: {
+      candidate: string;
+      team?: string;
+      job?: string;
+      grade?: string;
+      phone?: string;
+      birth?: string;
+      gender?: string;
+      school?: string;
+      major?: string;
+      degree?: string;
+      careerTotal?: string;
+      careers?: { company?: string; role?: string; period?: string }[];
+    }): Promise<Result<{ created: boolean; existed: boolean; tab: string; gid: number; url: string; filled?: number }>>;
+    list(): Promise<Result<{ sheetId: string; items: { tab: string; gid: number; name: string; status: string; url: string }[] }>>;
+  };
+
   resumes: {
     save(payload: {
       filename: string;

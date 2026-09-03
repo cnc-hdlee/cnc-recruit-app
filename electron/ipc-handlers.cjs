@@ -6,6 +6,7 @@ const sync = require('./integrations/sync.cjs');
 const resumes = require('./integrations/resumes.cjs');
 const presence = require('./integrations/presence.cjs');
 const sms = require('./integrations/sms.cjs');
+const offersheet = require('./integrations/offersheet.cjs');
 
 function safeHandle(channel, handler) {
   ipcMain.handle(channel, async (_e, ...args) => {
@@ -125,6 +126,10 @@ function register() {
   safeHandle('rv:contactsFromData', async (base64, mimeType) => resumes.extractContactsFromData(base64, mimeType));
   safeHandle('rv:contactsAll', async () => resumes.contactsAll());
   safeHandle('rv:attachToEvent', async (payload) => resumes.attachToEvent(payload));
+
+  // 처우산정표 — 템플릿 복제 + 인적사항 기입
+  safeHandle('offer:create', async (info) => offersheet.createOfferSheet(info));
+  safeHandle('offer:list', async () => offersheet.listOfferSheets());
   safeHandle('rv:stats', async () => resumes.stats());
 
   // ── 문자(SMS) ──

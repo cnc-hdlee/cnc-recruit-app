@@ -433,6 +433,9 @@ export function EmailToolsPage() {
   const [smsTpls, setSmsTpls] = useState<SmsTemplate[]>([]);
   // 파서가 못 읽은 이름을 화면에서 직접 채운 값 (key → 이름)
   const [nameFix, setNameFix] = useState<Record<string, string>>({});
+  /** 처우산정표 현황 — 이름 → {상태, 링크}. 탭 이름이 곧 진행 상태다 */
+  const [offerTabs, setOfferTabs] = useState<Record<string, { status: string; url: string; tab: string }>>({});
+  const [offerBusy, setOfferBusy] = useState<string | null>(null);
   const [showSmsTpl, setShowSmsTpl] = useState(false);
   const [myEmail, setMyEmail] = useState('');
   const [showHandled, setShowHandled] = useState(false);
@@ -494,6 +497,21 @@ export function EmailToolsPage() {
     loadHandled().then(setHandled);
     api.cfg.get<string>(TEST_PHONE_CFG_KEY).then((r) => r.ok && r.data && setTestPhone(r.data));
     loadSmsTemplates().then(setSmsTpls);
+    // 처우산정표 워크북의 탭 목록 — 누가 어디까지 갔는지 이름으로 맞춘다
+    void (async () => {
+      try {
+        const r = await api.offer.list();
+        if (!r.ok || !r.data) return;
+        const m: Record<string, { status: string; url: string; tab: string }> = {};
+        for (const it of r.data.items) {
+          const k = it.name.replace(/\s+/g, '');
+          if (k) m[k] = { status: it.status, url: it.url, tab: it.tab };
+        }
+        setOfferTabs(m);
+      } catch {
+        /* 시트 쓰기 토큰이 없는 PC에서는 조용히 넘어간다 */
+      }
+    })();
     // 보관함 연락처 전체를 왕복 한 번에 받아 즉시 채운다.
     // (예전엔 후보자마다 따로 조회해서 40명이면 왕복이 40번, 화면이 한참 비어 있었다)
     void (async () => {
@@ -819,6 +837,39 @@ export function EmailToolsPage() {
     setOnlyReady(false);
     setShowHandled(false);
   }, [stage]);
+
+  const offerOf = (name: string) => offerTabs[(name || '').replace(/\s+/g, '')];
+
+  /** 처우산정표 탭을 만들고 인적사항까지 채운다. 금액은 채우지 않는다 — 직접 넣으셔야 한다. */
+  async function makeOfferSheet(c: CalCandidate) {
+    if (!c.name.trim()) {
+      alert('이름을 먼저 확인해주세요.');
+      return;
+    }
+    const already = offerOf(c.name);
+    if (already) {
+      window.open(already.url, '_blank');
+      return;
+    }
+    setOfferBusy(c.key);
+    try {
+      const phone = autoPhone[c.name] || '';
+      const r = await api.offer.create({ candidate: c.name, team: c.team, job: '', grade: '', phone });
+      if (!r.ok || !r.data) {
+        alert(`처우산정표를 만들지 못했습니다: ${r.error || '알 수 없는 오류'}`);
+        return;
+      }
+      setOfferTabs((prev) => ({
+        ...prev,
+        [c.name.replace(/\s+/g, '')]: { status: r.data!.existed ? '' : '작성중', url: r.data!.url, tab: r.data!.tab },
+      }));
+      window.open(r.data.url, '_blank');
+    } catch (e) {
+      alert(`처우산정표 생성 실패: ${(e as Error).message}`);
+    } finally {
+      setOfferBusy(null);
+    }
+  }
 
   async function markHandled(c: CalCandidate, via: 'send' | 'manual') {
     if (!c.name.trim()) {
@@ -1453,6 +1504,24 @@ export function EmailToolsPage() {
                           {c.status}
                         </span>
                       )}
+                      {offerOf(c.name)?.status && (
+                        <a
+                          href={offerOf(c.name)!.url}
+                          target="_blank"
+                          rel="noreferrer"
+                          title={`처우산정표: ${offerOf(c.name)!.tab}`}
+                          className={
+                            'ml-1 px-1.5 py-0.5 rounded text-[10px] font-bold align-middle border ' +
+                            (/협의완료/.test(offerOf(c.name)!.status)
+                              ? 'bg-emerald-100 text-emerald-900 border-emerald-300'
+                              : /입사포기/.test(offerOf(c.name)!.status)
+                                ? 'bg-slate-200 text-slate-900 border-slate-400'
+                                : 'bg-sky-100 text-sky-900 border-sky-300')
+                          }
+                        >
+                          산정표 {offerOf(c.name)!.status}
+                        </a>
+                      )}
                       {isRejected(c.name) && (
                         <span
                           className="ml-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-slate-800 text-white align-middle"
@@ -1525,6 +1594,25 @@ export function EmailToolsPage() {
                       >
                         {busy === c.key ? '발송 중…' : '✉ 발송'}
                       </button>
+                      {stage === 'offer' && (
+                        <button
+                          onClick={() => makeOfferSheet(c)}
+                          disabled={offerBusy === c.key}
+                          title={
+                            offerOf(c.name)
+                              ? `처우산정표 열기 — ${offerOf(c.name)!.tab}`
+                              : '처우산정표 탭을 만들고 인적사항을 채웁니다 (금액은 직접 입력)'
+                          }
+                          className={
+                            'px-2 py-1 rounded border text-xs font-bold disabled:opacity-40 ' +
+                            (offerOf(c.name)
+                              ? 'border-sky-400 bg-sky-50 text-slate-900 hover:bg-sky-100'
+                              : 'border-slate-300 bg-white text-slate-900 hover:bg-slate-100')
+                          }
+                        >
+                          {offerBusy === c.key ? '만드는 중…' : offerOf(c.name) ? '📋 산정표 열기' : '📋 산정표 만들기'}
+                        </button>
+                      )}
                       <button
                         onClick={() => setSmsFor(c)}
                         disabled={!currentTpl}

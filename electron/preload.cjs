@@ -70,6 +70,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
     plPressSend: () => invoke('sms:plPressSend'),
   },
 
+  // 처우산정표 — 신규입사자 처우산정(안) 워크북
+  offer: {
+    create: (info) => invoke('offer:create', info),
+    list: () => invoke('offer:list'),
+  },
+
   // 이력서 보관함 — 드래그앤드랍한 원본을 로컬에 쌓고 드라이브에 백업
   resumes: {
     save: (payload) => invoke('rv:save', payload),
