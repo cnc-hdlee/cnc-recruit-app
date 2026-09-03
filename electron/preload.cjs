@@ -67,6 +67,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     gmStatus: () => invoke('sms:gmStatus'),
     gmConnect: () => invoke('sms:gmConnect'),
     plStatus: () => invoke('sms:plStatus'),
+    plPressSend: () => invoke('sms:plPressSend'),
   },
 
   // 이력서 보관함 — 드래그앤드랍한 원본을 로컬에 쌓고 드라이브에 백업
@@ -88,6 +89,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     organize: () => invoke('rv:organize'),
     contacts: (id) => invoke('rv:contacts', id),
     contactsByName: (name) => invoke('rv:contactsByName', name),
+    contactsAll: () => invoke('rv:contactsAll'),
     contactsFromData: (base64, mimeType) => invoke('rv:contactsFromData', base64, mimeType),
     scan: (opt) => invoke('rv:scan', opt),
     importPath: (filePath, meta, password) => invoke('rv:importPath', filePath, meta, password),

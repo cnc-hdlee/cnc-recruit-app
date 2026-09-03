@@ -545,6 +545,12 @@ export function parseInterviewTitle(title: string): {
 // to-do/업무 액션 동사 — "OOO 발송", "OOO 확인", "그리팅 시안 확인", "채용품의 상신" 등을 면접에서 제외
 const TODO_ACTION_KEYWORDS = /(안내|발송|확인|준비|작성|기안|상신|회신|보고|공유|체크|정리|등록|기입|결재|점검|결제|구매|받기|챙기기|제출|신청|수령|반납|발급|취소|기획|품의|시안|크리닝|스크리닝|마감|개시|마감|기록|통보|업데이트)/;
 
+// 조직 이름 안의 글자가 키워드로 오인되지 않게 먼저 걷어낸다.
+// '전략구매팀'의 '구매'가 to-do 동사(구매 요청 등)로 잡혀서 전략구매팀 면접 20건이
+// 통째로 목록에서 사라졌다 (2026-09-03 임수현 건). 교육팀·세미나실 같은 이름도 같은 함정이다.
+const withoutOrgNames = (s: string) =>
+  (s || '').replace(/[가-힣A-Za-z0-9]{1,12}(팀|파트|실(?!장)|센터|본부|그룹|스튜디오|랩|Lab|Studio|Center)/g, ' ');
+
 export function isInterviewKind(summary: string, colorId: string | null, calendarId: string | null = null): boolean {
   // 제목 없는 이벤트 제외 — 공유 면접 캘린더를 reader로 읽으면 private이라 제목이 빈 채로 온다.
   // 그 빈 사본이 카드로 뜨면 이름·소속 공란이 되므로 원천 차단(제목 있는 primary 사본만 카드화).
@@ -570,7 +576,7 @@ export function isInterviewKind(summary: string, colorId: string | null, calenda
   }
   // 입사(colorId 5)·퇴사·휴가·행사 명시적으로 제외
   if (colorId === '5') return false; // 노란색 = 입사
-  if (/입사|퇴사|퇴직|휴가|연차|반차|생일|워크샵|워크샾|행사|회식|점심|런치|MT\b|OT\b|교육|세미나|컨퍼런스|타운홀|townhall|holiday|off\b|박람회|일자리센터/i.test(summary)) {
+  if (/입사|퇴사|퇴직|휴가|연차|반차|생일|워크샵|워크샾|행사|회식|점심|런치|MT\b|OT\b|교육|세미나|컨퍼런스|타운홀|townhall|holiday|off\b|박람회|일자리센터/i.test(withoutOrgNames(summary))) {
     return false;
   }
   // 일반 회의/미팅 제외 (단, "면접" 단어가 함께 있거나 회의실/미팅룸 같은 장소명은 통과)
@@ -605,7 +611,10 @@ export function isInterviewKind(summary: string, colorId: string | null, calenda
 
   // ② "면접/interview" 명시 키워드 — 단, to-do 액션 동사가 함께 있으면 차단 (예: "면접 안내문자 발송")
   if (/면접|interview/i.test(summary)) {
-    if (TODO_ACTION_KEYWORDS.test(summary)) return false;
+    // 괄호 안 직무 설명도 걷어낸다 — "김민주(원료구매)" 의 구매가 to-do 동사로 잡히던 문제.
+    // to-do 일정은 "면접 안내문자 발송" 처럼 괄호 없이 동사가 본문에 있다.
+    const bare = withoutOrgNames(summary).replace(/[(（][^)）]*[)）]/g, ' ');
+    if (TODO_ACTION_KEYWORDS.test(bare)) return false;
     return true;
   }
 

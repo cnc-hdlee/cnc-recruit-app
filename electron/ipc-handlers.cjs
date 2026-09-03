@@ -43,9 +43,9 @@ function register() {
     'saveResume', 'listResumes', 'updateResume', 'readResumeBase64', 'openResume',
     'revealResumeFolder', 'deleteResume', 'deleteResumes', 'backupToDrive', 'applyClassification',
     'organizeVault', 'scanForResumes', 'importPath', 'extractContacts', 'extractContactsFromData',
-    'contactsByName', 'stats',
+    'contactsByName', 'contactsAll', 'stats',
   ]);
-  assertExports('sms', sms, ['getConfigMasked', 'setConfig', 'send', 'sendMany', 'balance', 'gmStatus', 'gmConnect', 'plStatus']);
+  assertExports('sms', sms, ['getConfigMasked', 'setConfig', 'send', 'sendMany', 'balance', 'gmStatus', 'gmConnect', 'plStatus', 'plPressSend']);
 
   // Google
   safeHandle('g:setCreds', async (creds) => google.setCreds(creds));
@@ -123,6 +123,7 @@ function register() {
   safeHandle('rv:scan', async (opt) => resumes.scanForResumes(opt));
   safeHandle('rv:importPath', async (p, meta, password) => resumes.importPath(p, meta, password));
   safeHandle('rv:contactsFromData', async (base64, mimeType) => resumes.extractContactsFromData(base64, mimeType));
+  safeHandle('rv:contactsAll', async () => resumes.contactsAll());
   safeHandle('rv:stats', async () => resumes.stats());
 
   // ── 문자(SMS) ──
@@ -134,6 +135,7 @@ function register() {
   safeHandle('sms:gmStatus', async () => sms.gmStatus());
   safeHandle('sms:gmConnect', async () => sms.gmConnect());
   safeHandle('sms:plStatus', async () => sms.plStatus());
+  safeHandle('sms:plPressSend', async () => sms.plPressSend());
   safeHandle('rv:driveFolder', async () => google.getResumeFolderLink());
 
   safeHandle('s:saveToken', async (token) => {

@@ -889,6 +889,26 @@ async function extractContactsFromData(base64, mimeType) {
 }
 
 /** 이름으로 보관함을 찾아 연락처를 돌려준다 (가장 최근 이력서 우선, 캐시 있으면 즉시) */
+/**
+ * 보관함 전체의 연락처를 한 번에 돌려준다 — {이름: {email, phone}}.
+ * 후보자 40명을 한 명씩 조회하면 왕복이 40번이라 화면이 느렸다.
+ * 이건 로컬 인덱스만 읽으므로 즉시 끝난다. 못 찾은 사람만 메일·드라이브를 뒤진다.
+ */
+function contactsAll() {
+  const out = {};
+  for (const r of readIndex()) {
+    const n = (r.candidate || '').trim();
+    if (!n) continue;
+    const cur = out[n] || (out[n] = { email: '', phone: '' });
+    if (r.contactEmail && !cur.email) cur.email = r.contactEmail;
+    if (r.contactPhone && !cur.phone) cur.phone = r.contactPhone;
+    // 공백 있는 이름도 찾히게 별칭 하나 더
+    const k = n.replace(/s+/g, '');
+    if (k !== n && !out[k]) out[k] = cur;
+  }
+  return out;
+}
+
 async function contactsByName(name) {
   const key = (name || '').replace(/\s+/g, '');
   if (!key) return { email: '', phone: '', emails: [], phones: [], id: null };
@@ -1192,5 +1212,6 @@ module.exports = {
   extractContacts,
   extractContactsFromData,
   contactsByName,
+  contactsAll,
   stats,
 };

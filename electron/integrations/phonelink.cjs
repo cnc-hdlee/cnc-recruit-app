@@ -105,8 +105,10 @@ const PRESS_SEND_PS = [
   '  Start-Sleep -Milliseconds 350',
   '  return ([CncW32]::GetForegroundWindow() -eq $hwnd)',
   '}',
+  '# 포커스는 시간 기준으로 끈질기게 잡는다 — 대화창이 뜨는 시점이 PC 상태마다 달라서',
   '$front = $false',
-  'for ($i = 0; $i -lt 4 -and -not $front; $i++) {',
+  '$fgDeadline = (Get-Date).AddMilliseconds(__FOCUS__)',
+  'while (-not $front -and (Get-Date) -lt $fgDeadline) {',
   '  $front = Bring-Front $h',
   '  if (-not $front) {',
   '    try { (New-Object -ComObject WScript.Shell).AppActivate($p.Id) | Out-Null } catch {}',
@@ -128,11 +130,10 @@ const PRESS_SEND_PS = [
  * @param {number} waitMs  창이 뜰 때까지 기다릴 시간
  * @param {number} settleMs 문구가 채워질 때까지 기다릴 시간
  */
-async function pressSend(waitMs = 6000, settleMs = 1600) {
-  const script = PRESS_SEND_PS.replace('__WAIT__', String(Math.round(waitMs))).replace(
-    '__SETTLE__',
-    String(Math.round(settleMs))
-  );
+async function pressSend(waitMs = 8000, settleMs = 2200, focusMs = 6000) {
+  const script = PRESS_SEND_PS.replace('__WAIT__', String(Math.round(waitMs)))
+    .replace('__SETTLE__', String(Math.round(settleMs)))
+    .replace('__FOCUS__', String(Math.round(focusMs)));
   const r = await runPowerShell(script, waitMs + 20000);
   const out = (r.out || '').trim();
   if (out.endsWith('OK')) return { pressed: true };

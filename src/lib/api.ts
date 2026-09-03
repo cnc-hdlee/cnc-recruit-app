@@ -378,6 +378,8 @@ interface ElectronAPI {
     gmConnect(): Promise<Result<{ opened: boolean }>>;
     /** 휴대폰과 연결 설치 여부 */
     plStatus(): Promise<Result<{ installed: boolean; version: string }>>;
+    /** 이미 떠 있는 대화창에서 보내기(엔터)만 다시 누른다 */
+    plPressSend(): Promise<Result<{ sent: boolean; via: string }>>;
   };
 
   resumes: {
@@ -414,6 +416,11 @@ interface ElectronAPI {
     contacts(id: string): Promise<Result<ResumeContact>>;
     /** 이름으로 보관함을 찾아 연락처를 돌려준다 (가장 최근 이력서 기준) */
     contactsByName(name: string): Promise<Result<ResumeContact>>;
+    /**
+     * 보관함 전체 연락처를 한 번에 — {이름: {email, phone}}.
+     * 이름마다 따로 부르면 왕복이 사람 수만큼 생겨 느리다. 로컬 인덱스만 읽으므로 즉시 끝난다.
+     */
+    contactsAll(): Promise<Result<Record<string, { email: string; phone: string }>>>;
     /** 내 PC(바탕화면·다운로드·문서·OneDrive)에서 이력서로 보이는 파일을 찾는다 */
     scan(opt?: { roots?: string[]; names?: string[]; maxDepth?: number; limit?: number }): Promise<
       Result<{ roots: string[]; files: { path: string; filename: string; size: number; mtime: string; matchedBy: string }[] }>

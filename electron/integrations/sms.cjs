@@ -234,7 +234,17 @@ async function plStatus() {
   return phonelink.installed();
 }
 
+/**
+ * 이미 떠 있는 대화창에서 보내기(엔터)만 다시 누른다.
+ * 자동 발송이 포커스 싸움에 밀려 실패했을 때, 문구를 다시 만들지 않고 마무리만 하기 위한 것.
+ */
+async function plPressSend() {
+  const r = await phonelink.pressSend();
+  if (!r.pressed) throw new Error(r.message || '보내기를 누르지 못했습니다');
+  return { sent: true, via: 'phonelink' };
+}
+
 module.exports = {
   getConfigMasked, setConfig, send, sendMany, balance, normalize, byteLen,
-  gmStatus, gmConnect, plStatus,
+  gmStatus, gmConnect, plStatus, plPressSend,
 };

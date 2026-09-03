@@ -205,6 +205,8 @@ interface CalCandidate {
   rawTitle?: string;
   /** 파서가 이름을 못 읽은 건 — 목록에는 남기고 사용자가 직접 채운다 */
   needsName?: boolean;
+  /** 제목에 "면접"이 없어 분류기가 놓쳤지만, TA팀이 회의실까지 잡은 일정 — 면접으로 의심 */
+  suspect?: boolean;
 }
 
 // ── 후보자 판정 보정 ─────────────────────────────────────────
@@ -215,6 +217,21 @@ interface CalCandidate {
 /** 아예 후보자 면접이 아닌 일정 — 제목에 걸리면 목록에서 뺀다 */
 const NOT_CANDIDATE_EVENT =
   /도제실습|도제교육|교육|설명회|weekly|preview|미팅|회의|워크샵|간담회|웨비나|OJT|오리엔테이션|일자리센터|박람회|대기실|안내/i;
+
+// ── "면접"이라는 단어가 없는 면접 ──────────────────────────────────────────
+// 회의실만 잡고 면접 캘린더에는 안 올린 일정이 있다. 제목도 "전략구매팀 - 임수현(원료창고)"
+// 처럼 면접 키워드가 없어서 분류기를 그냥 통과해버리고, 후보자 목록에서 통째로 빠졌다.
+// (2026-09-03 임수현 건. 이력서까지 다 있는데 메일 화면에만 없었다)
+//
+// 제목만으로는 못 잡으니 일정의 다른 흔적을 본다 —
+//   ① TA팀이 만든 일정이고  ② 회의실을 잡았고  ③ 제목에서 사람 이름이 나온다
+// 셋이 다 맞으면 면접으로 의심하고 목록에 올린다. 확실하지 않으니 배지를 달아 표시한다.
+// 빠뜨리는 것보다 한 번 더 보여주고 사용자가 지우는 편이 낫다.
+const TA_EMAILS = ['hdlee@cnccosmetic.com', 'bjkim4@cnccosmetic.com', 'hglim@cnccosmetic.com'];
+const RESOURCE_MAIL = /@resource\.calendar\.google\.com$/i;
+const ROOM_HINT = /회의실|미팅룸|구내식당|식당|라운지|카페|세미나|대회의|소회의|집무실|VIP/i;
+/** 제목이 "부서/팀 - 이름(직무)" 꼴인가 — 회의실 예약이 primary로 sync될 때 만들어지는 형태 */
+const DASH_NAME_SHAPE = /[가-힣A-Za-z0-9]\s*[-—–]\s*[가-힣]{2,4}/;
 
 /** 사람 이름이 될 수 없는 토큰 — 파서가 이걸 이름으로 잡으면 그 건은 신뢰하지 않는다 */
 const NOT_A_NAME = /^(대기|미정|공석|후보자|면접자|지원자|팀장|파트장|담당|담당자|신입|경력|인사팀|채용팀)$/;
@@ -412,6 +429,25 @@ export function EmailToolsPage() {
     loadHandled().then(setHandled);
     api.cfg.get<string>(TEST_PHONE_CFG_KEY).then((r) => r.ok && r.data && setTestPhone(r.data));
     loadSmsTemplates().then(setSmsTpls);
+    // 보관함 연락처 전체를 왕복 한 번에 받아 즉시 채운다.
+    // (예전엔 후보자마다 따로 조회해서 40명이면 왕복이 40번, 화면이 한참 비어 있었다)
+    void (async () => {
+      try {
+        const r = await api.resumes.contactsAll();
+        if (!r.ok || !r.data) return;
+        const em: Record<string, string> = {};
+        const ph: Record<string, string> = {};
+        for (const [name, v] of Object.entries(r.data)) {
+          if (v.email) em[name] = v.email;
+          if (v.phone) ph[name] = v.phone;
+        }
+        setAutoEmail((prev) => ({ ...em, ...prev }));
+        setAutoPhone((prev) => ({ ...ph, ...prev }));
+        phoneCache.current = { ...ph, ...phoneCache.current };
+      } catch {
+        /* 보관함이 비어 있으면 그냥 넘어간다 */
+      }
+    })();
     api.sms?.config().then((r) => r.ok && r.data && setSmsCfg(r.data));
     api.cfg.get<{ email?: string }>('googleProfile').then((r) => r.ok && r.data?.email && setMyEmail(r.data.email));
     loadSignature().then(setSignature);
@@ -426,7 +462,17 @@ export function EmailToolsPage() {
     const out = new Map<string, CalCandidate>();
     const drops: { title: string; reason: string }[] = [];
     for (const e of liveCalendarEventsNormalized()) {
-      if (!isInterviewKind(e.title, e.raw.colorId ?? null, e.raw.calendarId ?? null)) continue;
+      const classified = isInterviewKind(e.title, e.raw.colorId ?? null, e.raw.calendarId ?? null);
+      // 분류기가 놓친 일정 — TA팀이 만들고 회의실을 잡은 "이름이 있는" 일정이면 면접으로 의심한다
+      let suspect = false;
+      if (!classified) {
+        const by = (e.raw.creator?.email || e.raw.organizer?.email || '').toLowerCase();
+        const byTA = TA_EMAILS.includes(by);
+        const hasRoom =
+          (e.raw.attendees || []).some((a) => RESOURCE_MAIL.test(a.email || '')) || ROOM_HINT.test(e.location || '');
+        if (!byTA || !hasRoom || !DASH_NAME_SHAPE.test(e.title)) continue;
+        suspect = true;
+      }
 
       // ① 후보자 면접이 아닌 일정 (도제실습 / 교육 / 내부 미팅 등)
       if (NOT_CANDIDATE_EVENT.test(e.title)) {
@@ -451,6 +497,8 @@ export function EmailToolsPage() {
         continue;
       }
 
+      // 의심 일정은 이름을 못 읽으면 근거가 없다 — 그때만 버린다
+      if (suspect && badName) continue;
       const tm = e.tm || p.time || '';
       // 이름을 못 읽은 건은 제목으로 구분해야 서로 뭉개지지 않는다
       const key = `${e.dt}|${tm}|${name || 'title:' + e.title}`;
@@ -471,6 +519,7 @@ export function EmailToolsPage() {
         status: st ? st[1] : '',
         rawTitle: e.title,
         needsName: badName,
+        suspect,
       });
     }
     dropsRef.current = drops;
@@ -483,13 +532,16 @@ export function EmailToolsPage() {
   useEffect(() => {
     if (IS_VIEWER || !api?.resumes) return;
     const targets = allCandidates
-      .filter((c) => !c.email && c.name && !autoTried.current.has(c.name))
-      .slice(0, 40);
+      .filter((c) => !c.email && !autoPhone[c.name] && c.name && !autoTried.current.has(c.name))
+      .slice(0, 60);
     if (targets.length === 0) return;
     let cancelled = false;
     (async () => {
-      for (const c of targets) {
-        autoTried.current.add(c.name);
+      // 한 명씩 차례로 돌면 사람 수만큼 네트워크 왕복이 직렬로 쌓인다(40명이면 체감 수십 초).
+      // Gmail·드라이브 조회는 서로 독립이므로 동시에 몇 건씩 굴린다.
+      const LANES = 5;
+      let cursor = 0;
+      const lookup = async (c: CalCandidate) => {
         try {
           // ① 이력서 보관함
           let found = '';
@@ -506,14 +558,23 @@ export function EmailToolsPage() {
           if (!found) found = await emailFromGmailResume(c.name);
           // ③ 그래도 없으면 면접 일정에 첨부된 이력서(드라이브)에서
           if (!found) found = await emailFromCalendarAttachment(c.name, c.dt);
-          if (!found || cancelled) continue;
+          if (!found || cancelled) return;
           setAutoEmail((p) => ({ ...p, [c.name]: found }));
           await saveAutoEmail(c.name, found);
           pushDirty.current = true;
         } catch {
           // 이력서가 없거나 못 읽는 형식 — 수기 입력으로 남겨둔다
         }
-      }
+      };
+      const lane = async () => {
+        while (!cancelled) {
+          const i = cursor++;
+          if (i >= targets.length) return;
+          autoTried.current.add(targets[i].name);
+          await lookup(targets[i]);
+        }
+      };
+      await Promise.all(Array.from({ length: Math.min(LANES, targets.length) }, lane));
       // 드라이브 권한이 없어 일정 첨부 이력서를 못 읽었다면 — 물어보지 말고 바로 로그인 창을 띄운다.
       // (권한 동의 클릭만 사용자가 하면 되고, 끝나면 못 채운 주소를 자동으로 다시 채운다)
       // 새로 찾은 주소가 있으면 팀에 올린다 (한 번에 모아서)
@@ -1234,6 +1295,14 @@ export function EmailToolsPage() {
                           {c.status}
                         </span>
                       )}
+                      {c.suspect && (
+                        <span
+                          className="ml-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-300 align-middle"
+                          title={`제목에 "면접"이 없어 분류기가 놓친 일정입니다. TA팀이 회의실까지 잡아둬서 면접으로 보고 목록에 올렸습니다.\n${c.rawTitle || ''}`}
+                        >
+                          면접 추정
+                        </span>
+                      )}
                     </td>
                     <td className="px-3 py-2 text-slate-900">{c.team || '-'}</td>
                     <td className="px-3 py-2 whitespace-nowrap">
@@ -1838,6 +1907,7 @@ function SmsModal({
   const [copied, setCopied] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   const [needQr, setNeedQr] = useState(false);
+  const [needRetry, setNeedRetry] = useState(false);
   const phoneRef = useRef<HTMLInputElement>(null);
   const [result, setResult] = useState<string | null>(null);
 
@@ -1868,6 +1938,7 @@ function SmsModal({
     }
     setSending(true);
     setResult(null);
+    setNeedRetry(false);
     try {
       const r = await api.sms.send({ to: digits, text, title: template?.name });
       if (!r.ok) {
@@ -1879,7 +1950,8 @@ function SmsModal({
       }
       if (r.data?.sent) setResult(`✓ 발송 완료 (${r.data.via})`);
       else if (r.data?.autoSendFailed) {
-        setResult('대화창은 떴는데 자동 발송이 막혔습니다 (' + r.data.autoSendFailed + ') — 창에서 엔터만 눌러주세요.');
+        setResult('대화창은 떴는데 자동 발송이 막혔습니다 (' + r.data.autoSendFailed + ')');
+        setNeedRetry(true);
       } else if (r.data?.via === 'phonelink') {
         setResult('휴대폰과 연결에 대화창을 띄웠습니다 — 엔터만 누르세요.');
       } else if (r.data?.partial) {
@@ -2008,6 +2080,24 @@ function SmsModal({
           >
             {result}
           </div>
+        )}
+
+        {needRetry && (
+          <button
+            onClick={async () => {
+              setSending(true);
+              try {
+                const r = await api.sms.plPressSend();
+                if (r.ok && r.data?.sent) { setResult('✓ 발송 완료'); setNeedRetry(false); }
+                else setResult('여전히 막혔습니다 (' + (r.error || '') + ') — 휴대폰과 연결 창에서 엔터를 눌러주세요.');
+              } finally { setSending(false); }
+            }}
+            disabled={sending}
+            className="mt-2 w-full px-3 py-2 rounded-lg bg-amber-500 text-white text-xs font-bold hover:bg-amber-600 disabled:opacity-40"
+            title="이미 떠 있는 대화창에서 보내기(엔터)만 다시 누릅니다"
+          >
+            ↻ 보내기 다시 누르기
+          </button>
         )}
 
         {needQr && (
