@@ -64,7 +64,14 @@ function profileFromText(text, candidate) {
       break;
     }
   }
-  if (out.degree && /중퇴/.test(t)) out.degree += ' (중퇴)';
+  // 대학을 중퇴했으면 최종학력은 고졸이다 — 학위도, 학교도 고등학교 기준으로 잡는다.
+  // (형도님 지시: "중퇴는 고졸이야")
+  if (/중퇴/.test(t) && /대학/.test(t)) {
+    out.degree = '고졸';
+    const hs = t.match(/([가-힣A-Za-z]{2,12}고등학교)/);
+    if (hs) out.school = hs[1];
+    out.major = ''; // 고졸이면 전공 칸은 비운다
+  }
 
   // ── 총 경력 — "총 3년 7개월"
   const total = t.match(/총\s*(\d+\s*년(?:\s*\d+\s*개월)?|\d+\s*개월)/);
