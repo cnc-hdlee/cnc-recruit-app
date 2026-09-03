@@ -245,6 +245,50 @@ const ROOM_HINT = /회의실|미팅룸|구내식당|식당|라운지|카페|세�
 /** 제목이 "부서/팀 - 이름(직무)" 꼴인가 — 회의실 예약이 primary로 sync될 때 만들어지는 형태 */
 const DASH_NAME_SHAPE = /[가-힣A-Za-z0-9]\s*[-—–]\s*[가-힣]{2,4}/;
 
+// ── 제목 말고 다른 데서 이름 찾기 ────────────────────────────────────────
+// 이름 칸을 사람이 채우게 두는 것 자체가 잘못이다. 일정에는 이미 근거가 있다 —
+//   · 설명의 "후보자: 김보민(ERP)" (회의실 예약 페이지가 넣어준다)
+//   · 붙어 있는 이력서 파일명 "이력서(생산1팀 PM -박현석).pdf"
+// 제목 파서가 실패했을 때 이 둘을 차례로 본다.
+const NOT_NAME_TOKEN =
+  /^(이력서|면접|회의|미팅|일정|장소|예약|대기|후보|후보자|지원자|면접자|협의|경력|신입|사본|최종|서류|전형|제출|양식|파일|첨부|평가표|질문지|사전|가이드|안내|명단|서무|총괄|파트장|팀장|담당)$/;
+const ORG_TAIL = /(팀|파트|실|센터|본부|그룹|스튜디오|랩)$/;
+const SITE_TOKEN = /^(퍼플|그린|수원|서울|오산|위워크|본사|판교|강남|온라인)$/;
+/** 이력서가 아닌 첨부 — 평가표·사전질문지에는 후보자 이름이 없거나 엉뚱한 이름이 들어 있다 */
+const NOT_RESUME_FILE = /평가표|사전\s*질문|질문지|가이드|명단|일정표|양식/;
+/** 흔한 성(姓) — 파일명 안에서 사람 이름과 업무 단어를 가르는 가장 확실한 신호 */
+const KO_SURNAME =
+  /^[김이박최정강조윤장임한오서신권황안송전홍유고문양손배백허남심노하곽성차주우구원천방공현함변염여추도소석선설마길연위표명기반왕금옥육인맹제탁국진어편용봉피]/;
+
+function nameFromText(text: string): string {
+  // 구분자만 공백으로 바꾸고 토큰은 통째로 둔다.
+  //   "생산1팀"에서 숫자만 지우면 "생산"이 남아 팀 이름이 사람 이름으로 둔갑한다.
+  //   숫자·영문이 섞인 토큰은 사람 이름이 아니므로 통째로 버린다.
+  const words = String(text || '')
+    .replace(/\.(pdf|docx?|hwpx?|png|jpe?g)$/i, '')
+    .split(/[^가-힣A-Za-z0-9]+/)
+    .filter(Boolean);
+  const ok = (w: string) =>
+    /^[가-힣]{2,4}$/.test(w) && !NOT_NAME_TOKEN.test(w) && !ORG_TAIL.test(w) && !SITE_TOKEN.test(w);
+  // 성으로 시작하는 토큰을 먼저 — 없으면 그 외 후보 중 첫 번째
+  const cands = words.filter(ok);
+  return cands.find((w) => KO_SURNAME.test(w)) || cands[0] || '';
+}
+
+/** 일정의 설명·첨부에서 후보자 이름을 되찾는다 */
+function recoverName(raw: { description?: string; attachments?: { title: string }[] }): string {
+  // ① 설명에 명시된 후보자 — 가장 믿을 만하다
+  const m = String(raw.description || '').match(/후보자\s*[:：]\s*([가-힣]{2,4})/);
+  if (m) return m[1];
+  // ② 이력서 파일명
+  for (const a of raw.attachments || []) {
+    if (NOT_RESUME_FILE.test(a.title || '')) continue; // 평가표·사전질문지에는 후보자 이름이 없다
+    const n = nameFromText(a.title);
+    if (n) return n;
+  }
+  return '';
+}
+
 /** 사람 이름이 될 수 없는 토큰 — 파서가 이걸 이름으로 잡으면 그 건은 신뢰하지 않는다 */
 const NOT_A_NAME = /^(대기|미정|공석|후보자|면접자|지원자|팀장|파트장|담당|담당자|신입|경력|인사팀|채용팀)$/;
 
@@ -502,9 +546,18 @@ export function EmailToolsPage() {
       //    제목 형식이 제각각이라 파서가 못 읽는 경우가 반드시 생기는데,
       //    그때 조용히 빼버리면 불합격 연락 대상이 통째로 증발한다.
       //    이름 칸을 비워 목록에 올리고 화면에서 직접 채우게 한다.
-      const badName = !parsed || parsed.length > 5 || NOT_A_NAME.test(parsed);
-      const name = badName ? '' : parsed;
-      if (badName) drops.push({ title: e.title, reason: '이름 인식 실패 — 목록에서 직접 입력' });
+      const parsedBad = !parsed || parsed.length > 5 || NOT_A_NAME.test(parsed);
+      // 제목에서 못 읽었으면 설명("후보자: OOO")과 이력서 첨부 파일명에서 되찾는다.
+      // 사람에게 이름을 물어보는 건 마지막 수단이다.
+      const recovered = parsedBad ? recoverName(e.raw) : '';
+      const name = parsedBad ? recovered : parsed;
+      const badName = !name;
+      if (parsedBad) {
+        drops.push({
+          title: e.title,
+          reason: recovered ? `이름을 첨부·설명에서 복구: ${recovered}` : '이름 인식 실패 — 목록에서 직접 입력',
+        });
+      }
       // ③ 내부 인원(TA팀 등) — 메일 대상이 아님
       if (name && excludeNames.includes(name)) {
         drops.push({ title: e.title, reason: `내부 인원(${name}) 제외` });

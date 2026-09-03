@@ -345,6 +345,13 @@ export async function refreshCalendarFromGoogle() {
         organizer: a.organizer,
         self: a.self,
       })),
+      // 첨부(이력서)는 후보자 이름을 복구하는 근거라 반드시 들고 온다
+      attachments: (e.attachments || []).map((a) => ({
+        title: a.title || '',
+        fileId: a.fileId ?? null,
+        mimeType: a.mimeType,
+        fileUrl: a.fileUrl,
+      })),
       conferenceUrl: e.conferenceUrl,
       status: e.status || 'confirmed',
       updated: null,

@@ -31,6 +31,8 @@ export interface SnapshotCalendarEvent {
   timeZone: string | null;
   htmlLink: string | null;
   attendees: SnapshotCalendarAttendee[];
+  /** 일정에 붙은 파일 — 대부분 지원자 이력서. 파일명에 이름이 들어 있어 후보자 복구에 쓴다 */
+  attachments?: { title: string; fileId: string | null; mimeType?: string; fileUrl?: string }[];
   conferenceUrl: string | null;
   status: string;
   updated: string | null;
