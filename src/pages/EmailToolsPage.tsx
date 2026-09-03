@@ -501,20 +501,7 @@ export function EmailToolsPage() {
     api.cfg.get<string>(TEST_PHONE_CFG_KEY).then((r) => r.ok && r.data && setTestPhone(r.data));
     loadSmsTemplates().then(setSmsTpls);
     // 처우산정표 워크북의 탭 목록 — 누가 어디까지 갔는지 이름으로 맞춘다
-    void (async () => {
-      try {
-        const r = await api.offer.list();
-        if (!r.ok || !r.data) return;
-        const m: Record<string, { status: string; url: string; tab: string }> = {};
-        for (const it of r.data.items) {
-          const k = it.name.replace(/\s+/g, '');
-          if (k) m[k] = { status: it.status, url: it.url, tab: it.tab };
-        }
-        setOfferTabs(m);
-      } catch {
-        /* 시트 쓰기 토큰이 없는 PC에서는 조용히 넘어간다 */
-      }
-    })();
+    void refreshOfferTabs();
     // 보관함 연락처 전체를 왕복 한 번에 받아 즉시 채운다.
     // (예전엔 후보자마다 따로 조회해서 40명이면 왕복이 40번, 화면이 한참 비어 있었다)
     void (async () => {
@@ -875,15 +862,32 @@ export function EmailToolsPage() {
     }
   }
 
-  /** 처우산정표 탭을 만들고 인적사항까지 채운다. 금액은 채우지 않는다 — 직접 넣으셔야 한다. */
+  /** 처우산정표 현황을 시트에서 다시 읽어 화면 상태를 맞춘다 */
+  async function refreshOfferTabs() {
+    try {
+      const r = await api.offer.list();
+      if (!r.ok || !r.data) return;
+      const m: Record<string, { status: string; url: string; tab: string }> = {};
+      for (const it of r.data.items) {
+        const k = it.name.replace(/\s+/g, '');
+        if (k) m[k] = { status: it.status, url: it.url, tab: it.tab };
+      }
+      setOfferTabs(m); // 통째로 교체 — 지워진 탭이 남아 있으면 안 된다
+    } catch {
+      /* 시트 쓰기 토큰이 없는 PC에서는 조용히 넘어간다 */
+    }
+  }
+
+  /**
+   * 처우산정표 탭을 만들고 인적사항까지 채운다. 금액은 채우지 않는다 — 직접 넣으셔야 한다.
+   *
+   * 화면이 들고 있는 주소를 그대로 열지 않고 항상 시트에 물어본다.
+   * 시트에서 탭을 지웠는데 화면 상태가 옛 gid를 붙들고 있으면, 구글이 없는 탭 대신
+   * 첫 탭(호봉표)을 열어버린다 — 실제로 그 사고가 났다(2026-09-03).
+   */
   async function makeOfferSheet(c: CalCandidate) {
     if (!c.name.trim()) {
       alert('이름을 먼저 확인해주세요.');
-      return;
-    }
-    const already = offerOf(c.name);
-    if (already) {
-      window.open(already.url, '_blank');
       return;
     }
     setOfferBusy(c.key);
@@ -894,10 +898,7 @@ export function EmailToolsPage() {
         alert(`처우산정표를 만들지 못했습니다: ${r.error || '알 수 없는 오류'}`);
         return;
       }
-      setOfferTabs((prev) => ({
-        ...prev,
-        [c.name.replace(/\s+/g, '')]: { status: r.data!.existed ? '' : '작성중', url: r.data!.url, tab: r.data!.tab },
-      }));
+      await refreshOfferTabs(); // 방금 만든 탭까지 반영해서 다시 읽는다
       window.open(r.data.url, '_blank');
     } catch (e) {
       alert(`처우산정표 생성 실패: ${(e as Error).message}`);
