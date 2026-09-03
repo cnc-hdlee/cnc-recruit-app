@@ -1216,6 +1216,26 @@ function NewBookingModal({
         setErr(r.error || '예약에 실패했습니다. (응답 ok=false, error 없음)');
         return;
       }
+      // 후보자 이력서를 일정에 자동 첨부 — 면접관이 캘린더에서 바로 열어볼 수 있게.
+      // 보관함에 없으면 조용히 넘어간다(예약 자체는 이미 성공했으므로 막지 않는다).
+      const bookedName = parseRoomBookingTitle(title.trim())?.name || '';
+      const bookedEventId = (r.data as { id?: string } | undefined)?.id || '';
+      let attachNote = '';
+      if (bookedName && bookedEventId && api?.resumes?.attachToEvent) {
+        try {
+          const at = await api.resumes.attachToEvent({
+            calendarId: 'primary',
+            eventId: bookedEventId,
+            candidate: bookedName,
+            shareWith: finalAttendees,
+          });
+          console.log('[MeetingRooms] 이력서 첨부', at);
+          if (at.ok && at.data?.attached) attachNote = at.data.title || '';
+          else if (at.ok && at.data?.reason) attachNote = '';
+        } catch (e) {
+          console.warn('[MeetingRooms] 이력서 첨부 실패(무시)', e);
+        }
+      }
       // 면접 캘린더에도 동시 등록 — 메모리 룰: colorId=3(보라), location 명시.
       // 차량 예약일 때는 alsoInterview가 강제로 false라 진입 안 됨 (위 useEffect/handleAlsoInterviewToggle 가드).
       // 한 번 더 방어: room.kind==='car'면 절대 면접 캘린더 insert 금지.
@@ -1244,10 +1264,27 @@ function NewBookingModal({
         };
         const r2 = await api.google.insertCalEvent(SHARED_CAL.interview, interviewBody, 'none');
         console.log('[MeetingRooms] 면접 캘린더 등록 응답', r2);
+        // 면접 캘린더 쪽 일정에도 같은 이력서를 붙인다 (여기가 TA팀이 실제로 보는 캘린더)
+        const iid = (r2.data as { id?: string } | undefined)?.id || '';
+        if (r2.ok && iid && bookedName && api?.resumes?.attachToEvent) {
+          try {
+            await api.resumes.attachToEvent({
+              calendarId: SHARED_CAL.interview,
+              eventId: iid,
+              candidate: bookedName,
+              shareWith: [],
+            });
+          } catch (e) {
+            console.warn('[MeetingRooms] 면접 캘린더 이력서 첨부 실패(무시)', e);
+          }
+        }
         if (!r2.ok) {
           // 회의실 예약은 성공했으니 fatal로 처리 안 함, 경고만
           alert(`회의실 예약은 성공했지만 면접 캘린더 등록 실패: ${r2.error || '알 수 없는 오류'}\n구글 캘린더에서 수동으로 추가해 주세요.`);
         }
+      }
+      if (attachNote) {
+        console.log('[MeetingRooms] 이력서 첨부 완료:', attachNote);
       }
       onCreated();
     } catch (e: unknown) {

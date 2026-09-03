@@ -1329,8 +1329,41 @@ async function insertCalendarEvent(calendarId, body, sendUpdates = 'none') {
     calendarId: calendarId || 'primary',
     requestBody: body,
     sendUpdates,
+    // 이력서 첨부를 붙이려면 반드시 필요 — 없으면 attachments가 조용히 무시된다
+    supportsAttachments: true,
   });
   return r.data;
+}
+
+/**
+ * 일정에 드라이브 파일을 첨부한다. 이미 붙어 있는 첨부는 그대로 두고 더한다.
+ * 첨부는 링크일 뿐이라 파일 권한이 없으면 참석자에게는 안 열린다 —
+ * 공유는 호출하는 쪽(resumes.attachToEvent)에서 미리 해둔다.
+ */
+async function addEventAttachment(calendarId, eventId, att, dedupeName) {
+  const auth = buildClient();
+  const cal = google.calendar({ version: 'v3', auth });
+  const cur = await cal.events.get({ calendarId: calendarId || 'primary', eventId });
+  const have = cur.data.attachments || [];
+  if (have.some((a) => a.fileId === att.fileId)) return { already: true, count: have.length };
+  // 같은 사람 이력서가 이미 붙어 있으면(현업이 직접 올린 파일 등) 또 붙이지 않는다.
+  // 파일 ID가 달라도 같은 서류라 두 개가 나란히 뜨면 면접관이 헷갈린다.
+  const key = String(dedupeName || '').replace(/s+/g, '');
+  if (key && have.some((a) => String(a.title || '').replace(/s+/g, '').includes(key)))
+    return { already: true, dedupedByName: true, count: have.length };
+  const r = await cal.events.patch({
+    calendarId: calendarId || 'primary',
+    eventId,
+    supportsAttachments: true,
+    sendUpdates: 'none', // 첨부 하나 붙였다고 참석자 전원에게 메일이 다시 나가면 안 된다
+    requestBody: {
+      attachments: [
+        ...have,
+        { fileId: att.fileId, title: att.title, mimeType: att.mimeType, fileUrl: att.fileUrl },
+      ],
+    },
+  });
+  return { already: false, count: (r.data.attachments || []).length };
 }
 
 async function updateCalendarEvent(calendarId, eventId, body, sendUpdates = 'none') {
@@ -1342,6 +1375,7 @@ async function updateCalendarEvent(calendarId, eventId, body, sendUpdates = 'non
       eventId,
       requestBody: body,
       sendUpdates,
+      supportsAttachments: true,
     });
     return r.data;
   } catch (e) {
@@ -1459,6 +1493,7 @@ module.exports = {
   listCalendarsFull,
   patchCalendarListEntry,
   insertCalendarEvent,
+  addEventAttachment,
   updateCalendarEvent,
   deleteCalendarEvent,
   createCalendarForUser,

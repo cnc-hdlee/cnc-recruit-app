@@ -421,6 +421,17 @@ interface ElectronAPI {
      * 이름마다 따로 부르면 왕복이 사람 수만큼 생겨 느리다. 로컬 인덱스만 읽으므로 즉시 끝난다.
      */
     contactsAll(): Promise<Result<Record<string, { email: string; phone: string }>>>;
+    /**
+     * 면접 일정에 후보자 이력서를 첨부한다.
+     * 보관함 조회 → (필요하면) 드라이브 업로드 → 면접관에게 읽기 공유 → 일정 첨부.
+     * 이력서가 없으면 attached:false + reason으로 조용히 돌아온다(예약을 실패시키지 않는다).
+     */
+    attachToEvent(payload: {
+      calendarId: string;
+      eventId: string;
+      candidate: string;
+      shareWith?: string[];
+    }): Promise<Result<{ attached: boolean; already?: boolean; title?: string; candidate?: string; shared?: string[]; reason?: string }>>;
     /** 내 PC(바탕화면·다운로드·문서·OneDrive)에서 이력서로 보이는 파일을 찾는다 */
     scan(opt?: { roots?: string[]; names?: string[]; maxDepth?: number; limit?: number }): Promise<
       Result<{ roots: string[]; files: { path: string; filename: string; size: number; mtime: string; matchedBy: string }[] }>

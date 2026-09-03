@@ -1150,6 +1150,71 @@ async function syncTeamShare() {
 
 // ── 드라이브 백업 ───────────────────────────────────────────────────────────
 // drive.file 스코프 = 앱이 만든 파일만 접근. 기존 드라이브 문서는 건드릴 수 없다.
+/**
+ * 면접 일정에 후보자 이력서를 자동으로 첨부한다.
+ *
+ * 흐름: 이름으로 보관함 조회 → (드라이브에 없으면) 업로드 → 면접관들에게 읽기 공유 → 일정에 첨부.
+ * 공유를 먼저 하는 이유는, 첨부는 링크일 뿐이라 권한이 없으면 면접관 화면에서 안 열리기 때문이다.
+ * 이력서가 없으면 조용히 넘어간다 — 예약 자체를 실패시키지 않는다.
+ */
+async function attachToEvent({ calendarId, eventId, candidate, shareWith }) {
+  const key = String(candidate || '').replace(/\s+/g, '');
+  if (!key || !eventId) return { attached: false, reason: '이름 또는 일정이 없습니다' };
+
+  const list = readIndex();
+  const hit = list
+    .filter((r) => (r.candidate || '').replace(/\s+/g, '') === key)
+    .sort((a, b) => (b.addedAt || '').localeCompare(a.addedAt || ''))[0];
+  if (!hit) return { attached: false, reason: '보관함에 이력서가 없습니다' };
+
+  // 아직 드라이브에 없으면 지금 올린다
+  if (!hit.driveFileId) {
+    const abs = path.join(filesDir(), hit.storedName);
+    if (!fs.existsSync(abs)) return { attached: false, reason: '이력서 파일을 찾을 수 없습니다' };
+    const res = await gapi().uploadResumeFile({
+      name: path.basename(hit.storedName),
+      mimeType: hit.mimeType,
+      filePath: abs,
+      team: hit.team?.trim() || PENDING_FOLDER,
+      shareWith: readTeamShare(),
+      candidate: hit.candidate,
+    });
+    hit.driveFileId = res.id;
+    hit.driveLink = res.webViewLink || null;
+    hit.driveError = null;
+    writeIndex(list);
+  }
+
+  // 면접관에게 읽기 권한 — 회의실 같은 리소스 계정과 내 주소는 뺀다
+  const me = (store.get('googleProfile') || {}).email || '';
+  const people = (shareWith || [])
+    .map((e) => String(e || '').trim().toLowerCase())
+    .filter((e) => e && !/@resource\.calendar\.google\.com$/i.test(e) && e !== me.toLowerCase());
+  let shared = [];
+  if (people.length) {
+    try {
+      const r = await gapi().ensureFileShared(hit.driveFileId, people);
+      shared = r.added || [];
+    } catch {
+      /* 공유가 막혀도 첨부는 붙인다 — 최소한 나와 TA팀은 볼 수 있다 */
+    }
+  }
+
+  const title = path.basename(hit.storedName);
+  const res = await gapi().addEventAttachment(
+    calendarId || 'primary',
+    eventId,
+    {
+      fileId: hit.driveFileId,
+      title,
+      mimeType: hit.mimeType || 'application/pdf',
+      fileUrl: hit.driveLink || `https://drive.google.com/file/d/${hit.driveFileId}/view`,
+    },
+    hit.candidate // 같은 사람 이력서가 이미 붙어 있으면 중복으로 붙이지 않는다
+  );
+  return { attached: true, already: !!res.already, dedupedByName: !!res.dedupedByName, title, candidate: hit.candidate, shared };
+}
+
 async function backupToDrive(ids) {
   const list = readIndex();
   const targets = (ids && ids.length ? list.filter((r) => ids.includes(r.id)) : list).filter(
@@ -1213,5 +1278,6 @@ module.exports = {
   extractContactsFromData,
   contactsByName,
   contactsAll,
+  attachToEvent,
   stats,
 };
