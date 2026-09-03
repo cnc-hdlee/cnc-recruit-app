@@ -90,6 +90,18 @@ type RangeMode = 'upcoming' | 'past' | 'all';
 // 면접을 이미 본 사람이 대상인 단계 — 안내 문구용 (목록을 자르는 데는 쓰지 않는다)
 const POST_INTERVIEW_STAGES: TemplateStage[] = ['pass', 'offer', 'onboarding', 'reject'];
 
+/**
+ * 채용 흐름에서 바로 앞 단계.
+ * 앞 단계를 끝낸 사람이 다음 단계 대기열에 묻혀 있으면 놓치기 쉽다
+ * ("1차 합격 안내는 보냈는데 처우협의가 안 나갔다" — 2026-09-03 김보민 님 건).
+ * 이 표로 "이전 단계 완료만" 필터를 만들어 다음에 할 일을 바로 집어낸다.
+ */
+const PREV_STAGE: Partial<Record<TemplateStage, TemplateStage>> = {
+  pass: 'interview_1st',
+  offer: 'pass',
+  onboarding: 'offer',
+};
+
 function defaultRange(_stage: TemplateStage): RangeMode {
   return 'all';
 }
@@ -373,6 +385,8 @@ export function EmailToolsPage() {
   const [showSmsTpl, setShowSmsTpl] = useState(false);
   const [myEmail, setMyEmail] = useState('');
   const [showHandled, setShowHandled] = useState(false);
+  /** 이전 단계를 끝낸 사람만 보기 — 다음에 할 일을 집어내는 필터 */
+  const [onlyReady, setOnlyReady] = useState(false);
   // 목록에서 걸러낸 일정과 사유 — 조용히 사라지지 않게 화면에 남긴다
   const dropsRef = useRef<{ title: string; reason: string }[]>([]);
 
@@ -628,7 +642,10 @@ export function EmailToolsPage() {
     setRange(defaultRange(stage));
   }, [stage]);
 
-  const inRange = (dt: string) => (range === 'all' ? true : range === 'past' ? dt < today : dt >= today);
+  // 오늘 면접은 '지난'에도 '예정'에도 들어간다.
+  // 날짜만으로는 이미 봤는지 알 수 없고, 오전에 본 면접을 오후에 찾으면 나와야 한다.
+  // (2026-09-03 김보민 님 — 오늘 10시 면접인데 '지난 면접'에서 통째로 빠졌다)
+  const inRange = (dt: string) => (range === 'all' ? true : range === 'past' ? dt <= today : dt >= today);
 
   // 테스트 후보자 — 본인에게 실제로 메일/문자를 보내 흐름을 확인하는 용도
   const testCandidate = useMemo<CalCandidate | null>(() => {
@@ -691,15 +708,46 @@ export function EmailToolsPage() {
   }, [allCandidates, range, today, siteId]);
 
   // 이 단계에서 이미 처리한 사람 / 채용이 끝난(불합격) 사람
+  // 이름이 비면 처리 여부를 판단할 수 없다. 예전엔 빈 이름으로 '::pass' 같은 키가 만들어져
+  // 이름을 못 읽은 사람이 전부 한꺼번에 숨겨졌다. 빈 이름은 항상 '미처리'로 본다.
   const isHandled = (name: string) =>
-    !!handled[handledKey(name, stage)] || (stage !== 'reject' && !!handled[handledKey(name, 'reject')]);
+    !!name &&
+    (!!handled[handledKey(name, stage)] || (stage !== 'reject' && !!handled[handledKey(name, 'reject')]));
+
+  /** 이 사람이 어느 단계까지 진행됐는지 — 목록에서 한눈에 보이게 */
+  const doneStages = (name: string): TemplateStage[] =>
+    name ? STAGE_ORDER.filter((sg) => !!handled[handledKey(name, sg)]) : [];
+
+  /** 불합격 안내가 나간 사람 — 채용이 끝났으므로 다른 단계 대기열에 다시 뜨지 않는다 */
+  const isRejected = (name: string) => !!name && !!handled[handledKey(name, 'reject')];
 
   // 대기 = 아직 아무 작업도 안 한 사람. 여기서 처리해야만 아래 '처리 완료'로 내려간다.
   const pending = useMemo(() => candidates.filter((c) => !isHandled(c.name)), [candidates, handled, stage]);
   const doneList = useMemo(() => candidates.filter((c) => isHandled(c.name)), [candidates, handled, stage]);
-  const shown = showHandled ? doneList : pending;
+  // 불합격이라 이 단계에서 빠진 사람 수 — 숫자로 밝혀둔다(조용히 사라지지 않게)
+  const rejectedHere = useMemo(
+    () => (stage === 'reject' ? 0 : candidates.filter((c) => isRejected(c.name)).length),
+    [candidates, handled, stage]
+  );
+  const prevStage = PREV_STAGE[stage];
+  /** 이전 단계는 끝났는데 이 단계가 아직인 사람 — 지금 처리해야 할 대상 */
+  const readyList = useMemo(
+    () => (prevStage ? pending.filter((c) => !!c.name && !!handled[handledKey(c.name, prevStage)]) : []),
+    [pending, handled, prevStage]
+  );
+  const shown = showHandled ? doneList : onlyReady ? readyList : pending;
+
+  // 단계를 바꾸면 필터도 초기화 — 앞 단계 기준이 달라지므로
+  useEffect(() => {
+    setOnlyReady(false);
+    setShowHandled(false);
+  }, [stage]);
 
   async function markHandled(c: CalCandidate, via: 'send' | 'manual') {
+    if (!c.name.trim()) {
+      alert('이름을 먼저 채워주세요. 이름 없이 처리하면 나중에 누구인지 알 수 없습니다.');
+      return;
+    }
     const next = { ...handled, [handledKey(c.name, stage)]: { at: new Date().toISOString(), via, stage } };
     setHandled(next);
     await saveHandled(next);
@@ -1121,8 +1169,28 @@ export function EmailToolsPage() {
               {doneList.length > 0 && ` · 처리됨 ${doneList.length}명`}
             </span>
           </h3>
+          {prevStage && readyList.length > 0 && (
+            <button
+              onClick={() => {
+                setShowHandled(false);
+                setOnlyReady((v) => !v);
+              }}
+              className={
+                'px-2 py-1 rounded-lg text-xs font-bold border ' +
+                (onlyReady
+                  ? 'bg-emerald-600 text-white border-emerald-600'
+                  : 'bg-emerald-50 text-slate-900 border-emerald-400 hover:bg-emerald-100')
+              }
+              title={`${STAGE_LABEL[prevStage]}는 끝났는데 ${STAGE_LABEL[stage]}가 아직인 사람입니다. 지금 처리할 차례입니다.`}
+            >
+              ▶ 다음 차례 {readyList.length}명
+            </button>
+          )}
           <button
-            onClick={() => setShowHandled((v) => !v)}
+            onClick={() => {
+              setOnlyReady(false);
+              setShowHandled((v) => !v);
+            }}
             className={
               'px-2 py-1 rounded-lg text-xs font-bold border ' +
               (showHandled
@@ -1133,6 +1201,11 @@ export function EmailToolsPage() {
           >
             {showHandled ? '← 대기 목록' : `처리 완료 ${doneList.length}건`}
           </button>
+          {onlyReady && (
+            <span className="text-xs font-bold text-emerald-800">
+              {prevStage ? STAGE_LABEL[prevStage] : ''} 완료자만 보는 중
+            </span>
+          )}
           <div className="flex items-center rounded-lg border border-slate-300 overflow-hidden">
             {RANGE_TABS.map((t) => (
               <button
@@ -1151,6 +1224,14 @@ export function EmailToolsPage() {
           {isPastStage && range === 'past' && (
             <span className="text-xs font-bold text-slate-900">
               {STAGE_LABEL[stage]} — 면접을 이미 본 사람이 대상입니다
+            </span>
+          )}
+          {rejectedHere > 0 && (
+            <span
+              className="px-2 py-1 rounded-lg border border-slate-400 bg-slate-100 text-xs font-bold text-slate-900"
+              title="불합격 안내가 나간 사람입니다. 채용이 끝났으므로 이 단계 대기열에서 뺐습니다. [처리 완료]에서 볼 수 있습니다."
+            >
+              불합격 제외 {rejectedHere}명
             </span>
           )}
           {hiddenByRange > 0 && (
@@ -1295,6 +1376,27 @@ export function EmailToolsPage() {
                           {c.status}
                         </span>
                       )}
+                      {isRejected(c.name) && (
+                        <span
+                          className="ml-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-slate-800 text-white align-middle"
+                          title="불합격 안내 완료 — 다른 전형 대기열에는 뜨지 않습니다"
+                        >
+                          불합격
+                        </span>
+                      )}
+                      {doneStages(c.name).length > 0 && (
+                        <span className="ml-1 inline-flex gap-0.5 align-middle">
+                          {doneStages(c.name).map((sg) => (
+                            <span
+                              key={sg}
+                              title={`${STAGE_LABEL[sg]} 완료`}
+                              className="px-1 py-0.5 rounded text-[9px] font-bold bg-emerald-100 text-emerald-900 border border-emerald-300"
+                            >
+                              {STAGE_LABEL[sg].replace(' 안내', '')} ✓
+                            </span>
+                          ))}
+                        </span>
+                      )}
                       {c.suspect && (
                         <span
                           className="ml-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-300 align-middle"
@@ -1397,6 +1499,8 @@ export function EmailToolsPage() {
                   <td colSpan={6} className="text-center py-6 text-sm text-slate-900">
                     {showHandled
                       ? '처리 완료된 건이 없습니다.'
+                      : onlyReady
+                        ? '다음 차례인 사람이 없습니다.'
                       : doneList.length > 0
                         ? `대기 중인 후보자가 없습니다 — ${doneList.length}건은 [처리 완료]에 있습니다.`
                         : '조건에 맞는 면접 일정이 없습니다.'}
