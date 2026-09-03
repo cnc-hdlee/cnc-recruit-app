@@ -74,6 +74,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   offer: {
     create: (info) => invoke('offer:create', info),
     list: () => invoke('offer:list'),
+    read: (tab) => invoke('offer:read', tab),
   },
 
   // 이력서 보관함 — 드래그앤드랍한 원본을 로컬에 쌓고 드라이브에 백업

@@ -131,6 +131,7 @@ function register() {
   // 처우산정표 — 템플릿 복제 + 인적사항 기입
   safeHandle('offer:create', async (info) => offersheet.createOfferSheet(info));
   safeHandle('offer:list', async () => offersheet.listOfferSheets());
+  safeHandle('offer:read', async (tab) => offersheet.readOfferSheet(tab));
   safeHandle('rv:stats', async () => resumes.stats());
 
   // ── 문자(SMS) ──

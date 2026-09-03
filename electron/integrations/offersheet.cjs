@@ -15,7 +15,10 @@ const store = require('./store.cjs');
 
 const SHEET_ID = '1sER6Q5NqqQpjruBKmMMTr0-ccwfhMsTRjnBz24U6d3o';
 const TPL_TAB = '_템플릿(수정금지)';
-const SHEET_URL = (gid) => `https://docs.google.com/spreadsheets/d/${SHEET_ID}/edit#gid=${gid}`;
+// 링크에 gid를 쿼리와 해시 양쪽에 넣는다.
+// 해시(#gid=)만 다르면 브라우저가 이미 열려 있는 같은 문서 탭을 다시 로드하지 않고 활성화만 한다.
+// 그래서 보고 있던 탭(호봉표)이 그대로 떠 있었다 — 쿼리(?gid=)가 있어야 실제로 이동한다.
+const SHEET_URL = (gid) => `https://docs.google.com/spreadsheets/d/${SHEET_ID}/edit?gid=${gid}#gid=${gid}`;
 
 /** 템플릿 좌표 — 템플릿 탭 구조가 바뀌면 여기만 고치면 된다 */
 const CELL = {
