@@ -15,10 +15,13 @@ const store = require('./store.cjs');
 
 const SHEET_ID = '1sER6Q5NqqQpjruBKmMMTr0-ccwfhMsTRjnBz24U6d3o';
 const TPL_TAB = '_템플릿(수정금지)';
-// 링크에 gid를 쿼리와 해시 양쪽에 넣는다.
-// 해시(#gid=)만 다르면 브라우저가 이미 열려 있는 같은 문서 탭을 다시 로드하지 않고 활성화만 한다.
-// 그래서 보고 있던 탭(호봉표)이 그대로 떠 있었다 — 쿼리(?gid=)가 있어야 실제로 이동한다.
-const SHEET_URL = (gid) => `https://docs.google.com/spreadsheets/d/${SHEET_ID}/edit?gid=${gid}#gid=${gid}`;
+// 특정 탭으로 확실히 들어가는 링크.
+//   ?gid=  — 해시만 바꾸면 브라우저가 이미 열린 같은 문서 탭을 다시 로드하지 않는다.
+//   #gid=  — 시트가 읽는 표준 앵커.
+//   &range=A1 — 구글 시트는 같은 문서를 다른 탭에서 열어두면 로드 후 '마지막 보던 시트'로
+//               되돌린다. 범위 앵커가 있으면 그 시트의 셀을 선택해야 하므로 되돌아가지 않는다.
+//               (호봉표로 튕기던 문제 — 2026-09-03)
+const SHEET_URL = (gid) => `https://docs.google.com/spreadsheets/d/${SHEET_ID}/edit?gid=${gid}#gid=${gid}&range=A1`;
 
 /** 템플릿 좌표 — 템플릿 탭 구조가 바뀌면 여기만 고치면 된다 */
 const CELL = {
@@ -91,10 +94,17 @@ async function createOfferSheet(info) {
   const dept = (info.team || '').trim();
   const title = safeTabName(`${dept ? dept + '_' : ''}${info.candidate}(작성중)`);
 
+  // 새 탭은 TEST 바로 다음에 — 호봉표·템플릿·TEST 같은 기준 탭 뒤, 기존 후보자 탭들 앞.
+  // 맨 뒤에 붙이면 탭이 70개라 스크롤해야 보인다.
+  const testIdx = sheets.findIndex((x) => x.properties.title === 'TEST');
+  const insertAt = testIdx >= 0 ? sheets[testIdx].properties.index + 1 : 2;
+
   const r = await s.spreadsheets.batchUpdate({
     spreadsheetId: SHEET_ID,
     requestBody: {
-      requests: [{ duplicateSheet: { sourceSheetId: tpl.properties.sheetId, insertSheetIndex: 2, newSheetName: title } }],
+      requests: [
+        { duplicateSheet: { sourceSheetId: tpl.properties.sheetId, insertSheetIndex: insertAt, newSheetName: title } },
+      ],
     },
   });
   const gid = r.data.replies[0].duplicateSheet.properties.sheetId;

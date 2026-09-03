@@ -439,6 +439,8 @@ export function EmailToolsPage() {
   /** 시트가 계산해 둔 산정 금액 — 앱은 계산하지 않는다. 시트가 유일한 기준이다. */
   const [offerVals, setOfferVals] = useState<Record<string, { grade: string; step: string; annual: number }>>({});
   const [loadingVals, setLoadingVals] = useState(false);
+  /** 방금 만든/연 산정표 안내 — 브라우저가 엉뚱한 탭을 보여줘도 어느 탭인지 알 수 있게 */
+  const [offerNote, setOfferNote] = useState<{ tab: string; url: string; created: boolean } | null>(null);
   const [showSmsTpl, setShowSmsTpl] = useState(false);
   const [myEmail, setMyEmail] = useState('');
   const [showHandled, setShowHandled] = useState(false);
@@ -899,6 +901,7 @@ export function EmailToolsPage() {
         return;
       }
       await refreshOfferTabs(); // 방금 만든 탭까지 반영해서 다시 읽는다
+      setOfferNote({ tab: r.data.tab, url: r.data.url, created: r.data.created });
       window.open(r.data.url, '_blank');
     } catch (e) {
       alert(`처우산정표 생성 실패: ${(e as Error).message}`);
@@ -1482,6 +1485,29 @@ export function EmailToolsPage() {
             className="ml-auto px-3 py-1.5 border border-slate-300 rounded-lg text-sm text-slate-900 w-56"
           />
         </div>
+
+        {offerNote && (
+          <div className="mb-2 rounded-lg border border-sky-300 bg-sky-50 p-2 text-xs text-slate-900 flex flex-wrap items-center gap-2">
+            <b>
+              {offerNote.created ? '처우산정표를 만들었습니다' : '이미 있는 처우산정표입니다'} — {offerNote.tab}
+            </b>
+            <a
+              href={offerNote.url}
+              target="_blank"
+              rel="noreferrer"
+              className="px-2 py-1 rounded border border-sky-400 bg-white font-bold hover:bg-sky-100"
+            >
+              시트 열기 ↗
+            </a>
+            <span>
+              시트가 다른 창에 이미 열려 있으면 그 창이 마지막 보던 탭으로 되돌아갈 수 있습니다. 그럴 땐 시트 아래 탭
+              목록에서 <b>{offerNote.tab}</b> 을 직접 눌러주세요.
+            </span>
+            <button onClick={() => setOfferNote(null)} className="ml-auto px-2 py-1 font-bold">
+              ✕
+            </button>
+          </div>
+        )}
 
         {showSmsTpl && (
           <SmsTemplatePanel
