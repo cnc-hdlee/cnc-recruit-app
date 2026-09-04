@@ -1428,17 +1428,93 @@ async function patchCalendarListEntry(calendarId, body) {
 // Calendar event WRITE — user explicitly authorized read+write on Calendar only.
 // `body` shape mirrors Google Calendar event resource:
 //   { summary, description, location, start: {dateTime|date}, end: {dateTime|date}, attendees: [{email}], reminders, ... }
+// ── Google Meet 자동 연동 ────────────────────────────────────────────────
+// events.insert/patch 는 `conferenceDataVersion: 1` 을 같이 주지 않으면 requestBody 의
+// conferenceData 를 에러 없이 그냥 버린다. 렌더러는 계속 createRequest 를 보내고 있었는데
+// 여기서 버려지고 있었던 게 "예전엔 Meet가 붙었는데 지금은 안 붙는" 원인이었다.
+// 그래서 (1) 항상 conferenceDataVersion 을 붙이고, (2) 면접 캘린더 일정은 호출부가
+// 따로 요청하지 않아도 Meet 링크를 자동으로 만든다. 끄고 싶으면 body.noMeet = true.
+const MEET_AUTO_CALENDAR_IDS = [
+  'c_d2a3298862ba8bba109c13c83c2cc7c1ac85560bdc12a305c40c79f6964c65a2@group.calendar.google.com', // 면접 (메인)
+  'c_711021d8db3140f0fa36874c11e98a449ee5528637e020d891cf903cd4b8c443@group.calendar.google.com', // 면접 (shim@ 보조)
+  'c_21d3c76327cd3e4ab66cb7f7cfdb6f1a7c63500dd0d8af17212640edee2c5459@group.calendar.google.com', // 면접 (매니저)
+  'c_bebeafad40540c7c46a8b75315ef413571d6f9fb13ef74c0f31cca541bd93587@group.calendar.google.com', // 면접 (4번째)
+];
+
+function newMeetCreateRequest() {
+  return {
+    createRequest: {
+      requestId: `cnc-meet-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      conferenceSolutionKey: { type: 'hangoutsMeet' },
+    },
+  };
+}
+
+function isConferenceError(e) {
+  const msg = `${e?.message || ''} ${JSON.stringify(e?.errors || e?.response?.data || '')}`;
+  return /conference|hangout|meet/i.test(msg);
+}
+
+/**
+ * requestBody 를 보내기 직전에 Meet 설정을 정규화한다.
+ * - 호출부가 createRequest 를 보냈으면 requestId / conferenceSolutionKey 를 채워준다.
+ * - autoAdd 이고 면접 캘린더의 시간 지정 일정이면 Meet 를 알아서 붙인다.
+ * - 내부 플래그 noMeet 는 구글로 안 넘어가게 지운다.
+ */
+function prepareMeet(calendarId, body, autoAdd) {
+  const out = { ...(body || {}) };
+  const optOut = out.noMeet === true;
+  delete out.noMeet;
+
+  const cr = out.conferenceData && out.conferenceData.createRequest;
+  if (cr) {
+    out.conferenceData = {
+      ...out.conferenceData,
+      createRequest: {
+        ...cr,
+        requestId: cr.requestId || newMeetCreateRequest().createRequest.requestId,
+        conferenceSolutionKey: cr.conferenceSolutionKey || { type: 'hangoutsMeet' },
+      },
+    };
+  } else if (
+    autoAdd &&
+    !optOut &&
+    !out.conferenceData &&
+    out.start &&
+    out.start.dateTime && // 종일 일정엔 Meet 안 붙인다
+    MEET_AUTO_CALENDAR_IDS.includes(calendarId)
+  ) {
+    out.conferenceData = newMeetCreateRequest();
+  }
+  return out;
+}
+
 async function insertCalendarEvent(calendarId, body, sendUpdates = 'none') {
   const auth = buildClient();
   const cal = google.calendar({ version: 'v3', auth });
-  const r = await cal.events.insert({
-    calendarId: calendarId || 'primary',
-    requestBody: body,
+  const calId = calendarId || 'primary';
+  const requestBody = prepareMeet(calId, body, true);
+  const params = {
+    calendarId: calId,
+    requestBody,
     sendUpdates,
     // 이력서 첨부를 붙이려면 반드시 필요 — 없으면 attachments가 조용히 무시된다
     supportsAttachments: true,
-  });
-  return r.data;
+    // Meet 링크 생성에 반드시 필요 — 없으면 conferenceData가 조용히 무시된다
+    conferenceDataVersion: 1,
+  };
+  try {
+    const r = await cal.events.insert(params);
+    return r.data;
+  } catch (e) {
+    // Meet 생성이 막힌 계정/캘린더여도 면접 등록 자체는 살린다 (Meet만 포기).
+    if (requestBody.conferenceData && isConferenceError(e)) {
+      const { conferenceData, ...withoutMeet } = requestBody;
+      const r = await cal.events.insert({ ...params, requestBody: withoutMeet });
+      return { ...r.data, meetSkipped: e?.message || 'conference error' };
+    }
+    throw e;
+  }
 }
 
 /**
@@ -1476,12 +1552,33 @@ async function updateCalendarEvent(calendarId, eventId, body, sendUpdates = 'non
   const auth = buildClient();
   const cal = google.calendar({ version: 'v3', auth });
   try {
+    // 일정 내용을 실제로 고치는 수정(시간/제목 변경)일 때만 Meet 자가복구 대상으로 본다.
+    // attendees만 손보는 polling 루프까지 매번 get 하면 API 호출이 낭비된다.
+    const isContentEdit = !!(body && (body.start || body.summary));
+    let requestBody = { ...(body || {}) };
+    if (
+      isContentEdit &&
+      !requestBody.conferenceData &&
+      requestBody.noMeet !== true &&
+      MEET_AUTO_CALENDAR_IDS.includes(calendarId)
+    ) {
+      try {
+        const cur = await cal.events.get({ calendarId: calendarId || 'primary', eventId, fields: 'conferenceData,hangoutLink,start' });
+        const hasMeet = !!(cur.data.hangoutLink || cur.data.conferenceData?.entryPoints?.length);
+        const timed = !!(requestBody.start?.dateTime || cur.data.start?.dateTime);
+        if (!hasMeet && timed) requestBody.conferenceData = newMeetCreateRequest();
+      } catch {
+        /* get 실패는 무시 — 수정 자체는 그대로 진행 */
+      }
+    }
+    requestBody = prepareMeet(calendarId, requestBody, false);
     const r = await cal.events.patch({
       calendarId: calendarId || 'primary',
       eventId,
-      requestBody: body,
+      requestBody,
       sendUpdates,
       supportsAttachments: true,
+      conferenceDataVersion: 1,
     });
     return r.data;
   } catch (e) {

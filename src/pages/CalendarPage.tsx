@@ -143,6 +143,8 @@ interface InterviewEvent {
   startISO?: string | null; // 수정 모달 prefill용
   endISO?: string | null;
   description?: string;
+  /** 구글 Meet 링크 — 면접 캘린더 일정이면 자동으로 붙는다 (없으면 연동 실패 신호) */
+  meetUrl?: string | null;
 }
 
 // 부서명 → 근무지 추정 (시트에 근무지 정보 없을 때 자동 등록용)
@@ -1353,6 +1355,7 @@ export function CalendarPage() {
           startISO: e.raw.start,
           endISO: e.raw.end,
           description: e.raw.description || '',
+          meetUrl: e.raw.conferenceUrl || null,
         };
       });
     // 우선순위: calendar > sheet_intv > sheet (캘린더가 가장 권위 있음).
@@ -1525,7 +1528,10 @@ export function CalendarPage() {
           };
           (body as Record<string, unknown>).colorId = '3';
           (body as Record<string, unknown>).conferenceData = {
-            createRequest: { requestId: `meet-auto-${Date.now()}-${Math.random().toString(36).slice(2, 6)}` },
+            createRequest: {
+              requestId: `meet-auto-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+              conferenceSolutionKey: { type: 'hangoutsMeet' },
+            },
           };
           await api.google.insertCalEvent(SHARED_CAL.interview, body);
         } catch {
@@ -1781,7 +1787,8 @@ function InterviewCreateModal({ onClose, onCreated, rooms, roomBookings, myEmail
     endTime: init.end,
     interviewers: '',
     notes: '',
-    addMeet: false,
+    // 기본 ON — 면접엔 항상 Meet 링크가 붙는다 (체크 해제하면 그 건만 안 붙음).
+    addMeet: true,
   });
   const [submitting, setSubmitting] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -1855,8 +1862,14 @@ function InterviewCreateModal({ onClose, onCreated, rooms, roomBookings, myEmail
     (body as Record<string, unknown>).colorId = '3';
     if (form.addMeet || isOnline) {
       (body as Record<string, unknown>).conferenceData = {
-        createRequest: { requestId: `meet-${Date.now()}` },
+        createRequest: {
+          requestId: `meet-${Date.now()}`,
+          conferenceSolutionKey: { type: 'hangoutsMeet' },
+        },
       };
+    } else {
+      // 체크를 일부러 껐을 때만 자동 Meet를 막는다 (main 프로세스의 면접 캘린더 자동 부착 opt-out).
+      (body as Record<string, unknown>).noMeet = true;
     }
 
     // 회의실 충돌 사전 체크 — 다른 사람 booking과 겹치면 차단.
@@ -2455,6 +2468,16 @@ function InterviewRow({ event, onDelete, onEdit, onMarkNoShow, resumeMails, room
                 checked={roomOk}
                 label="회의실 예약"
                 detail={roomDetail}
+                forceDetail
+              />
+            </div>
+            {/* Meet 링크 — 면접 캘린더 일정엔 자동으로 붙는다. 비어 있으면 연동 실패 신호. */}
+            <div className="col-span-2">
+              <CheckLine
+                checked={!!event.meetUrl}
+                label="Meet 링크"
+                href={event.meetUrl || undefined}
+                detail={event.meetUrl ? (event.meetUrl.replace(/^https?:\/\//, '')) : '미생성'}
                 forceDetail
               />
             </div>

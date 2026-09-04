@@ -334,9 +334,15 @@ interface ElectronAPI {
         colorId?: string;
         // 'private'면 다른 사람에게 제목/상세가 안 보이고 '바쁨'으로만 표시된다 (비공개 면접용).
         visibility?: 'default' | 'public' | 'private';
+        // Google Meet — 면접 캘린더 일정은 main(google.cjs)에서 자동으로 붙여준다.
+        // 여기서 직접 넘기면 그 값이 우선하고, noMeet=true면 자동 부착을 끈다.
+        conferenceData?: {
+          createRequest?: { requestId?: string; conferenceSolutionKey?: { type: 'hangoutsMeet' } };
+        };
+        noMeet?: boolean;
       },
       sendUpdates?: 'all' | 'externalOnly' | 'none'
-    ): Promise<Result<{ id: string; htmlLink?: string }>>;
+    ): Promise<Result<{ id: string; htmlLink?: string; hangoutLink?: string }>>;
     updateCalEvent(
       calendarId: string,
       eventId: string,
