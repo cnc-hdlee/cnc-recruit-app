@@ -23,6 +23,8 @@ interface SubNavItem {
   label: string;
 }
 
+// 메뉴 순서는 형도님이 지정한 대로 (2026-09-04).
+// 매일 쓰는 것이 위로, 가끔 보는 것이 아래로.
 const NAV: NavItem[] = [
   { id: 'admin', icon: '🛡️', label: '접속 현황', adminOnly: true },
   {
@@ -36,8 +38,7 @@ const NAV: NavItem[] = [
       label: c.dept,
     })),
   },
-  { id: 'incoming', icon: '🎉', label: '입사예정자', badgeKey: 'incoming' },
-  { id: 'comms', icon: '📨', label: '후보자 안내 메일' },
+  { id: 'rooms', icon: '🚪', label: '회의실 예약' },
   {
     id: 'calendar',
     icon: '📅',
@@ -45,11 +46,14 @@ const NAV: NavItem[] = [
     badgeKey: 'todayIntv',
     subItems: [{ id: 'agenda', icon: '🗓', label: '면접 일정표' }],
   },
-  { id: 'rooms', icon: '🚪', label: '회의실 예약' },
+  { id: 'comms', icon: '📨', label: '후보자 안내 메일' },
+  { id: 'resumes', icon: '🗂', label: '이력서' },
+  { id: 'lookup', icon: '🔍', label: '후보자 검색' },
+
+  // ── 여기부터는 가끔 보는 것들 ──
+  { id: 'incoming', icon: '🎉', label: '입사예정자', badgeKey: 'incoming' },
   { id: 'jobcenters', icon: '🏢', label: '일자리센터' },
   { id: 'campus', icon: '🎓', label: '캠퍼스 리쿠르팅' },
-  { id: 'lookup', icon: '🔍', label: '후보자 검색' },
-  { id: 'resumes', icon: '🗂', label: '이력서' },
   {
     id: 'competitors',
     icon: '🏭',
