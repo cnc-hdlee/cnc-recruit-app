@@ -276,6 +276,24 @@ async function readOfferSheet(tab) {
       고정OT시간: otRow < 0 ? '' : (text(cell(otRow, G)).match(/(\d+(?:\.\d+)?)\s*H/i) || [])[1] || '',
       월급여액: num(valueAt(/월\s*급여/, Ec, from, to)),
       계약연봉,
+      // 급여 구성 항목을 표에 있는 그대로 모은다 — 사람마다 항목이 다르다.
+      // 기본급부터 월 급여액 직전까지가 급여 구성이다(기준시급·통상시급은 계산용이라 뺀다).
+      // 값이 0이거나 '-'인 줄은 그 사람에게 없는 항목이므로 담지 않는다.
+      항목: (() => {
+        const startRow = findRow(/^기본급$/, from, to);
+        const endRow = findRow(/월\s*급여/, from, to);
+        if (startRow < 0 || endRow < 0) return [];
+        const items = [];
+        for (let r = startRow; r < endRow; r++) {
+          const label = text(cell(r, 1));
+          if (!label) continue;
+          const raw = cell(r, Ec);
+          const amount = num(raw);
+          if (!amount) continue; // 0 · '-' · 빈칸 = 없는 항목
+          items.push({ label, amount, note: text(cell(r, G)) });
+        }
+        return items;
+      })(),
       TC최소: num(valueAt(/최소/, Ec, from, to)),
       TC최대: num(valueAt(/최대/, Ec, from, to)),
       산정근거: text(valueAt(/산정\s*근거/, C, from, to)),

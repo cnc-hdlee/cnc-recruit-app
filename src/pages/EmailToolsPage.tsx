@@ -2102,6 +2102,16 @@ function SendModal({
         if (!silent) setOfferNote2('산정표에 아직 호봉·금액이 채워지지 않았습니다.');
         return;
       }
+      // 급여 항목은 사람마다 다르다 — 표에 있는 줄만 그대로 옮긴다.
+      // 값이 0인 항목은 산정표에서 이미 빠져 오므로 메일에도 안 나온다.
+      const 급여내역 = (best.항목 || [])
+        .map((it) => {
+          // "고정OT시간 52H 기준" → "(월 52시간)" 로 다듬는다. 나머지 비고는 버린다.
+          const h = (it.note || '').match(/고정\s*OT시간\s*(\d+(?:\.\d+)?)\s*H/i);
+          return `  - ${it.label} : ${won(it.amount)}원${h ? ` (월 ${h[1]}시간)` : ''}`;
+        })
+        .join('\n');
+
       const from: Record<string, string> = {
         부서: d.지원부서,
         직무: d.지원직무,
@@ -2109,9 +2119,7 @@ function SendModal({
         // 인정경력은 자동으로 넣지 않는다 — 형도님이 직접 판단해 수기 입력하는 항목이다.
         직급: best.grade,
         연봉: won(best.계약연봉),
-        기본급: won(best.기본급),
-        시간외수당: won(best.시간외수당),
-        시간외시간: best.고정OT시간,
+        급여내역,
         월급여: won(best.월급여액),
       };
       // 이미 손으로 넣은 값은 덮지 않는다
@@ -2200,17 +2208,35 @@ function SendModal({
               <span>인정경력은 직접 입력하셔야 합니다. 발송 전 숫자를 꼭 확인하세요.</span>
             </div>
           )}
-          {template.variables.map((k) => (
-            <div key={k}>
-              <label className="text-xs font-bold text-slate-900">{`{{${k}}}`}</label>
-              <input
-                value={vars[k] || ''}
-                onChange={(e) => setVars((p) => ({ ...p, [k]: e.target.value }))}
-                placeholder={isOffer ? '수기 입력' : ''}
-                className="mt-1 w-full px-3 py-2 border border-slate-300 rounded text-sm text-slate-900"
-              />
-            </div>
-          ))}
+          {template.variables.map((k) => {
+            // 급여내역처럼 여러 줄인 값은 한 줄짜리 입력칸에 담기지 않는다
+            const multiline = k === '급여내역' || (vars[k] || '').includes('\n');
+            return (
+              <div key={k}>
+                <label className="text-xs font-bold text-slate-900">
+                  {`{{${k}}}`}
+                  {k === '급여내역' && (
+                    <span className="ml-1 font-normal">— 산정표에 있는 항목만 들어갑니다</span>
+                  )}
+                </label>
+                {multiline ? (
+                  <textarea
+                    value={vars[k] || ''}
+                    onChange={(e) => setVars((p) => ({ ...p, [k]: e.target.value }))}
+                    rows={Math.min(6, Math.max(2, (vars[k] || '').split('\n').length))}
+                    className="mt-1 w-full px-3 py-2 border border-slate-300 rounded text-sm text-slate-900 font-mono"
+                  />
+                ) : (
+                  <input
+                    value={vars[k] || ''}
+                    onChange={(e) => setVars((p) => ({ ...p, [k]: e.target.value }))}
+                    placeholder={isOffer ? '수기 입력' : ''}
+                    className="mt-1 w-full px-3 py-2 border border-slate-300 rounded text-sm text-slate-900"
+                  />
+                )}
+              </div>
+            );
+          })}
           <div>
             <div className="flex items-center gap-2 mb-1">
               <div className="text-xs font-bold text-slate-900">미리보기</div>

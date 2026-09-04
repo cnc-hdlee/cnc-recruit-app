@@ -435,6 +435,8 @@ interface ElectronAPI {
           TC최대: number;
           산정근거: string;
           고정OT시간: string;
+          /** 급여 구성 항목 — 사람마다 다르다. 표에 값이 있는 줄만 담긴다 */
+          항목: { label: string; amount: number; note: string }[];
           수습기간: string;
         }[];
       }>
