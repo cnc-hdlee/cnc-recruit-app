@@ -2020,7 +2020,7 @@ function SendModal({
         부서: d.지원부서,
         직무: d.지원직무,
         입사일: d.입사예정일,
-        인정경력: d.인정경력 || best.산정근거 || d.총경력,
+        // 인정경력은 자동으로 넣지 않는다 — 형도님이 직접 판단해 수기 입력하는 항목이다.
         직급: best.grade,
         연봉: won(best.계약연봉),
         기본급: won(best.기본급),
@@ -2111,7 +2111,7 @@ function SendModal({
                   {offerLoading ? '가져오는 중…' : '↻ 산정표에서 다시 채우기'}
                 </button>
               )}
-              <span>발송 전 숫자를 꼭 확인하세요.</span>
+              <span>인정경력은 직접 입력하셔야 합니다. 발송 전 숫자를 꼭 확인하세요.</span>
             </div>
           )}
           {template.variables.map((k) => (
