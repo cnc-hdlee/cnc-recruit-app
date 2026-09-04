@@ -33,6 +33,8 @@ export const DEFAULT_TEAM_ATTENDEES: Record<string, string[]> = {
   전략구매팀: ['ywkim', 'jhlee3'],
   영업관리팀: ['suhwang'],
   제조1팀: ['jwlee', 'yghan'],
+  // 제조2팀 — 김성민 과장·유지연 사원 (형도님 지시, 2026-09-04)
+  제조2팀: ['sminkim', 'jyyu'],
   품질보증팀: ['jemoon'],
   품질관리1팀: ['khjung', 'jekim1'],
   품질관리2팀: ['mhlee'],
@@ -93,6 +95,9 @@ export const PEOPLE: Record<string, { name: string; title?: string; team?: strin
   jhlee3: { name: '이준희', title: '차장', team: '전략구매팀' },
   suhwang: { name: '황선욱', title: '팀장', team: '영업관리팀' },
   jwlee: { name: '이재욱', title: '대리', team: '제조1팀' },
+  // 제조2팀 면접 참석자 — 팀장이 아니지만 면접에 항상 들어간다(형도님 지시, 2026-09-04)
+  sminkim: { name: '김성민', team: '제조2팀', title: '과장' },
+  jyyu: { name: '유지연', team: '제조2팀', title: '사원' },
   yghan: { name: '한윤구', title: '팀장', team: '제조1팀' },
   jemoon: { name: '문지은', title: '팀장', team: '품질보증팀' },
   khjung: { name: '정기현', title: '팀장', team: '품질관리1팀' },

@@ -7,6 +7,7 @@ import { refreshNow } from './store/liveData';
 import { IS_VIEWER } from './lib/mode';
 import { useHiresSheetSync } from './lib/useHiresSheetSync';
 import { useHireCalendarSync } from './lib/useHireCalendarSync';
+import { useMeetLinkHeal } from './lib/useMeetLinkHeal';
 import { Sidebar } from './components/Sidebar';
 import { TopBar } from './components/TopBar';
 import { InstallPrompt } from './components/InstallPrompt';
@@ -64,6 +65,8 @@ export default function App() {
   // 입사예정자 → 입사 캘린더 자동 등록/취소 — 어느 페이지에 있든(입사예정자 페이지 미오픈 포함) 항상 실행.
   // 결재완료 자동 노란색 등록, 시트에서 사라지면 자동 삭제. 사용자 요청·버튼 클릭 불필요. (viewer는 내부에서 no-op)
   useHireCalendarSync();
+  // 면접 Meet 링크 자가복구 — Meet 없는 앞으로의 면접에 자동으로 링크를 붙인다. (viewer는 내부에서 no-op)
+  useMeetLinkHeal();
 
   useEffect(() => {
     // 첫 실행: 빌드에 박힌 OAuth + 시트 기본값 자동 적용 → 로그인 필요하면 자동 OAuth → sync 시작

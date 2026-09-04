@@ -1463,6 +1463,8 @@ export function CalendarPage() {
     void refreshRoomBookings();
   };
 
+  // Meet 링크 자가복구는 App 레벨 useMeetLinkHeal() — 이 페이지를 안 열어도 돈다.
+
   // 시트→캘린더 자동 등록: 시트에 datetime 있는데 캘린더에 없는 후보자 자동 create_event
   // GPD 부서·dismissed 키는 skip. 진행중인 키는 autoRegistering set으로 race condition 방지.
   useEffect(() => {
