@@ -708,6 +708,29 @@ async function listCalendar(timeMin, timeMax, calendarId = 'primary') {
 // 폴더는 한 번만 만들고 id를 cfg에 저장해 재사용한다 (매번 새 폴더가 생기지 않게).
 const RESUME_FOLDER_KEY = 'resumeDriveFolderId';
 const RESUME_FOLDER_NAME = 'CNC 이력서 보관함';
+// TA팀 공유 드라이브 — 여기 넣으면 파일 소유자가 드라이브가 되어 팀 전원이 자동으로 본다.
+// 개인 드라이브에 두고 파일마다 공유 권한을 거는 것보다 안전하고, 사람이 바뀌어도 남는다.
+const TEAM_DRIVE_NAME = 'TA팀 공유폴더';
+const TEAM_DRIVE_KEY = 'resumeTeamDriveId';
+
+/** TA팀 공유 드라이브 id — 없으면 null(그때는 예전처럼 내 드라이브에 만든다) */
+async function findTeamDrive() {
+  const cached = store.get(TEAM_DRIVE_KEY);
+  if (cached) return cached;
+  try {
+    const auth = buildClient();
+    const drive = google.drive({ version: 'v3', auth });
+    const r = await drive.drives.list({ pageSize: 50, fields: 'drives(id,name)' });
+    const hit = (r.data.drives || []).find((d) => (d.name || '').replace(/\s+/g, '') === TEAM_DRIVE_NAME.replace(/\s+/g, ''));
+    if (hit) {
+      store.set(TEAM_DRIVE_KEY, hit.id);
+      return hit.id;
+    }
+  } catch {
+    /* 공유 드라이브를 못 읽으면 개인 드라이브로 간다 */
+  }
+  return null;
+}
 
 async function ensureResumeFolder() {
   const auth = buildClient();
@@ -715,12 +738,42 @@ async function ensureResumeFolder() {
   const saved = store.get(RESUME_FOLDER_KEY);
   if (saved) {
     try {
-      const r = await drive.files.get({ fileId: saved, fields: 'id,name,trashed' });
+      const r = await drive.files.get({ fileId: saved, fields: 'id,name,trashed', supportsAllDrives: true });
       if (r.data && !r.data.trashed) return r.data.id;
     } catch {
       // 폴더가 지워졌거나 접근 불가 → 아래에서 새로 만든다
     }
   }
+
+  // TA팀 공유 드라이브가 있으면 그 안에 만든다 — 팀 전원이 별도 공유 없이 본다
+  const teamDrive = await findTeamDrive();
+  if (teamDrive) {
+    try {
+      const found = await drive.files.list({
+        q: `'${teamDrive}' in parents and name = '${RESUME_FOLDER_NAME}' and mimeType = 'application/vnd.google-apps.folder' and trashed = false`,
+        fields: 'files(id)',
+        pageSize: 1,
+        supportsAllDrives: true,
+        includeItemsFromAllDrives: true,
+        corpora: 'drive',
+        driveId: teamDrive,
+      });
+      const id =
+        (found.data.files && found.data.files[0] && found.data.files[0].id) ||
+        (
+          await drive.files.create({
+            requestBody: { name: RESUME_FOLDER_NAME, mimeType: 'application/vnd.google-apps.folder', parents: [teamDrive] },
+            fields: 'id',
+            supportsAllDrives: true,
+          })
+        ).data.id;
+      store.set(RESUME_FOLDER_KEY, id);
+      return id; // 공유 드라이브는 드라이브 멤버십으로 접근이 정해진다 — 개별 잠금 불필요
+    } catch {
+      /* 공유 드라이브에 못 만들면 아래 개인 드라이브로 */
+    }
+  }
+
   const created = await drive.files.create({
     requestBody: { name: RESUME_FOLDER_NAME, mimeType: 'application/vnd.google-apps.folder' },
     fields: 'id',
@@ -728,6 +781,39 @@ async function ensureResumeFolder() {
   store.set(RESUME_FOLDER_KEY, created.data.id);
   await lockResumeFolder(created.data.id);
   return created.data.id;
+}
+
+/**
+ * 이미 내 드라이브에 있는 이력서 파일들을 TA팀 공유 드라이브로 옮긴다.
+ * 공유 드라이브로 옮기면 소유자가 드라이브가 되어 팀 전원이 자동으로 보게 된다.
+ */
+async function moveVaultToTeamDrive(fileIds) {
+  const teamDrive = await findTeamDrive();
+  if (!teamDrive) return { moved: 0, failed: 0, reason: 'TA팀 공유 드라이브를 찾지 못했습니다' };
+  const auth = buildClient();
+  const drive = google.drive({ version: 'v3', auth });
+  const root = await ensureResumeFolder();
+  let moved = 0;
+  let failed = 0;
+  const errors = [];
+  for (const id of fileIds || []) {
+    try {
+      const cur = await drive.files.get({ fileId: id, fields: 'id,parents,driveId', supportsAllDrives: true });
+      if (cur.data.driveId === teamDrive) continue; // 이미 공유 드라이브에 있다
+      await drive.files.update({
+        fileId: id,
+        addParents: root,
+        removeParents: (cur.data.parents || []).join(','),
+        supportsAllDrives: true,
+        fields: 'id,parents,driveId',
+      });
+      moved += 1;
+    } catch (e) {
+      failed += 1;
+      if (errors.length < 3) errors.push((e.message || '').slice(0, 120));
+    }
+  }
+  return { moved, failed, errors, folderId: root, teamDriveId: teamDrive };
 }
 
 /**
@@ -774,7 +860,7 @@ async function ensureResumeTeamFolder(team) {
   const cache = store.get(RESUME_TEAM_FOLDERS_KEY) || {};
   if (cache[label]) {
     try {
-      const r = await drive.files.get({ fileId: cache[label], fields: 'id,trashed' });
+      const r = await drive.files.get({ fileId: cache[label], fields: 'id,trashed', supportsAllDrives: true });
       if (r.data && !r.data.trashed) return r.data.id;
     } catch {
       // 지워졌으면 아래에서 다시 만든다
@@ -783,7 +869,13 @@ async function ensureResumeTeamFolder(team) {
   // 이미 같은 이름의 폴더가 있으면 그걸 쓴다 (앱이 만든 폴더만 검색됨 — drive.file)
   try {
     const q = `'${root}' in parents and name = '${label.replace(/'/g, "\\'")}' and mimeType = 'application/vnd.google-apps.folder' and trashed = false`;
-    const found = await drive.files.list({ q, fields: 'files(id,name)', pageSize: 1 });
+    const found = await drive.files.list({
+      q,
+      fields: 'files(id,name)',
+      pageSize: 1,
+      supportsAllDrives: true,
+      includeItemsFromAllDrives: true,
+    });
     if (found.data.files && found.data.files.length) {
       cache[label] = found.data.files[0].id;
       store.set(RESUME_TEAM_FOLDERS_KEY, cache);
@@ -799,6 +891,7 @@ async function ensureResumeTeamFolder(team) {
       parents: [root],
     },
     fields: 'id',
+    supportsAllDrives: true,
   });
   cache[label] = created.data.id;
   store.set(RESUME_TEAM_FOLDERS_KEY, cache);
@@ -956,10 +1049,13 @@ async function uploadResumeFile({ name, mimeType, filePath, team, shareWith, can
       appProperties: { ...RESUME_TAG, team: String(team || ''), candidate: String(candidate || '') },
     },
     media: { mimeType: mimeType || 'application/octet-stream', body: fs.createReadStream(filePath) },
-    fields: 'id,webViewLink',
+    fields: 'id,webViewLink,driveId',
+    supportsAllDrives: true,
   });
-  // 팀 공유 — 폴더 단위가 막혀 있어 파일마다 읽기 권한을 준다
-  for (const email of shareWith || []) {
+  // 공유 드라이브에 올라갔으면 소유자가 드라이브라 팀 전원이 이미 본다 — 개별 공유가 필요 없다.
+  const onTeamDrive = !!res.data.driveId;
+  // 개인 드라이브에 있을 때만 파일마다 읽기 권한을 준다 (폴더 단위 공유는 drive.file에서 막힌다)
+  for (const email of onTeamDrive ? [] : shareWith || []) {
     try {
       await drive.permissions.create({
         fileId: res.data.id,
@@ -978,7 +1074,7 @@ async function moveResumeFile(fileId, { name, team }) {
   const auth = buildClient();
   const drive = google.drive({ version: 'v3', auth });
   const target = await ensureResumeTeamFolder(team);
-  const cur = await drive.files.get({ fileId, fields: 'parents,name' });
+  const cur = await drive.files.get({ fileId, fields: 'parents,name', supportsAllDrives: true });
   const parents = cur.data.parents || [];
   const needsMove = !parents.includes(target);
   const needsRename = name && cur.data.name !== name;
@@ -989,6 +1085,7 @@ async function moveResumeFile(fileId, { name, team }) {
     addParents: needsMove ? target : undefined,
     removeParents: needsMove && parents.length ? parents.join(',') : undefined,
     fields: 'id,webViewLink',
+    supportsAllDrives: true,
   });
   return {
     id: res.data.id,
@@ -1475,7 +1572,10 @@ module.exports = {
   // Drive: 이력서 보관함 백업 — 앱이 만든 폴더/파일만 (drive.file)
   uploadResumeFile,
   moveResumeFile,
+  ensureResumeFolder,
   ensureResumeTeamFolder,
+  findTeamDrive,
+  moveVaultToTeamDrive,
   lockResumeFolder,
   shareResumeFolder,
   ensureFileShared,
