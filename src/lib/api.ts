@@ -470,6 +470,13 @@ interface ElectronAPI {
      */
     contactsAll(): Promise<Result<Record<string, { email: string; phone: string }>>>;
     /**
+     * 팀원이 올린 이력서를 내 보관함으로 가져온다.
+     * 팀원 파일은 그 사람 드라이브에 있고 나에겐 읽기 공유만 되므로, 내려받아야 내 목록에 나온다.
+     */
+    /** 이력서에서 처우산정표용 인적사항을 뽑는다 (출생연도·성별·학력·전공·학위·경력) */
+    profile(name: string): Promise<Result<{ birth: string; gender: string; school: string; major: string; degree: string; careerTotal: string; lastSalary: string; careers: { company: string; role: string; period: string; salary?: string }[] } | null>>;
+    pullTeam(limit?: number): Promise<Result<{ pulled: number; skipped: number; failed: number; candidates?: number }>>;
+    /**
      * 면접 일정에 후보자 이력서를 첨부한다.
      * 보관함 조회 → (필요하면) 드라이브 업로드 → 면접관에게 읽기 공유 → 일정 첨부.
      * 이력서가 없으면 attached:false + reason으로 조용히 돌아온다(예약을 실패시키지 않는다).

@@ -1261,6 +1261,82 @@ function stats() {
 }
 
 /**
+ * 팀원이 올린 이력서를 내 보관함으로 가져온다.
+ *
+ * 팀원이 드래그앤드랍하면 파일은 그 사람 드라이브에 저장되고 나에게 읽기 공유만 된다.
+ * 그러면 내 화면의 팀→직무 트리에는 안 나온다 — 형도님이 "팀원이 아카이빙해도 내 화면엔 안 잡힌다"고
+ * 한 게 이것이다. 공유된 파일을 실제로 내려받아 내 보관함에 넣어야 한 목록에서 보인다.
+ *
+ * 이미 가져온 것은 driveFileId와 내용 해시로 걸러 다시 받지 않는다.
+ */
+async function pullTeamResumes(limit = 60) {
+  const meEmail = ((store.get('googleProfile') || {}).email || '').toLowerCase();
+  let listed;
+  try {
+    listed = await gapi().listDriveVault();
+  } catch (e) {
+    return { pulled: 0, skipped: 0, failed: 0, error: (e.message || '').slice(0, 200) };
+  }
+  const files = (listed && listed.files) || [];
+
+  const list = readIndex();
+  const haveDrive = new Set(list.map((r) => r.driveFileId).filter(Boolean));
+  const haveName = new Set(list.map((r) => (r.filename || '').replace(/\s+/g, '')));
+
+  // 남이 올린 것만, 아직 안 가져온 것만
+  const targets = files.filter((f) => {
+    const owner = String(f.ownerEmail || '').toLowerCase();
+    if (!owner || owner === meEmail) return false;
+    if (haveDrive.has(f.driveFileId)) return false;
+    if (haveName.has((f.filename || '').replace(/\s+/g, ''))) return false;
+    return true;
+  });
+
+  let pulled = 0;
+  let skipped = 0;
+  let failed = 0;
+  for (const f of targets.slice(0, limit)) {
+    try {
+      const got = await gapi().downloadDriveFile(f.driveFileId);
+      // 표식에 이름이 없으면 파일명에서 뽑는다 — 우리 규칙이 '팀_이름.pdf' 라 마지막 토막이 이름이다
+      const fromName = () => {
+        const base = String(f.filename || '').replace(/.[^.]+$/, '');
+        const last = base.split(/[_-—–]/).pop() || '';
+        const m = last.match(/[가-힣]{2,4}/);
+        return m ? m[0] : '';
+      };
+      const res = saveResume({
+        filename: f.filename,
+        base64: got.base64,
+        meta: {
+          candidate: f.candidate || fromName(),
+          team: f.team || '',
+          source: 'team',
+          note: f.owner ? `${f.owner} 님이 올림` : '팀 공유',
+        },
+      });
+      if (res.duplicate) {
+        skipped += 1;
+        continue;
+      }
+      // 원본 드라이브 파일을 그대로 가리키게 한다 — 같은 파일을 또 올리지 않게
+      const cur = readIndex();
+      const i = cur.findIndex((r) => r.id === res.entry.id);
+      if (i >= 0) {
+        cur[i].driveFileId = f.driveFileId;
+        cur[i].driveTeam = f.team || '';
+        cur[i].sharedFrom = f.ownerEmail || '';
+        writeIndex(cur);
+      }
+      pulled += 1;
+    } catch {
+      failed += 1;
+    }
+  }
+  return { pulled, skipped, failed, candidates: targets.length };
+}
+
+/**
  * 이름으로 보관함 이력서를 찾아 처우산정표용 인적사항을 뽑는다.
  * 출생연도·성별·학교·전공·학위·총경력·경력 3줄까지. 못 읽으면 null.
  */
@@ -1314,6 +1390,7 @@ module.exports = {
   contactsByName,
   contactsAll,
   attachToEvent,
+  pullTeamResumes,
   profileByName,
   stats,
 };

@@ -44,7 +44,7 @@ function register() {
     'saveResume', 'listResumes', 'updateResume', 'readResumeBase64', 'openResume',
     'revealResumeFolder', 'deleteResume', 'deleteResumes', 'backupToDrive', 'applyClassification',
     'organizeVault', 'scanForResumes', 'importPath', 'extractContacts', 'extractContactsFromData',
-    'contactsByName', 'contactsAll', 'attachToEvent', 'profileByName', 'stats',
+    'contactsByName', 'contactsAll', 'attachToEvent', 'pullTeamResumes', 'profileByName', 'stats',
   ]);
   assertExports('sms', sms, ['getConfigMasked', 'setConfig', 'send', 'sendMany', 'balance', 'gmStatus', 'gmConnect', 'plStatus', 'plPressSend']);
 
@@ -126,6 +126,7 @@ function register() {
   safeHandle('rv:contactsFromData', async (base64, mimeType) => resumes.extractContactsFromData(base64, mimeType));
   safeHandle('rv:contactsAll', async () => resumes.contactsAll());
   safeHandle('rv:profile', async (name) => resumes.profileByName(name));
+  safeHandle('rv:pullTeam', async (limit) => resumes.pullTeamResumes(limit));
   safeHandle('rv:attachToEvent', async (payload) => resumes.attachToEvent(payload));
 
   // 처우산정표 — 템플릿 복제 + 인적사항 기입

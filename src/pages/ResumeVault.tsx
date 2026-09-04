@@ -272,9 +272,18 @@ export function ResumeVault() {
   useEffect(() => {
     void refresh();
     if (!IS_VIEWER && api?.resumes) {
-      void api.resumes.driveList().then((r) => {
+      // 팀원이 올린 이력서를 내 보관함으로 가져온다 — 그래야 팀→직무 트리 한 곳에서 다 보인다.
+      // 팀원 파일은 그 사람 드라이브에 저장되고 나에겐 읽기 공유만 되므로, 내려받지 않으면 목록에 안 나온다.
+      void (async () => {
+        try {
+          const got = await api.resumes.pullTeam(60);
+          if (got.ok && got.data && got.data.pulled > 0) await refresh();
+        } catch {
+          /* 드라이브가 막혀 있으면 조용히 넘어간다 — 내 이력서는 그대로 보인다 */
+        }
+        const r = await api.resumes.driveList();
         if (r.ok && r.data) setShared(r.data.files || []);
-      });
+      })();
       void api.resumes.driveFolder().then((r) => {
         if (r.ok && r.data?.url) setDriveUrl(r.data.url);
       });

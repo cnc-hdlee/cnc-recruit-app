@@ -887,6 +887,8 @@ async function listDriveVault() {
           modifiedTime: f.modifiedTime,
           mimeType: f.mimeType,
           owner: f.owners?.[0]?.displayName || '',
+          ownerEmail: f.owners?.[0]?.emailAddress || '',
+          candidate: f.appProperties?.candidate || '',
         });
       }
       pageToken = r.data.nextPageToken;
