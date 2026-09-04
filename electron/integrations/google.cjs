@@ -738,8 +738,15 @@ async function ensureResumeFolder() {
   const saved = store.get(RESUME_FOLDER_KEY);
   if (saved) {
     try {
-      const r = await drive.files.get({ fileId: saved, fields: 'id,name,trashed', supportsAllDrives: true });
-      if (r.data && !r.data.trashed) return r.data.id;
+      const r = await drive.files.get({ fileId: saved, fields: 'id,name,trashed,driveId', supportsAllDrives: true });
+      if (r.data && !r.data.trashed) {
+        // 저장된 폴더가 개인 드라이브인데 TA팀 공유 드라이브가 있으면 그쪽으로 옮겨 잡는다.
+        // 캐시가 옛 개인 폴더를 가리키면 새 이력서가 공유 드라이브 밖에 쌓인다(2026-09-04).
+        const td = await findTeamDrive();
+        if (!td || r.data.driveId === td) return r.data.id;
+        store.del(RESUME_FOLDER_KEY);
+        store.set(RESUME_TEAM_FOLDERS_KEY, {}); // 하위 팀 폴더 캐시도 함께 폐기
+      }
     } catch {
       // 폴더가 지워졌거나 접근 불가 → 아래에서 새로 만든다
     }
