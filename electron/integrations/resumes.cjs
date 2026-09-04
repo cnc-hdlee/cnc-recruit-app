@@ -909,12 +909,47 @@ function contactsAll() {
   return out;
 }
 
-async function contactsByName(name) {
+/**
+ * 이름으로 연락처를 찾는다. 팀을 함께 주면 같은 팀 이력서를 우선한다.
+ *
+ * 동명이인이 실제로 많다 — 입사예정DB 819명 중 56명이 팀이 다른 동명이인이고,
+ * 보관함에도 같은 이름 다른 팀이 있다. 이름만 보고 아무 이력서나 잡으면
+ * **엉뚱한 사람 메일 주소로 처우 안내가 나갈 수 있다.**
+ * 그래서 팀이 다른 후보만 남으면 주소를 돌려주지 않고 ambiguous로 알린다 — 그때는 수기 입력이 맞다.
+ */
+async function contactsByName(name, team) {
   const key = (name || '').replace(/\s+/g, '');
   if (!key) return { email: '', phone: '', emails: [], phones: [], id: null };
-  const hits = readIndex()
+  const normTeam = (t) =>
+    String(t || '')
+      .replace(/[(（][^)）]*[)）]/g, '')
+      .replace(/\s+/g, '')
+      .trim();
+  const want = normTeam(team);
+  const all = readIndex()
     .filter((r) => (r.candidate || '').replace(/\s+/g, '') === key)
     .sort((a, b) => (b.addedAt || '').localeCompare(a.addedAt || ''));
+  let hits = all;
+  if (want && all.length > 1) {
+    const same = all.filter((r) => {
+      const rt = normTeam(r.team);
+      return rt && (rt === want || rt.includes(want) || want.includes(rt));
+    });
+    if (same.length) hits = same;
+    else {
+      // 이름은 같은데 팀이 전부 다르다 = 다른 사람일 가능성이 크다. 주소를 붙이지 않는다.
+      return {
+        id: null,
+        candidate: name,
+        email: '',
+        phone: '',
+        emails: [],
+        phones: [],
+        ambiguous: true,
+        teams: [...new Set(all.map((r) => r.team).filter(Boolean))],
+      };
+    }
+  }
   const cached = hits.find((h) => h.contactEmail || h.contactPhone);
   if (cached) {
     return {

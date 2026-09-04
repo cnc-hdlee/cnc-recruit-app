@@ -128,8 +128,14 @@ const HIRE_DONE_THROUGH: Record<string, TemplateStage | 'all'> = {
   입사예정: 'offer',
 };
 
-async function loadHireDb(): Promise<Record<string, { status: string; date: string; team: string }>> {
-  const out: Record<string, { status: string; date: string; team: string }> = {};
+/**
+ * 같은 이름이 여럿이다 — 819명 중 56명이 팀이 서로 다른 동명이인이다.
+ * 이름만 맞추면 엉뚱한 사람의 입사 상태가 붙는다
+ * (글로벌규제팀 김수민의 '입사완료'가 품질보증팀 김수민에게 붙던 문제, 2026-09-04).
+ * 그래서 이름 하나에 여러 건을 담아두고, 팀까지 맞을 때만 쓴다.
+ */
+async function loadHireDb(): Promise<Record<string, { status: string; date: string; team: string }[]>> {
+  const out: Record<string, { status: string; date: string; team: string }[]> = {};
   if (!api?.google?.readSheet) return out;
   for (const tab of HIRE_DB_TABS) {
     try {
@@ -153,12 +159,12 @@ async function loadHireDb(): Promise<Record<string, { status: string; date: stri
         const name = String(row[cN] || '').trim();
         const status = String(row[cS] || '').trim();
         if (!name || !status) continue;
-        // 같은 이름이 여러 번이면 최신(아래쪽) 것을 쓴다
-        out[name.replace(/\s+/g, '')] = {
+        const key = name.replace(/\s+/g, '');
+        (out[key] ||= []).push({
           status,
           date: String(row[cD] || '').trim(),
           team: String(row[cT] || '').trim(),
-        };
+        });
       }
     } catch {
       /* 시트를 못 읽어도 앱은 그대로 동작한다 — 수기 처리 기록만으로 굴러간다 */
@@ -518,8 +524,8 @@ export function EmailToolsPage() {
   const [smsTpls, setSmsTpls] = useState<SmsTemplate[]>([]);
   // 파서가 못 읽은 이름을 화면에서 직접 채운 값 (key → 이름)
   const [nameFix, setNameFix] = useState<Record<string, string>>({});
-  /** 입사예정DB 상태 — 이름 → {입사완료/입사예정/입사취소/입사포기} */
-  const [hireDb, setHireDb] = useState<Record<string, { status: string; date: string; team: string }>>({});
+  /** 입사예정DB 상태 — 이름 → 여러 건(동명이인). 팀까지 맞을 때만 쓴다 */
+  const [hireDb, setHireDb] = useState<Record<string, { status: string; date: string; team: string }[]>>({});
   /** 처우산정표 현황 — 이름 → {상태, 링크}. 탭 이름이 곧 진행 상태다 */
   const [offerTabs, setOfferTabs] = useState<Record<string, { status: string; url: string; tab: string }>>({});
   const [offerBusy, setOfferBusy] = useState<string | null>(null);
@@ -735,7 +741,7 @@ export function EmailToolsPage() {
         try {
           // ① 이력서 보관함
           let found = '';
-          const r = await api.resumes.contactsByName(c.name);
+          const r = await api.resumes.contactsByName(c.name, c.team);
           if (r.ok && r.data?.email) found = r.data.email;
           // 문자 발송용 휴대폰 번호도 같은 이력서에서 함께 읽어둔다
           if (r.ok && r.data?.phone) {
@@ -887,14 +893,54 @@ export function EmailToolsPage() {
   // 이 단계에서 이미 처리한 사람 / 채용이 끝난(불합격) 사람
   // 이름이 비면 처리 여부를 판단할 수 없다. 예전엔 빈 이름으로 '::pass' 같은 키가 만들어져
   // 이름을 못 읽은 사람이 전부 한꺼번에 숨겨졌다. 빈 이름은 항상 '미처리'로 본다.
-  /** 입사예정DB가 말하는 상태 — 결과의 원천 */
-  const dbOf = (name: string) => hireDb[(name || '').replace(/\s+/g, '')];
+  /** 팀 이름 비교용 정규화 — "품질보증팀(문서관리)" 과 "품질보증팀" 을 같게 본다 */
+  const normTeam = (t: string) =>
+    String(t || '')
+      .replace(/[(（][^)）]*[)）]/g, '')
+      .replace(/\s+/g, '')
+      .trim();
+
+  /**
+   * 입사예정DB가 말하는 상태 — 결과의 원천.
+   * 동명이인이 있으므로 팀이 맞는 건만 쓴다. 팀이 안 맞으면 다른 사람이므로 쓰지 않는다.
+   * 판정에 쓰지 못했을 때는 clash로 알려 화면에 표시한다 — 조용히 무시하지 않는다.
+   */
+  const dbMatch = (name: string, team: string): { hit?: { status: string; date: string; team: string }; clash: boolean } => {
+    const list = hireDb[(name || '').replace(/\s+/g, '')] || [];
+    if (!list.length) return { clash: false };
+    const t = normTeam(team);
+    const same = t
+      ? list.filter((x) => {
+          const dt = normTeam(x.team);
+          return dt && (dt === t || dt.includes(t) || t.includes(dt));
+        })
+      : [];
+    if (same.length) {
+      // 여러 건이면 가장 최근 것
+      const best = [...same].sort((a, b) => String(b.date).localeCompare(String(a.date)))[0];
+      return { hit: best, clash: false };
+    }
+    // 후보자 팀을 모르는데 DB에 딱 한 건이면 그 사람으로 본다
+    if (!t && list.length === 1) return { hit: list[0], clash: false };
+    // 이름은 같은데 팀이 다르다 = 다른 사람
+    return { clash: true };
+  };
+
+  const dbOf = (name: string, team = '') => dbMatch(name, team).hit;
+
+  /** 이름 → 그 후보자의 팀 (동명이인 판별에 쓴다) */
+  const nameTeam = useMemo(() => {
+    const m: Record<string, string> = {};
+    for (const c of allCandidates) if (c.name && c.team && !m[c.name]) m[c.name] = c.team;
+    return m;
+  }, [allCandidates]);
 
   const isHandled = (name: string) => {
     if (!name) return false;
     if (handled[handledKey(name, stage)]) return true;
     // DB에 결과가 찍혔으면 그 단계까지는 끝난 것으로 본다 — 수기 체크가 빠져 있어도.
-    const db = dbOf(name);
+    // 팀이 맞는 사람만 — 동명이인의 상태가 붙으면 안 된다.
+    const db = dbOf(name, nameTeam[name] || '');
     const through = db && HIRE_DONE_THROUGH[db.status];
     if (through === 'all') return true;
     if (through) {
@@ -1784,19 +1830,27 @@ export function EmailToolsPage() {
                           산정표 {offerOf(c.name)!.status}
                         </a>
                       )}
-                      {dbOf(c.name) && (
+                      {dbMatch(c.name, c.team).clash && (
                         <span
-                          title={`입사예정DB — ${dbOf(c.name)!.status}${dbOf(c.name)!.date ? ' · ' + dbOf(c.name)!.date : ''}`}
+                          title="입사예정DB에 같은 이름이 있지만 팀이 달라 다른 사람으로 봤습니다. DB 상태를 적용하지 않았습니다."
+                          className="ml-1 px-1.5 py-0.5 rounded text-[10px] font-bold align-middle border bg-orange-100 text-orange-900 border-orange-300"
+                        >
+                          동명이인
+                        </span>
+                      )}
+                      {dbOf(c.name, c.team) && (
+                        <span
+                          title={`입사예정DB — ${dbOf(c.name, c.team)!.status}${dbOf(c.name, c.team)!.date ? ' · ' + dbOf(c.name, c.team)!.date : ''} · ${dbOf(c.name, c.team)!.team}`}
                           className={
                             'ml-1 px-1.5 py-0.5 rounded text-[10px] font-bold align-middle border ' +
-                            (dbOf(c.name)!.status === '입사완료'
+                            (dbOf(c.name, c.team)!.status === '입사완료'
                               ? 'bg-emerald-600 text-white border-emerald-700'
-                              : dbOf(c.name)!.status === '입사예정'
+                              : dbOf(c.name, c.team)!.status === '입사예정'
                                 ? 'bg-amber-100 text-amber-900 border-amber-300'
                                 : 'bg-slate-200 text-slate-900 border-slate-400')
                           }
                         >
-                          {dbOf(c.name)!.status}
+                          {dbOf(c.name, c.team)!.status}
                         </span>
                       )}
                       {isRejected(c.name) && (

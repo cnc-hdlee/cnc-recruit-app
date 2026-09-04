@@ -171,6 +171,9 @@ export interface ResumeContact {
   phone: string;
   phones: string[];
   cached?: boolean;
+  /** 같은 이름이 여럿인데 팀이 달라 특정하지 못했다 — 주소를 자동으로 넣지 않는다 */
+  ambiguous?: boolean;
+  teams?: string[];
 }
 
 export interface PresenceUser {
@@ -485,7 +488,7 @@ interface ElectronAPI {
     /** 이력서 원본(PDF)에서 지원자 이메일·전화를 읽어온다 */
     contacts(id: string): Promise<Result<ResumeContact>>;
     /** 이름으로 보관함을 찾아 연락처를 돌려준다 (가장 최근 이력서 기준) */
-    contactsByName(name: string): Promise<Result<ResumeContact>>;
+    contactsByName(name: string, team?: string): Promise<Result<ResumeContact>>;
     /**
      * 보관함 전체 연락처를 한 번에 — {이름: {email, phone}}.
      * 이름마다 따로 부르면 왕복이 사람 수만큼 생겨 느리다. 로컬 인덱스만 읽으므로 즉시 끝난다.

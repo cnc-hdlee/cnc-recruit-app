@@ -97,7 +97,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     classify: (updates, opts) => invoke('rv:classify', updates, opts),
     organize: () => invoke('rv:organize'),
     contacts: (id) => invoke('rv:contacts', id),
-    contactsByName: (name) => invoke('rv:contactsByName', name),
+    contactsByName: (name, team) => invoke('rv:contactsByName', name, team),
     contactsAll: () => invoke('rv:contactsAll'),
     profile: (name) => invoke('rv:profile', name),
     pullTeam: (limit) => invoke('rv:pullTeam', limit),

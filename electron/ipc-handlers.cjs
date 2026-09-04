@@ -123,7 +123,7 @@ function register() {
   safeHandle('rv:classify', async (updates, opts) => resumes.applyClassification(updates, opts));
   safeHandle('rv:organize', async () => resumes.organizeVault());
   safeHandle('rv:contacts', async (id) => resumes.extractContacts(id));
-  safeHandle('rv:contactsByName', async (name) => resumes.contactsByName(name));
+  safeHandle('rv:contactsByName', async (name, team) => resumes.contactsByName(name, team));
   safeHandle('rv:scan', async (opt) => resumes.scanForResumes(opt));
   safeHandle('rv:importPath', async (p, meta, password) => resumes.importPath(p, meta, password));
   safeHandle('rv:contactsFromData', async (base64, mimeType) => resumes.extractContactsFromData(base64, mimeType));
