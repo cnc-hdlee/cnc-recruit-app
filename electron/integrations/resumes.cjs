@@ -1284,9 +1284,12 @@ async function pullTeamResumes(limit = 60) {
   const haveName = new Set(list.map((r) => (r.filename || '').replace(/\s+/g, '')));
 
   // 남이 올린 것만, 아직 안 가져온 것만
+  // 이력서가 아닌 것은 애초에 가져오지 않는다 — 바로가기(.lnk/.url)나 빈 껍데기가 섞여 온다
+  const NOT_RESUME_EXT = /.(lnk|url|ini|db|tmp|zip)$/i;
   const targets = files.filter((f) => {
     const owner = String(f.ownerEmail || '').toLowerCase();
     if (!owner || owner === meEmail) return false;
+    if (NOT_RESUME_EXT.test(f.filename || '')) return false;
     if (haveDrive.has(f.driveFileId)) return false;
     if (haveName.has((f.filename || '').replace(/\s+/g, ''))) return false;
     return true;
