@@ -33,8 +33,9 @@ export const DEFAULT_TEAM_ATTENDEES: Record<string, string[]> = {
   전략구매팀: ['ywkim', 'jhlee3'],
   영업관리팀: ['suhwang'],
   제조1팀: ['jwlee', 'yghan'],
-  // 제조2팀 — 김성민 과장·유지연 사원 (형도님 지시, 2026-09-04)
-  제조2팀: ['sminkim', 'jyyu'],
+  // 제조2팀 — #제조2팀-채용 채널과 실제 초대장(이웅기 면접) 기준.
+  // 허명재 부장이 면접 일정을 정하고 김성민 과장이 진행, 유지연 사원이 이력서를 전달한다.
+  제조2팀: ['mjheo', 'sminkim', 'jyyu'],
   품질보증팀: ['jemoon'],
   품질관리1팀: ['khjung', 'jekim1'],
   품질관리2팀: ['mhlee'],
@@ -96,6 +97,7 @@ export const PEOPLE: Record<string, { name: string; title?: string; team?: strin
   suhwang: { name: '황선욱', title: '팀장', team: '영업관리팀' },
   jwlee: { name: '이재욱', title: '대리', team: '제조1팀' },
   // 제조2팀 면접 참석자 — 팀장이 아니지만 면접에 항상 들어간다(형도님 지시, 2026-09-04)
+  mjheo: { name: '허명재', team: '제조부', title: '부장' },
   sminkim: { name: '김성민', team: '제조2팀', title: '과장' },
   jyyu: { name: '유지연', team: '제조2팀', title: '사원' },
   yghan: { name: '한윤구', title: '팀장', team: '제조1팀' },
