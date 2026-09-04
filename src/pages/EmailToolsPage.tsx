@@ -177,7 +177,12 @@ async function copyToClipboard(text: string): Promise<boolean> {
 // "작업자가 여기서 처리해야만 내려간다"가 원칙 — 발송하거나 [처리]를 누른 건만 대기열에서 빠진다.
 // 처리 기록은 <이름>::<단계>로 남아, 같은 사람도 단계별로 따로 관리된다.
 // 불합격 처리된 사람은 다른 단계에서도 대기열에 뜨지 않는다(채용이 끝난 사람이므로).
-type HandledMark = { at: string; via: 'send' | 'manual'; stage: TemplateStage };
+// via — 무엇으로 처리했는지. 화면에서 메일/문자를 색으로 구분한다.
+//   send   메일 발송
+//   sms    문자 발송
+//   manual 메일·문자 없이 손으로 처리
+type HandledVia = 'send' | 'sms' | 'manual';
+type HandledMark = { at: string; via: HandledVia; stage: TemplateStage };
 type HandledMap = Record<string, HandledMark>;
 const HANDLED_CFG_KEY = 'mailHandledCandidates';
 const handledKey = (name: string, stage: TemplateStage) => `${name}::${stage}`;
@@ -805,6 +810,23 @@ export function EmailToolsPage() {
     return false;
   };
 
+  /**
+   * 이 단계에서 무엇으로 처리했는지 — 행 왼쪽 테두리 색으로 구분한다.
+   * 메일은 초록, 문자는 파랑, 둘 다면 보라. 손으로 처리한 건 회색.
+   * 뒷 단계 처리로 자동으로 내려간 건(실제 발송 기록 없음)은 테두리를 칠하지 않는다.
+   */
+  const sentMark = (name: string): { cls: string; label: string } | null => {
+    if (!name) return null;
+    const cur = handled[handledKey(name, stage)];
+    const mail = cur?.via === 'send' || log.some((l) => l.variables?.['이름'] === name);
+    const sms = cur?.via === 'sms';
+    if (mail && sms) return { cls: 'border-l-4 border-violet-500', label: '메일·문자 발송' };
+    if (mail) return { cls: 'border-l-4 border-emerald-500', label: '메일 발송' };
+    if (sms) return { cls: 'border-l-4 border-sky-500', label: '문자 발송' };
+    if (cur?.via === 'manual') return { cls: 'border-l-4 border-slate-400', label: '직접 처리' };
+    return null;
+  };
+
   /** 이 사람이 어느 단계까지 진행됐는지 — 목록에서 한눈에 보이게 (실제로 보낸 것만) */
   const doneStages = (name: string): TemplateStage[] =>
     name ? STAGE_ORDER.filter((sg) => !!handled[handledKey(name, sg)]) : [];
@@ -913,7 +935,7 @@ export function EmailToolsPage() {
     }
   }
 
-  async function markHandled(c: CalCandidate, via: 'send' | 'manual') {
+  async function markHandled(c: CalCandidate, via: HandledVia) {
     if (!c.name.trim()) {
       alert('이름을 먼저 채워주세요. 이름 없이 처리하면 나중에 누구인지 알 수 없습니다.');
       return;
@@ -1488,6 +1510,17 @@ export function EmailToolsPage() {
           >
             💬 번호 일괄 복사
           </button>
+          <span className="text-[11px] text-slate-900 flex items-center gap-2">
+            <span className="inline-flex items-center gap-1">
+              <span className="inline-block w-2.5 h-3 bg-emerald-500 rounded-sm" /> 메일
+            </span>
+            <span className="inline-flex items-center gap-1">
+              <span className="inline-block w-2.5 h-3 bg-sky-500 rounded-sm" /> 문자
+            </span>
+            <span className="inline-flex items-center gap-1">
+              <span className="inline-block w-2.5 h-3 bg-violet-500 rounded-sm" /> 둘 다
+            </span>
+          </span>
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
@@ -1562,8 +1595,13 @@ export function EmailToolsPage() {
               {shown.map((c) => {
                 const to = draftEmail[c.key] ?? c.email;
                 const sent = log.find((l) => l.variables?.['이름'] === c.name && l.templateId === currentTpl?.id);
+                const mark = sentMark(c.name);
                 return (
-                  <tr key={c.key} className="border-b border-slate-200 hover:bg-slate-50">
+                  <tr
+                    key={c.key}
+                    title={mark?.label}
+                    className={`border-b border-slate-200 hover:bg-slate-50 ${mark ? mark.cls : 'border-l-4 border-transparent'}`}
+                  >
                     <td className="px-3 py-2 text-slate-900 whitespace-nowrap">{c.when}</td>
                     <td className="px-3 py-2 font-bold text-slate-900 whitespace-nowrap">
                       {c.needsName ? (
@@ -1584,6 +1622,28 @@ export function EmailToolsPage() {
                       {c.status && (
                         <span className="ml-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-rose-100 text-rose-900 border border-rose-200">
                           {c.status}
+                        </span>
+                      )}
+                      {mark && (
+                        <span
+                          className={
+                            'ml-1 px-1.5 py-0.5 rounded text-[10px] font-bold align-middle border ' +
+                            (mark.label === '메일·문자 발송'
+                              ? 'bg-violet-100 text-violet-900 border-violet-300'
+                              : mark.label === '메일 발송'
+                                ? 'bg-emerald-100 text-emerald-900 border-emerald-300'
+                                : mark.label === '문자 발송'
+                                  ? 'bg-sky-100 text-sky-900 border-sky-300'
+                                  : 'bg-slate-100 text-slate-900 border-slate-300')
+                          }
+                        >
+                          {mark.label === '메일·문자 발송'
+                            ? '✉💬'
+                            : mark.label === '메일 발송'
+                              ? '✉'
+                              : mark.label === '문자 발송'
+                                ? '💬'
+                                : '✓'}
                         </span>
                       )}
                       {offerVals[c.name] && (
@@ -1790,7 +1850,7 @@ export function EmailToolsPage() {
           }}
           onClose={() => setSmsFor(null)}
           onDone={async (c) => {
-            await markHandled(c, 'manual');
+            await markHandled(c, 'sms');
             setSmsFor(null);
           }}
         />
