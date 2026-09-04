@@ -112,6 +112,61 @@ const PREV_STAGE: Partial<Record<TemplateStage, TemplateStage>> = {
  */
 const FLOW: TemplateStage[] = ['interview_1st', 'interview_2nd', 'pass', 'offer', 'onboarding'];
 
+// ── 입사예정DB로 진행 상태 자동 판정 ───────────────────────────────────────
+// 누구에게 무엇을 보냈는지는 사람이 체크해야 알지만, "그래서 어떻게 됐는지"는 DB가 안다.
+// 수기 체크는 반드시 새기 때문에(2026-09 김보민 건) DB를 같이 본다.
+//   입사완료 / 입사취소 / 입사포기 → 채용이 끝났다. 모든 단계 대기열에서 뺀다.
+//   입사예정                        → 처우협의까지 끝났다(처우 수락 후 등재된다).
+//                                    최종 입사 안내만 남긴다.
+const HIRE_DB_SHEET = '1CS2o71Ome6ER_tGx6XhRM2BdXG4spOfEaHWu_CtGobY';
+const HIRE_DB_TABS = ['입사예정(정규직)DB', '입사예정(도급직)DB'];
+/** 이 상태면 그 단계까지 끝난 것으로 본다 */
+const HIRE_DONE_THROUGH: Record<string, TemplateStage | 'all'> = {
+  입사완료: 'all',
+  입사취소: 'all',
+  입사포기: 'all',
+  입사예정: 'offer',
+};
+
+async function loadHireDb(): Promise<Record<string, { status: string; date: string; team: string }>> {
+  const out: Record<string, { status: string; date: string; team: string }> = {};
+  if (!api?.google?.readSheet) return out;
+  for (const tab of HIRE_DB_TABS) {
+    try {
+      const r = await api.google.readSheet(HIRE_DB_SHEET, `'${tab}'!A1:R2000`);
+      if (!r.ok || !Array.isArray(r.data) || r.data.length < 2) continue;
+      const head = r.data[0].map((h) => String(h || '').replace(/\s/g, ''));
+      const ix = (...names: string[]) => {
+        for (const n of names) {
+          const i = head.indexOf(n);
+          if (i >= 0) return i;
+        }
+        return -1;
+      };
+      const cN = ix('성명');
+      const cS = ix('입사여부', '채용결과');
+      const cD = ix('입사예정일');
+      const cT = ix('팀명');
+      if (cN < 0 || cS < 0) continue;
+      for (let i = 1; i < r.data.length; i++) {
+        const row = r.data[i] || [];
+        const name = String(row[cN] || '').trim();
+        const status = String(row[cS] || '').trim();
+        if (!name || !status) continue;
+        // 같은 이름이 여러 번이면 최신(아래쪽) 것을 쓴다
+        out[name.replace(/\s+/g, '')] = {
+          status,
+          date: String(row[cD] || '').trim(),
+          team: String(row[cT] || '').trim(),
+        };
+      }
+    } catch {
+      /* 시트를 못 읽어도 앱은 그대로 동작한다 — 수기 처리 기록만으로 굴러간다 */
+    }
+  }
+  return out;
+}
+
 function defaultRange(_stage: TemplateStage): RangeMode {
   return 'all';
 }
@@ -441,6 +496,8 @@ export function EmailToolsPage() {
   const [smsTpls, setSmsTpls] = useState<SmsTemplate[]>([]);
   // 파서가 못 읽은 이름을 화면에서 직접 채운 값 (key → 이름)
   const [nameFix, setNameFix] = useState<Record<string, string>>({});
+  /** 입사예정DB 상태 — 이름 → {입사완료/입사예정/입사취소/입사포기} */
+  const [hireDb, setHireDb] = useState<Record<string, { status: string; date: string; team: string }>>({});
   /** 처우산정표 현황 — 이름 → {상태, 링크}. 탭 이름이 곧 진행 상태다 */
   const [offerTabs, setOfferTabs] = useState<Record<string, { status: string; url: string; tab: string }>>({});
   const [offerBusy, setOfferBusy] = useState<string | null>(null);
@@ -508,6 +565,7 @@ export function EmailToolsPage() {
     })();
     loadSendLog().then(setLog);
     loadHandled().then(setHandled);
+    void loadHireDb().then(setHireDb);
     api.cfg.get<string>(TEST_PHONE_CFG_KEY).then((r) => r.ok && r.data && setTestPhone(r.data));
     loadSmsTemplates().then(setSmsTpls);
     // 처우산정표 워크북의 탭 목록 — 누가 어디까지 갔는지 이름으로 맞춘다
@@ -796,9 +854,22 @@ export function EmailToolsPage() {
   // 이 단계에서 이미 처리한 사람 / 채용이 끝난(불합격) 사람
   // 이름이 비면 처리 여부를 판단할 수 없다. 예전엔 빈 이름으로 '::pass' 같은 키가 만들어져
   // 이름을 못 읽은 사람이 전부 한꺼번에 숨겨졌다. 빈 이름은 항상 '미처리'로 본다.
+  /** 입사예정DB가 말하는 상태 — 결과의 원천 */
+  const dbOf = (name: string) => hireDb[(name || '').replace(/\s+/g, '')];
+
   const isHandled = (name: string) => {
     if (!name) return false;
     if (handled[handledKey(name, stage)]) return true;
+    // DB에 결과가 찍혔으면 그 단계까지는 끝난 것으로 본다 — 수기 체크가 빠져 있어도.
+    const db = dbOf(name);
+    const through = db && HIRE_DONE_THROUGH[db.status];
+    if (through === 'all') return true;
+    if (through) {
+      const upto = FLOW.indexOf(through);
+      const here = FLOW.indexOf(stage);
+      if (here >= 0 && upto >= 0 && here <= upto) return true;
+      if (stage === 'reject') return true; // 입사예정인 사람은 불합격 대기열에 없다
+    }
     // 불합격 안내가 나갔으면 채용이 끝났다 — 다른 단계 대기열에 다시 뜨지 않는다
     if (stage !== 'reject' && handled[handledKey(name, 'reject')]) return true;
     // 합격 쪽으로 넘어간 사람은 불합격 대기열에 있을 이유가 없다
@@ -1664,6 +1735,21 @@ export function EmailToolsPage() {
                         >
                           산정표 {offerOf(c.name)!.status}
                         </a>
+                      )}
+                      {dbOf(c.name) && (
+                        <span
+                          title={`입사예정DB — ${dbOf(c.name)!.status}${dbOf(c.name)!.date ? ' · ' + dbOf(c.name)!.date : ''}`}
+                          className={
+                            'ml-1 px-1.5 py-0.5 rounded text-[10px] font-bold align-middle border ' +
+                            (dbOf(c.name)!.status === '입사완료'
+                              ? 'bg-emerald-600 text-white border-emerald-700'
+                              : dbOf(c.name)!.status === '입사예정'
+                                ? 'bg-amber-100 text-amber-900 border-amber-300'
+                                : 'bg-slate-200 text-slate-900 border-slate-400')
+                          }
+                        >
+                          {dbOf(c.name)!.status}
+                        </span>
                       )}
                       {isRejected(c.name) && (
                         <span
