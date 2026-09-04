@@ -97,6 +97,9 @@ const POST_INTERVIEW_STAGES: TemplateStage[] = ['pass', 'offer', 'onboarding', '
  * 이 표로 "이전 단계 완료만" 필터를 만들어 다음에 할 일을 바로 집어낸다.
  */
 const PREV_STAGE: Partial<Record<TemplateStage, TemplateStage>> = {
+  interview_2nd: 'interview_1st',
+  // 2차 면접이 없는 직군도 있어서 합격 안내의 앞 단계는 1차로 둔다 —
+  // 2차까지 본 사람은 어차피 1차도 처리돼 있다.
   pass: 'interview_1st',
   offer: 'pass',
   onboarding: 'offer',
@@ -107,7 +110,7 @@ const PREV_STAGE: Partial<Record<TemplateStage, TemplateStage>> = {
  * 합격 안내를 보냈으면 면접 안내는 당연히 나갔다 — 그런데도 앞 단계 대기열에 남아 있었다
  * (2026-09-03 김보민 님: 합격 문자까지 보냈는데 '면접 안내'에 그대로 있었다).
  */
-const FLOW: TemplateStage[] = ['interview_1st', 'pass', 'offer', 'onboarding'];
+const FLOW: TemplateStage[] = ['interview_1st', 'interview_2nd', 'pass', 'offer', 'onboarding'];
 
 function defaultRange(_stage: TemplateStage): RangeMode {
   return 'all';
@@ -991,9 +994,16 @@ export function EmailToolsPage() {
     c: CalCandidate,
     tpl: EmailTemplate,
     to: string,
-    vars: Record<string, string>
+    vars: Record<string, string>,
+    /** 미리보기에서 직접 고친 제목·본문 (이번 발송에만 적용) */
+    override?: { subject?: string; body?: string }
   ): Promise<boolean> {
-    const rendered = renderTemplate(tpl, vars);
+    // 미리보기에서 고친 내용이 있으면 그걸 보낸다. 양식 자체는 건드리지 않는다 —
+    // 이번 한 통에만 적용되고, 다음 사람은 원래 양식 그대로 나간다.
+    const base = renderTemplate(tpl, vars);
+    const rendered = override
+      ? { subject: override.subject ?? base.subject, body: override.body ?? base.body }
+      : base;
     if (!api?.google?.sendGmail) {
       // Electron이 아닌 환경(모바일 뷰어 등) — Gmail 작성 창으로 폴백
       window.open(gmailComposeUrl({ to, subject: rendered.subject, body: rendered.body }), '_blank');
@@ -1857,8 +1867,8 @@ export function EmailToolsPage() {
           candidate={modal.candidate}
           initialVars={autoVars(modal.candidate, modal.template)}
           onClose={() => setModal(null)}
-          onSend={async (to, vars) => {
-            const ok = await send(modal.candidate, modal.template, to, vars);
+          onSend={async (to, vars, override) => {
+            const ok = await send(modal.candidate, modal.template, to, vars, override);
             if (ok) setModal(null);
           }}
         />
@@ -1899,13 +1909,24 @@ function SendModal({
   candidate: CalCandidate;
   initialVars: Record<string, string>;
   onClose: () => void;
-  onSend: (to: string, vars: Record<string, string>) => void;
+  onSend: (to: string, vars: Record<string, string>, override?: { subject: string; body: string }) => void;
 }) {
   const [to, setTo] = useState(candidate.email);
   const [vars, setVars] = useState<Record<string, string>>(initialVars);
-  const rendered = renderTemplate(template, vars);
+  const auto = renderTemplate(template, vars);
+  // 미리보기를 그대로 고쳐 보내는 경우가 있다. 고친 내용은 이번 한 통에만 적용되고
+  // 저장된 양식은 그대로 둔다 — 다음 사람에게는 원래 문구가 나가야 한다.
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState({ subject: '', body: '' });
+  const rendered = editing ? draft : auto;
+  const dirty = editing && (draft.subject !== auto.subject || draft.body !== auto.body);
   const missing = findMissingVars(`${rendered.subject}\n${rendered.body}`);
   const isOffer = template.stage === 'offer';
+
+  function startEdit() {
+    setDraft(auto); // 지금 보이는 내용 그대로 편집창에 올린다
+    setEditing(true);
+  }
 
   function handleSend() {
     if (!to.trim()) return;
@@ -1920,7 +1941,7 @@ function SendModal({
     } else if (!confirm(`${candidate.name}님께 발송합니다.\n\n수신: ${to}\n제목: ${rendered.subject}`)) {
       return;
     }
-    onSend(to.trim(), vars);
+    onSend(to.trim(), vars, dirty ? { subject: rendered.subject, body: rendered.body } : undefined);
   }
 
   return (
@@ -1967,13 +1988,55 @@ function SendModal({
             </div>
           ))}
           <div>
-            <div className="text-xs font-bold text-slate-900 mb-1">미리보기</div>
-            <div className="rounded border border-slate-300 bg-slate-50 p-3">
-              <div className="font-bold pb-2 mb-2 border-b border-slate-300 text-slate-900">{rendered.subject}</div>
-              <pre className="whitespace-pre-wrap font-sans text-sm text-slate-900 leading-relaxed max-h-64 overflow-auto">
-                {rendered.body}
-              </pre>
+            <div className="flex items-center gap-2 mb-1">
+              <div className="text-xs font-bold text-slate-900">미리보기</div>
+              {!editing ? (
+                <button
+                  onClick={startEdit}
+                  className="px-2 py-0.5 rounded border border-slate-300 bg-white text-xs font-bold text-slate-900 hover:bg-slate-100"
+                  title="이번 한 통만 고쳐 보냅니다 — 저장된 양식은 그대로입니다"
+                >
+                  ✏ 수정
+                </button>
+              ) : (
+                <>
+                  <button
+                    onClick={() => setEditing(false)}
+                    className="px-2 py-0.5 rounded border border-slate-300 bg-white text-xs font-bold text-slate-900 hover:bg-slate-100"
+                  >
+                    ↩ 원래 양식으로
+                  </button>
+                  <span className="text-[11px] font-bold text-amber-800">
+                    이번 발송에만 적용됩니다 (양식은 안 바뀝니다)
+                  </span>
+                </>
+              )}
+              {dirty && <span className="text-[11px] font-bold text-emerald-700">수정됨</span>}
             </div>
+            {editing ? (
+              <div className="rounded border border-amber-400 bg-amber-50 p-3 space-y-2">
+                <input
+                  value={draft.subject}
+                  onChange={(e) => setDraft((d) => ({ ...d, subject: e.target.value }))}
+                  className="w-full px-2 py-1.5 border border-slate-300 rounded text-sm font-bold text-slate-900 bg-white"
+                  placeholder="제목"
+                />
+                <textarea
+                  value={draft.body}
+                  onChange={(e) => setDraft((d) => ({ ...d, body: e.target.value }))}
+                  rows={14}
+                  className="w-full px-2 py-1.5 border border-slate-300 rounded text-sm text-slate-900 bg-white leading-relaxed"
+                  placeholder="본문"
+                />
+              </div>
+            ) : (
+              <div className="rounded border border-slate-300 bg-slate-50 p-3">
+                <div className="font-bold pb-2 mb-2 border-b border-slate-300 text-slate-900">{rendered.subject}</div>
+                <pre className="whitespace-pre-wrap font-sans text-sm text-slate-900 leading-relaxed max-h-64 overflow-auto">
+                  {rendered.body}
+                </pre>
+              </div>
+            )}
           </div>
           {missing.length > 0 && (
             <div className="text-sm font-bold text-red-700">비어있는 항목: {missing.join(', ')}</div>

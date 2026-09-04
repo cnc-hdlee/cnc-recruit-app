@@ -10,7 +10,8 @@ import { api } from './api';
 
 export type TemplateRecipient = 'candidate' | 'manager';
 export type TemplateStage =
-  | 'interview_1st' // 면접 안내 (후보자) — 면접을 잡고 보내는 안내
+  | 'interview_1st' // 1차 면접 안내 (후보자)
+  | 'interview_2nd' // 2차 면접 안내 (후보자) — 1차를 통과한 사람에게만
   | 'pass' // 합격 안내 (후보자) — 면접 결과는 합격/불합격 둘 중 하나다
   | 'offer' // 처우협의 안내 (후보자, 잠금)
   | 'onboarding' // 최종 입사 안내 (후보자)
@@ -18,11 +19,20 @@ export type TemplateStage =
   | 'custom'; // 사용자 정의
 
 // 실제 채용 흐름 순서 그대로. (CPI 인성검사는 폐지되어 제거 · 2차 면접은 아직 미구현)
-export const STAGE_ORDER: TemplateStage[] = ['interview_1st', 'pass', 'offer', 'onboarding', 'reject', 'custom'];
+export const STAGE_ORDER: TemplateStage[] = [
+  'interview_1st',
+  'interview_2nd',
+  'pass',
+  'offer',
+  'onboarding',
+  'reject',
+  'custom',
+];
 export const STAGE_LABEL: Record<TemplateStage, string> = {
-  // 면접 전(안내) → 면접 후 결과는 합격/불합격 두 갈래만.
-  // '1차 면접 안내'와 '1차 합격 안내'가 나란히 있으면 라벨이 겹쳐 헷갈린다(2026-09-03).
-  interview_1st: '면접 안내',
+  // 면접은 1차·2차로 나누고, 면접 후 결과는 합격/불합격 두 갈래만.
+  // 결과 라벨에는 '1차'를 붙이지 않는다 — '1차 면접 안내'와 겹쳐 헷갈렸다(2026-09-03).
+  interview_1st: '1차 면접 안내',
+  interview_2nd: '2차 면접 안내',
   pass: '합격 안내',
   offer: '처우협의 안내',
   onboarding: '최종 입사 안내',
@@ -54,10 +64,10 @@ export interface EmailTemplate {
 const DEFAULTS: EmailTemplate[] = [
   {
     id: 'builtin-interview-1st',
-    name: '면접 안내 (서류합격 → 면접)',
+    name: '1차 면접 안내 (서류합격 → 면접)',
     recipient: 'candidate',
     stage: 'interview_1st',
-    subject: '[(주)씨앤씨인터내셔널] 면접 안내 - {{이름}}님',
+    subject: '[(주)씨앤씨인터내셔널] 1차 면접 안내 - {{이름}}님',
     body: `안녕하세요. {{이름}}님,
 (주)씨앤씨인터내셔널 채용팀 이형도입니다.
 
@@ -78,8 +88,34 @@ const DEFAULTS: EmailTemplate[] = [
     createdAt: 0,
   },
   {
+    // 2차 면접 안내 — 1차와 문구가 거의 같아 같은 틀을 쓰고 차수만 다르게 둔다.
+    // 사전질문지는 보통 1차에서 이미 받으므로 기본 문구에서 뺐다.
+    id: 'builtin-interview-2nd',
+    name: '2차 면접 안내 (1차 합격 → 2차)',
+    recipient: 'candidate',
+    stage: 'interview_2nd',
+    subject: '[(주)씨앤씨인터내셔널] 2차 면접 안내 - {{이름}}님',
+    body: `안녕하세요. {{이름}}님,
+(주)씨앤씨인터내셔널 채용팀 이형도입니다.
+
+1차 면접에 응해주셔서 감사합니다.
+아래와 같이 2차 면접 안내 드리오니 일정 확인 부탁드립니다.
+
+일정 : {{면접일시}}
+
+장소 : {{면접장소}}{{장소안내}}
+
+관련하여 궁금하신 내용은 편히 연락 부탁드립니다.
+편안한 하루 보내시길 바랍니다.
+
+감사합니다.`,
+    variables: ['이름', '면접일시', '면접장소', '장소안내'],
+    builtin: true,
+    createdAt: 0,
+  },
+  {
     id: 'builtin-pass',
-    name: '1차 면접 합격 안내',
+    name: '합격 안내',
     recipient: 'candidate',
     stage: 'pass',
     subject: '[(주)씨앤씨인터내셔널] 1차 면접 결과 안내 - {{이름}}님',
