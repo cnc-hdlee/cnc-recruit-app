@@ -810,21 +810,18 @@ export function EmailToolsPage() {
     return false;
   };
 
-  /**
-   * 이 단계에서 무엇으로 처리했는지 — 행 왼쪽 테두리 색으로 구분한다.
-   * 메일은 초록, 문자는 파랑, 둘 다면 보라. 손으로 처리한 건 회색.
-   * 뒷 단계 처리로 자동으로 내려간 건(실제 발송 기록 없음)은 테두리를 칠하지 않는다.
+/**
+   * 이 단계에서 무엇을 보냈는지 — 메일(초록)·문자(파랑) 두 가지만 표시한다.
+   * 둘 다 보냈으면 배지를 둘 다 단다. 손으로 처리한 건은 표시하지 않는다 —
+   * 보내지도 않았는데 보낸 것처럼 보이면 안 된다.
    */
-  const sentMark = (name: string): { cls: string; label: string } | null => {
-    if (!name) return null;
+  const sentMark = (name: string): { mail: boolean; sms: boolean } => {
+    if (!name) return { mail: false, sms: false };
     const cur = handled[handledKey(name, stage)];
-    const mail = cur?.via === 'send' || log.some((l) => l.variables?.['이름'] === name);
-    const sms = cur?.via === 'sms';
-    if (mail && sms) return { cls: 'border-l-4 border-violet-500', label: '메일·문자 발송' };
-    if (mail) return { cls: 'border-l-4 border-emerald-500', label: '메일 발송' };
-    if (sms) return { cls: 'border-l-4 border-sky-500', label: '문자 발송' };
-    if (cur?.via === 'manual') return { cls: 'border-l-4 border-slate-400', label: '직접 처리' };
-    return null;
+    return {
+      mail: cur?.via === 'send' || log.some((l) => l.variables?.['이름'] === name),
+      sms: cur?.via === 'sms',
+    };
   };
 
   /** 이 사람이 어느 단계까지 진행됐는지 — 목록에서 한눈에 보이게 (실제로 보낸 것만) */
@@ -1517,9 +1514,7 @@ export function EmailToolsPage() {
             <span className="inline-flex items-center gap-1">
               <span className="inline-block w-2.5 h-3 bg-sky-500 rounded-sm" /> 문자
             </span>
-            <span className="inline-flex items-center gap-1">
-              <span className="inline-block w-2.5 h-3 bg-violet-500 rounded-sm" /> 둘 다
-            </span>
+
           </span>
           <input
             value={search}
@@ -1599,8 +1594,11 @@ export function EmailToolsPage() {
                 return (
                   <tr
                     key={c.key}
-                    title={mark?.label}
-                    className={`border-b border-slate-200 hover:bg-slate-50 ${mark ? mark.cls : 'border-l-4 border-transparent'}`}
+                    title={[mark.mail && '메일 발송', mark.sms && '문자 발송'].filter(Boolean).join(' · ')}
+                    className={
+                      'border-b border-slate-200 hover:bg-slate-50 border-l-4 ' +
+                      (mark.mail ? 'border-l-emerald-500' : mark.sms ? 'border-l-sky-500' : 'border-l-transparent')
+                    }
                   >
                     <td className="px-3 py-2 text-slate-900 whitespace-nowrap">{c.when}</td>
                     <td className="px-3 py-2 font-bold text-slate-900 whitespace-nowrap">
@@ -1624,26 +1622,20 @@ export function EmailToolsPage() {
                           {c.status}
                         </span>
                       )}
-                      {mark && (
+                      {mark.mail && (
                         <span
-                          className={
-                            'ml-1 px-1.5 py-0.5 rounded text-[10px] font-bold align-middle border ' +
-                            (mark.label === '메일·문자 발송'
-                              ? 'bg-violet-100 text-violet-900 border-violet-300'
-                              : mark.label === '메일 발송'
-                                ? 'bg-emerald-100 text-emerald-900 border-emerald-300'
-                                : mark.label === '문자 발송'
-                                  ? 'bg-sky-100 text-sky-900 border-sky-300'
-                                  : 'bg-slate-100 text-slate-900 border-slate-300')
-                          }
+                          title="메일 발송"
+                          className="ml-1 px-1.5 py-0.5 rounded text-[10px] font-bold align-middle border bg-emerald-100 text-emerald-900 border-emerald-300"
                         >
-                          {mark.label === '메일·문자 발송'
-                            ? '✉💬'
-                            : mark.label === '메일 발송'
-                              ? '✉'
-                              : mark.label === '문자 발송'
-                                ? '💬'
-                                : '✓'}
+                          ✉
+                        </span>
+                      )}
+                      {mark.sms && (
+                        <span
+                          title="문자 발송"
+                          className="ml-1 px-1.5 py-0.5 rounded text-[10px] font-bold align-middle border bg-sky-100 text-sky-900 border-sky-300"
+                        >
+                          💬
                         </span>
                       )}
                       {offerVals[c.name] && (
