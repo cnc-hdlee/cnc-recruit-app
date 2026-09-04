@@ -85,6 +85,10 @@ async function syncOne(s, ID, TAB, srcList, TD, mjPath){
  const pathmap=new Map(); srcList.forEach(x=>{const k=K(x.성명,x.소속); if(x.입사경로&&!pathmap.has(k))pathmap.set(k,x.입사경로);}); // 입사경로(정규직DB P열), 값 있는 것만
  const KOR=v=>(v==='대한민국'||v==='한국')?'내국인':v; // 국적 통일: 대한민국→내국인
  const natmap=new Map(); srcList.forEach(x=>{const k=K(x.성명,x.소속); if(x.국적&&!natmap.has(k))natmap.set(k,KOR(x.국적));}); // 국적(도급직DB H열), 대한민국은 내국인 표기
+ // 소속 정보(팀명·직무·직급·신입경력·본부)는 원본 DB가 주인이다. 조직 변경은 원본에서 이뤄지므로
+ // 미러가 옛 팀을 붙들고 있으면 안 된다(최선자 님이 생산4팀→생산2팀으로 바뀌었는데 미러는 4팀이었다).
+ // 형도님 수기 항목(입사여부·환산인원·비고·국적)은 여기서 건드리지 않는다.
+ const orgmap=new Map(); srcList.forEach(x=>{const k=K(x.성명,x.소속); if(!orgmap.has(k))orgmap.set(k,{팀:x.팀,직무:x.직무,직급:x.직급,신입:x.신입,본부:x.본부});});
  const yb=일자=>{const d=norm(일자); if(!d) return isHD?'지원자':'입사예정'; return d<=TD?'입사완료':'입사예정';};
  const tmap=new Map(); let lastRow=first;
  for(let i=first;i<tv.length;i++){const r=tv[i];const nm=r&&(r[c.성명]||'').trim();if(nm){tmap.set(K(nm,r[c.소속]),{row:i+1});lastRow=i+1;}}
@@ -102,8 +106,18 @@ async function syncOne(s, ID, TAB, srcList, TD, mjPath){
    else if(d.ipsa && curIpsa!==d.ipsa){ PUT(c.ipsa,rowN,d.ipsa,`${nm} 입사예정일 ${curIpsa||'공란'}→${d.ipsa}`); }
    // 지원일(B): 형도만, 지원자 날짜 채움(소스에 있을 때만, 빈값으로 안 덮음)
    if(c.jiwon>=0 && d.jiwon && curJw!==d.jiwon){ PUT(c.jiwon,rowN,d.jiwon,`${nm} 지원일 ${curJw||'공란'}→${d.jiwon}`); }
-   // 근무지 표준화(에스텍 팀별)
-   const 소속t=(r[c.소속]||'').trim(),팀t=(r[c.팀]||'').trim();
+   // 소속 정보 갱신 — 원본이 바뀌면 미러도 따라간다
+   const org=orgmap.get(key)||{};
+   const syncCol=(col,srcVal,label)=>{ if(col<0)return; const v=String(srcVal||'').trim(); if(!v)return;
+     const cur=String(r[col]==null?'':r[col]).trim(); if(cur===v)return;
+     PUT(col,rowN,v,nm+' '+label+' '+(cur||'공란')+'→'+v); };
+   syncCol(c.팀,org.팀,'팀명');
+   syncCol(c.직무,org.직무,'직무');
+   syncCol(c.직급,org.직급,'직급');
+   syncCol(c.신입,org.신입,'신입/경력');
+   syncCol(c.본부,org.본부,'본부');
+   // 근무지 표준화(에스텍 팀별) — 팀명이 방금 바뀌었을 수 있으므로 새 팀 기준으로 본다
+   const 소속t=(r[c.소속]||'').trim(),팀t=String(org.팀||r[c.팀]||'').trim();
    if(소속t.includes('에스텍')&&DOG_LOC[팀t]&&curLoc!==DOG_LOC[팀t]) PUT(c.근무지,rowN,DOG_LOC[팀t],`${nm} 근무지→${DOG_LOC[팀t]}`);
    // 국적: 형도 탭에만. 도급직DB 국적 + 정규직 공란은 '내국인' 기본값. 칸이 비었거나 '대한민국'일 때만 씀.
    //  → 그 외 형도님 수동수정값(태국/중국(F-5) 등)은 새로고침·재동기화돼도 절대 안 덮음(유지 보장).
