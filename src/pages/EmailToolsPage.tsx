@@ -1926,6 +1926,7 @@ export function EmailToolsPage() {
           template={modal.template}
           candidate={modal.candidate}
           initialVars={autoVars(modal.candidate, modal.template)}
+          offerTab={modal.template.stage === 'offer' ? offerOf(modal.candidate.name)?.tab : undefined}
           onClose={() => setModal(null)}
           onSend={async (to, vars, override) => {
             const ok = await send(modal.candidate, modal.template, to, vars, override);
@@ -1962,12 +1963,15 @@ function SendModal({
   template,
   candidate,
   initialVars,
+  offerTab,
   onClose,
   onSend,
 }: {
   template: EmailTemplate;
   candidate: CalCandidate;
   initialVars: Record<string, string>;
+  /** 처우협의일 때 이 후보자의 처우산정표 탭 이름 — 여기서 숫자를 가져온다 */
+  offerTab?: string;
   onClose: () => void;
   onSend: (to: string, vars: Record<string, string>, override?: { subject: string; body: string }) => void;
 }) {
@@ -1987,6 +1991,64 @@ function SendModal({
     setDraft(auto); // 지금 보이는 내용 그대로 편집창에 올린다
     setEditing(true);
   }
+
+  // ── 처우산정표에서 값 가져오기 ────────────────────────────────────────────
+  // 부서·직무·직급·연봉·기본급 …을 손으로 옮겨 적던 것을 산정표에서 그대로 읽어온다.
+  // 추측이 아니라 이미 승인된 산정표를 복사하는 것이라, 수기 입력 원칙과 어긋나지 않는다.
+  // 그래도 발송 전 2단계 확인은 그대로 두고, 어디서 왔는지 화면에 밝힌다.
+  const [offerNote2, setOfferNote2] = useState<string | null>(null);
+  const [offerLoading, setOfferLoading] = useState(false);
+  const won = (n: number) => (n > 0 ? Math.round(n).toLocaleString() : '');
+
+  async function fillFromOfferSheet(silent = false) {
+    if (!offerTab || !api?.offer?.read) return;
+    setOfferLoading(true);
+    try {
+      const r = await api.offer.read(offerTab);
+      if (!r.ok || !r.data) {
+        if (!silent) setOfferNote2('산정표를 읽지 못했습니다.');
+        return;
+      }
+      const d = r.data;
+      // 계약연봉이 가장 큰 옵션 = 실제로 채운 안 (빈 옵션은 0이다)
+      const best = [...d.options].sort((a, b) => b.계약연봉 - a.계약연봉)[0];
+      if (!best || best.계약연봉 <= 0) {
+        if (!silent) setOfferNote2('산정표에 아직 호봉·금액이 채워지지 않았습니다.');
+        return;
+      }
+      const from: Record<string, string> = {
+        부서: d.지원부서,
+        직무: d.지원직무,
+        입사일: d.입사예정일,
+        인정경력: d.인정경력 || best.산정근거 || d.총경력,
+        직급: best.grade,
+        연봉: won(best.계약연봉),
+        기본급: won(best.기본급),
+        시간외수당: won(best.시간외수당),
+        시간외시간: best.고정OT시간,
+        월급여: won(best.월급여액),
+      };
+      // 이미 손으로 넣은 값은 덮지 않는다
+      setVars((prev) => {
+        const next = { ...prev };
+        for (const [k, v] of Object.entries(from)) {
+          if (v && !String(next[k] || '').trim()) next[k] = v;
+        }
+        return next;
+      });
+      setOfferNote2(`산정표에서 가져왔습니다 — ${offerTab} · Option ${best.no} (${best.grade} ${best.step})`);
+    } catch (e) {
+      if (!silent) setOfferNote2(`산정표 읽기 실패: ${(e as Error).message}`);
+    } finally {
+      setOfferLoading(false);
+    }
+  }
+
+  // 처우협의 창을 열면 자동으로 한 번 채운다
+  useEffect(() => {
+    if (offerTab) void fillFromOfferSheet(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [offerTab]);
 
   function handleSend() {
     if (!to.trim()) return;
@@ -2036,6 +2098,22 @@ function SendModal({
               className="mt-1 w-full px-3 py-2 border border-slate-300 rounded text-sm text-slate-900"
             />
           </div>
+          {isOffer && (
+            <div className="rounded-lg border border-amber-300 bg-amber-50 p-2 text-xs text-slate-900 flex flex-wrap items-center gap-2">
+              <b>{offerNote2 || (offerTab ? '산정표를 읽는 중…' : '이 후보자의 처우산정표가 없습니다 — 숫자를 직접 넣어주세요.')}</b>
+              {offerTab && (
+                <button
+                  onClick={() => fillFromOfferSheet()}
+                  disabled={offerLoading}
+                  className="px-2 py-1 rounded border border-amber-400 bg-white font-bold hover:bg-amber-100 disabled:opacity-40"
+                  title="빈 칸만 다시 채웁니다 — 이미 손으로 넣은 값은 그대로 둡니다"
+                >
+                  {offerLoading ? '가져오는 중…' : '↻ 산정표에서 다시 채우기'}
+                </button>
+              )}
+              <span>발송 전 숫자를 꼭 확인하세요.</span>
+            </div>
+          )}
           {template.variables.map((k) => (
             <div key={k}>
               <label className="text-xs font-bold text-slate-900">{`{{${k}}}`}</label>

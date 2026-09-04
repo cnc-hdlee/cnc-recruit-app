@@ -195,58 +195,94 @@ async function listOfferSheets() {
 /**
  * 산정 결과를 앱으로 읽어온다 — 호봉 코드 하나만 넣으면 시트가 나머지를 계산해 두므로,
  * 그 계산된 값을 그대로 가져와 앱에서 보여준다. 앱은 절대 계산하지 않는다(시트가 유일한 기준).
- * Option 1/2/3 중 확정 직급과 호봉이 채워진 것만 돌려준다.
+ *
+ * 행 번호가 아니라 라벨(B열 글자)로 찾는다. 탭마다 레이아웃이 조금씩 달라
+ * 행 위치로 읽으면 옛 탭에서 시급을 기본급으로, 월급여를 연봉으로 잘못 가져온다
+ * (2026-09-04 임한결 탭에서 실제로 그랬다).
  */
 async function readOfferSheet(tab) {
   const s = await api();
-  const rows = (
-    await s.spreadsheets.values.get({
-      spreadsheetId: SHEET_ID,
-      range: `'${tab}'!A1:J90`,
-      valueRenderOption: 'UNFORMATTED_VALUE',
-    })
-  ).data.values || [];
-  const at = (r, c) => {
-    const row = rows[r - 1] || [];
-    return row[c.charCodeAt(0) - 65];
-  };
-  const num = (v) => (typeof v === 'number' ? v : Number(String(v || '').replace(/[^0-9.-]/g, '')) || 0);
+  const rows =
+    (
+      await s.spreadsheets.values.get({
+        spreadsheetId: SHEET_ID,
+        range: `'${tab}'!A1:J120`,
+        valueRenderOption: 'UNFORMATTED_VALUE',
+      })
+    ).data.values || [];
 
-  // Option 블록 시작 행 — 템플릿 구조 고정
-  const OPTIONS = [
-    { no: 1, head: 22, grade: 23, base: 27, ot: 28, monthly: 32, annual: 33, tcMin: 37, tcMax: 38, why: 39 },
-    { no: 2, head: 40, grade: 41, base: 45, ot: 46, monthly: 50, annual: 51, tcMin: 60, tcMax: 61, why: 62 },
-    { no: 3, head: 63, grade: 64, base: 68, ot: 69, monthly: 73, annual: 74, tcMin: 83, tcMax: 84, why: 85 },
-  ];
+  const cell = (r, colIdx) => (rows[r] || [])[colIdx];
+  const text = (v) => String(v == null ? '' : v).replace(/\s+/g, ' ').trim();
+  const num = (v) => (typeof v === 'number' ? v : Number(String(v || '').replace(/[^0-9.-]/g, '')) || 0);
+  // 시트의 날짜는 일련번호로 온다(46265 = 2026-09-15). 사람이 읽는 형태로 바꾼다.
+  const asDate = (v) => {
+    if (typeof v !== 'number' || v < 20000 || v > 80000) return text(v);
+    return new Date(Date.UTC(1899, 11, 30) + v * 86400000).toISOString().slice(0, 10);
+  };
+  const C = 2;
+  const Ec = 4;
+  const Fc = 5;
+  const G = 6;
+  const I = 8;
+
+  /** B열(가끔 A/C열)에서 라벨을 찾아 그 행 번호를 돌려준다 */
+  const findRow = (labelRe, from = 0, to = rows.length) => {
+    for (let r = from; r < to; r++) {
+      const b = text((rows[r] || [])[1]) || text((rows[r] || [])[0]);
+      if (b && labelRe.test(b)) return r;
+    }
+    return -1;
+  };
+  const valueAt = (labelRe, colIdx, from, to) => {
+    const r = findRow(labelRe, from, to);
+    return r < 0 ? undefined : cell(r, colIdx);
+  };
+
+  // ── 머리말 (인적사항)
+  const 성명 = text(valueAt(/^성명$/, C, 0, 20));
+  const 지원부서 = text(valueAt(/^지원부서$/, C, 0, 20));
+  const 지원직무 = text(valueAt(/^지원부서$/, Ec, 0, 20));
+  const 입사예정일 = asDate(valueAt(/^지원부서$/, I, 0, 20));
+  const 총경력 = text(valueAt(/^총\s*경력/, C, 0, 30));
+  const 인정경력 = text(valueAt(/^총\s*경력/, Fc, 0, 30));
+  const 현재TC = num(valueAt(/Total\s*Compensation/i, Ec, 0, findRow(/^5\.|처우\s*산정/, 0) + 1));
+  const 희망연봉 = text(valueAt(/희망\s*연봉/, C, 0, 40));
+
+  // ── Option 블록 — "Option 1." 같은 줄을 기준으로 잘라 그 안에서만 라벨을 찾는다
+  const heads = [];
+  for (let r = 0; r < rows.length; r++) {
+    const b = text((rows[r] || [])[1]);
+    if (/^Option\s*\d/i.test(b)) heads.push({ row: r, title: b });
+  }
   const options = [];
-  for (const o of OPTIONS) {
-    const grade = String(at(o.grade, 'C') || '').trim();
-    const step = String(at(o.grade, 'E') || '').trim();
-    const annual = num(at(o.annual, 'E'));
-    if (!grade && !step && !annual) continue; // 안 쓴 옵션
+  heads.forEach((h, k) => {
+    const from = h.row;
+    const to = k + 1 < heads.length ? heads[k + 1].row : rows.length;
+    const gradeRow = findRow(/확정\s*직급/, from, to);
+    const grade = gradeRow < 0 ? '' : text(cell(gradeRow, C));
+    const step = gradeRow < 0 ? '' : text(cell(gradeRow, Ec));
+    const 계약연봉 = num(valueAt(/계약\s*연봉/, Ec, from, to));
+    if (!grade && !step && !계약연봉) return; // 안 쓴 옵션
+    const otRow = findRow(/시간외\s*근로\s*수당|시간외수당/, from, to);
     options.push({
-      no: o.no,
-      title: String(at(o.head, 'B') || '').trim(),
+      no: k + 1,
+      title: h.title,
       grade,
       step,
-      기본급: num(at(o.base, 'E')),
-      시간외수당: num(at(o.ot, 'E')),
-      월급여액: num(at(o.monthly, 'E')),
-      계약연봉: annual,
-      TC최소: num(at(o.tcMin, 'E')),
-      TC최대: num(at(o.tcMax, 'E')),
-      산정근거: String(at(o.why, 'C') || '').trim(),
+      수습기간: gradeRow < 0 ? '' : text(cell(gradeRow, G)),
+      기본급: num(valueAt(/^기본급$/, Ec, from, to)),
+      시간외수당: otRow < 0 ? 0 : num(cell(otRow, Ec)),
+      // 비고가 "고정OT시간 42H 기준" 형태라 시간만 뽑는다 — 메일의 (월 N시간)에 들어간다
+      고정OT시간: otRow < 0 ? '' : (text(cell(otRow, G)).match(/(\d+(?:\.\d+)?)\s*H/i) || [])[1] || '',
+      월급여액: num(valueAt(/월\s*급여/, Ec, from, to)),
+      계약연봉,
+      TC최소: num(valueAt(/최소/, Ec, from, to)),
+      TC최대: num(valueAt(/최대/, Ec, from, to)),
+      산정근거: text(valueAt(/산정\s*근거/, C, from, to)),
     });
-  }
-  return {
-    tab,
-    성명: String(at(5, 'C') || '').trim(),
-    지원부서: String(at(6, 'C') || '').trim(),
-    지원직무: String(at(6, 'E') || '').trim(),
-    현재TC: num(at(18, 'E')),
-    희망연봉: String(at(20, 'C') || '').trim(),
-    options,
-  };
+  });
+
+  return { tab, 성명, 지원부서, 지원직무, 입사예정일, 총경력, 인정경력, 현재TC, 희망연봉, options };
 }
 
 module.exports = { createOfferSheet, listOfferSheets, readOfferSheet, SHEET_ID, SHEET_URL };

@@ -418,6 +418,9 @@ interface ElectronAPI {
         지원부서: string;
         지원직무: string;
         현재TC: number;
+        입사예정일: string;
+        총경력: string;
+        인정경력: string;
         희망연봉: string;
         options: {
           no: number;
@@ -431,6 +434,8 @@ interface ElectronAPI {
           TC최소: number;
           TC최대: number;
           산정근거: string;
+          고정OT시간: string;
+          수습기간: string;
         }[];
       }>
     >;
