@@ -1733,7 +1733,12 @@ export function EmailToolsPage() {
                       <button
                         onClick={() => quickSend(c)}
                         disabled={!currentTpl || busy === c.key}
-                        className="px-3 py-1 rounded bg-accent-purple text-white text-xs font-bold disabled:opacity-40 hover:bg-accent-purple/90"
+                        title={mark.mail ? '이미 메일을 보낸 후보자입니다' : undefined}
+                        className={
+                          'px-3 py-1 rounded bg-accent-purple text-white text-xs font-bold disabled:opacity-40 hover:bg-accent-purple/90 ' +
+                          // 보낸 건은 버튼에 초록 테두리 — 목록에서 바로 구분된다
+                          (mark.mail ? 'ring-2 ring-emerald-500 ring-offset-1' : '')
+                        }
                       >
                         {busy === c.key ? '발송 중…' : '✉ 발송'}
                       </button>
@@ -1766,9 +1771,12 @@ export function EmailToolsPage() {
                         }
                         className={
                           'ml-1 px-2 py-1 rounded border text-xs font-bold disabled:opacity-40 ' +
-                          (autoPhone[c.name]
-                            ? 'border-emerald-300 bg-emerald-50 text-slate-900 hover:bg-emerald-100'
-                            : 'border-slate-300 bg-white text-slate-900 hover:bg-slate-100')
+                          // 보낸 건은 파랑 테두리, 아직이면 번호 유무로 구분
+                          (mark.sms
+                            ? 'border-sky-500 bg-sky-50 text-slate-900 ring-2 ring-sky-500 ring-offset-1 hover:bg-sky-100'
+                            : autoPhone[c.name]
+                              ? 'border-emerald-300 bg-emerald-50 text-slate-900 hover:bg-emerald-100'
+                              : 'border-slate-300 bg-white text-slate-900 hover:bg-slate-100')
                         }
                       >
                         💬 문자
