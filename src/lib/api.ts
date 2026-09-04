@@ -305,6 +305,15 @@ interface ElectronAPI {
     contactsPull(): Promise<
       Result<{ contacts: Record<string, string>; phones: Record<string, string>; sources: number }>
     >;
+    /** 내 처리 기록(누구에게 무엇을 보냈는지)을 드라이브에 올려 팀에 공유 */
+    handledPush(
+      map: Record<string, { at: string; via: string; stage: string; by?: string }>,
+      shareWith: string[]
+    ): Promise<Result<{ id: string; count: number }>>;
+    /** 팀 전체가 보낸 기록 합본 — 같은 건이 겹치면 가장 먼저 보낸 기록이 남는다 */
+    handledPull(): Promise<
+      Result<{ handled: Record<string, { at: string; via: string; stage: string; by?: string }>; sources: number }>
+    >;
     /** 캘린더 일정에 첨부된 드라이브 파일 내려받기 (읽기 전용) */
     driveFile(fileId: string): Promise<Result<{ id: string; name: string; mimeType: string; base64: string }>>;
     listCalendar(min: string, max: string, id?: string): Promise<Result<GCalEvent[]>>;

@@ -86,6 +86,9 @@ function register() {
   // 후보자 연락처 팀 공유
   safeHandle('g:contactsPush', async (map, shareWith) => google.upsertContactsFile(map, shareWith));
   safeHandle('g:contactsPull', async () => google.readTeamContacts());
+  // 처리 기록(누가 무엇을 보냈는지) 팀 공유
+  safeHandle('g:handledPush', async (map, shareWith) => google.upsertHandledFile(map, shareWith));
+  safeHandle('g:handledPull', async () => google.readTeamHandled());
   safeHandle('g:driveFile', async (fileId) => google.downloadDriveFile(fileId));
   safeHandle('g:listCalendar', async (min, max, id) => google.listCalendar(min, max, id));
   safeHandle('g:listCalendars', async () => google.listCalendars());

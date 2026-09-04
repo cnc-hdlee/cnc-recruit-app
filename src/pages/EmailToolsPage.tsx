@@ -237,7 +237,7 @@ async function copyToClipboard(text: string): Promise<boolean> {
 //   sms    문자 발송
 //   manual 메일·문자 없이 손으로 처리
 type HandledVia = 'send' | 'sms' | 'manual';
-type HandledMark = { at: string; via: HandledVia; stage: TemplateStage };
+type HandledMark = { at: string; via: HandledVia; stage: TemplateStage; /** 보낸 사람 */ by?: string };
 type HandledMap = Record<string, HandledMark>;
 const HANDLED_CFG_KEY = 'mailHandledCandidates';
 const handledKey = (name: string, stage: TemplateStage) => `${name}::${stage}`;
@@ -257,6 +257,28 @@ async function saveHandled(map: HandledMap): Promise<void> {
   } catch {
     /* 저장 실패해도 화면 상태는 유지 — 다음 처리 때 다시 저장된다 */
   }
+  // 팀에도 올린다 — 양식은 각자 달라도 되지만 "이미 보냈다"는 사실은 셋이 같아야 한다.
+  // 아니면 같은 후보자에게 두 번 나간다.
+  try {
+    const me = ((await api.cfg.get<{ email?: string }>('googleProfile'))?.data?.email || '').toLowerCase();
+    await api.google.handledPush(map, CONTACT_TEAM.filter((e) => e.toLowerCase() !== me));
+  } catch {
+    /* 드라이브가 막혀 있어도 내 기록은 남는다 — 다음 처리 때 다시 시도한다 */
+  }
+}
+
+/**
+ * 내 기록과 팀 기록을 합친다.
+ * 같은 건이 겹치면 먼저 보낸 쪽이 남는다 — 그게 실제 발송 시점이다.
+ * 팀 기록은 내가 지울 수 없다(내 파일에서만 지워진다) — 남이 보낸 사실을 내가 없앨 수는 없다.
+ */
+function mergeHandled(mine: HandledMap, team: HandledMap): HandledMap {
+  const out: HandledMap = { ...team };
+  for (const [k, v] of Object.entries(mine)) {
+    const t = out[k];
+    if (!t || String(v.at || '') < String(t.at || '')) out[k] = v;
+  }
+  return out;
 }
 
 const RANGE_TABS: { id: RangeMode; label: string; help: string }[] = [
@@ -564,7 +586,18 @@ export function EmailToolsPage() {
       }
     })();
     loadSendLog().then(setLog);
-    loadHandled().then(setHandled);
+    loadHandled().then(async (mine) => {
+      setHandled(mine);
+      // 팀이 보낸 기록까지 합쳐야 중복 발송을 막는다
+      try {
+        const r = await api.google.handledPull();
+        if (r.ok && r.data && Object.keys(r.data.handled).length) {
+          setHandled(mergeHandled(mine, r.data.handled as HandledMap));
+        }
+      } catch {
+        /* 드라이브가 막혀 있으면 내 기록만으로 동작한다 */
+      }
+    });
     void loadHireDb().then(setHireDb);
     api.cfg.get<string>(TEST_PHONE_CFG_KEY).then((r) => r.ok && r.data && setTestPhone(r.data));
     loadSmsTemplates().then(setSmsTpls);
@@ -886,12 +919,14 @@ export function EmailToolsPage() {
    * 둘 다 보냈으면 배지를 둘 다 단다. 손으로 처리한 건은 표시하지 않는다 —
    * 보내지도 않았는데 보낸 것처럼 보이면 안 된다.
    */
-  const sentMark = (name: string): { mail: boolean; sms: boolean } => {
+  const sentMark = (name: string): { mail: boolean; sms: boolean; by?: string } => {
     if (!name) return { mail: false, sms: false };
     const cur = handled[handledKey(name, stage)];
     return {
       mail: cur?.via === 'send' || log.some((l) => l.variables?.['이름'] === name),
       sms: cur?.via === 'sms',
+      // 내가 아닌 팀원이 보낸 건이면 누가 보냈는지 알려준다
+      by: cur?.by && cur.by.toLowerCase() !== myEmail.toLowerCase() ? cur.by : undefined,
     };
   };
 
@@ -1008,7 +1043,10 @@ export function EmailToolsPage() {
       alert('이름을 먼저 채워주세요. 이름 없이 처리하면 나중에 누구인지 알 수 없습니다.');
       return;
     }
-    const next = { ...handled, [handledKey(c.name, stage)]: { at: new Date().toISOString(), via, stage } };
+    const next = {
+      ...handled,
+      [handledKey(c.name, stage)]: { at: new Date().toISOString(), via, stage, by: myEmail },
+    };
     setHandled(next);
     await saveHandled(next);
   }
@@ -1665,7 +1703,9 @@ export function EmailToolsPage() {
                 return (
                   <tr
                     key={c.key}
-                    title={[mark.mail && '메일 발송', mark.sms && '문자 발송'].filter(Boolean).join(' · ')}
+                    title={[mark.mail && '메일 발송', mark.sms && '문자 발송', mark.by && `${mark.by} 발송`]
+                      .filter(Boolean)
+                      .join(' · ')}
                     className={
                       'border-b border-slate-200 hover:bg-slate-50 border-l-4 ' +
                       (mark.mail ? 'border-l-emerald-500' : mark.sms ? 'border-l-sky-500' : 'border-l-transparent')
@@ -1691,6 +1731,14 @@ export function EmailToolsPage() {
                       {c.status && (
                         <span className="ml-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-rose-100 text-rose-900 border border-rose-200">
                           {c.status}
+                        </span>
+                      )}
+                      {mark.by && (
+                        <span
+                          title={`${mark.by} 님이 보냈습니다`}
+                          className="ml-1 px-1.5 py-0.5 rounded text-[10px] font-bold align-middle border bg-slate-100 text-slate-900 border-slate-300"
+                        >
+                          {mark.by.split('@')[0]}
                         </span>
                       )}
                       {mark.mail && (

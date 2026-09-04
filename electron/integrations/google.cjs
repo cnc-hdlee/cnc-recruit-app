@@ -1186,6 +1186,87 @@ async function upsertPresenceFile(json, shareWith) {
 // 이력서에서 찾아낸 지원자 메일 주소는 각자 PC에만 쌓여서 팀원은 못 본다.
 // 각 사용자가 자기 몫을 드라이브에 JSON 한 개로 올리고 팀에게 읽기 공유하면,
 // 모든 앱이 팀 전체 파일을 합쳐서 본다 — 누가 찾았든 세 명 모두 즉시 사용 가능.
+// 처리 기록(누구에게 무엇을 보냈는지) — 연락처와 같은 방식으로 팀이 나눠 갖는다.
+// 양식은 각자 달라도 되지만 "이미 보냈다"는 사실은 셋이 같아야 한다. 아니면 같은 후보자에게
+// 두 번 나간다. 각자 자기 파일 하나를 올리고, 읽을 때 팀 전체 파일을 합친다.
+const HANDLED_FILE_NAME = 'cnc-mail-handled.json';
+const HANDLED_TAG = "appProperties has { key='cncHandled' and value='1' }";
+
+/** 내 처리 기록 파일을 만들거나 갱신하고 팀에 공유한다 */
+async function upsertHandledFile(map, shareWith) {
+  const auth = buildClient();
+  const drive = google.drive({ version: 'v3', auth });
+  let fileId = store.get('handledFileId') || null;
+  if (fileId) {
+    try {
+      await drive.files.get({ fileId, fields: 'id,trashed' });
+    } catch {
+      fileId = null;
+    }
+  }
+  const media = { mimeType: 'application/json', body: JSON.stringify(map || {}) };
+  if (fileId) {
+    await drive.files.update({ fileId, media });
+  } else {
+    const created = await drive.files.create({
+      requestBody: { name: HANDLED_FILE_NAME, mimeType: 'application/json', appProperties: { cncHandled: '1' } },
+      media,
+      fields: 'id',
+    });
+    fileId = created.data.id;
+    store.set('handledFileId', fileId);
+  }
+  for (const email of shareWith || []) {
+    try {
+      await drive.permissions.create({
+        fileId,
+        requestBody: { role: 'reader', type: 'user', emailAddress: email },
+        sendNotificationEmail: false,
+      });
+    } catch {
+      /* 이미 공유돼 있으면 무시 */
+    }
+  }
+  return { id: fileId, count: Object.keys(map || {}).length };
+}
+
+/**
+ * 팀 전체(나 + 공유받은 사람들)의 처리 기록을 합쳐서 돌려준다.
+ * 같은 사람·같은 단계가 여러 명한테 있으면 가장 먼저 보낸 기록을 남긴다 — 그게 실제 발송 시점이다.
+ */
+async function readTeamHandled() {
+  const auth = buildClient();
+  const drive = google.drive({ version: 'v3', auth });
+  const merged = {};
+  let files = [];
+  try {
+    const r = await drive.files.list({
+      q: `${HANDLED_TAG} and trashed = false`,
+      fields: 'files(id,name,owners(emailAddress))',
+      pageSize: 50,
+    });
+    files = r.data.files || [];
+  } catch {
+    return { handled: merged, sources: 0 };
+  }
+  for (const f of files) {
+    const owner = (f.owners && f.owners[0] && f.owners[0].emailAddress) || '';
+    try {
+      const c = await drive.files.get({ fileId: f.id, alt: 'media' }, { responseType: 'text' });
+      const obj = typeof c.data === 'string' ? JSON.parse(c.data) : c.data;
+      for (const [key, v] of Object.entries(obj || {})) {
+        if (!key || !v) continue;
+        const mark = { ...v, by: v.by || owner };
+        const cur = merged[key];
+        if (!cur || String(mark.at || '') < String(cur.at || '')) merged[key] = mark;
+      }
+    } catch {
+      /* 못 읽는 파일은 건너뛴다 */
+    }
+  }
+  return { handled: merged, sources: files.length };
+}
+
 const CONTACTS_FILE_NAME = 'cnc-candidate-contacts.json';
 const CONTACTS_TAG = "appProperties has { key='cncContacts' and value='1' }";
 
@@ -1685,6 +1766,8 @@ module.exports = {
   ensureFileShared,
   tagResumeFile,
   upsertContactsFile,
+  upsertHandledFile,
+  readTeamHandled,
   readTeamContacts,
   ensureAllShared,
   listDriveVault,

@@ -43,6 +43,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     driveFile: (fileId) => invoke('g:driveFile', fileId),
     contactsPush: (map, shareWith) => invoke('g:contactsPush', map, shareWith),
     contactsPull: () => invoke('g:contactsPull'),
+    handledPush: (map, shareWith) => invoke('g:handledPush', map, shareWith),
+    handledPull: () => invoke('g:handledPull'),
     listCalendar: (min, max, id) => invoke('g:listCalendar', min, max, id),
     listCalendars: () => invoke('g:listCalendars'),
     listCalendarsFull: () => invoke('g:listCalendarsFull'),
