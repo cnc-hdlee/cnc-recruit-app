@@ -248,11 +248,25 @@ async function readOfferSheet(tab) {
   const 현재TC = num(valueAt(/Total\s*Compensation/i, Ec, 0, findRow(/^5\.|처우\s*산정/, 0) + 1));
   const 희망연봉 = text(valueAt(/희망\s*연봉/, C, 0, 40));
 
-  // ── Option 블록 — "Option 1." 같은 줄을 기준으로 잘라 그 안에서만 라벨을 찾는다
+  // ── 처우 산정 블록 나누기.
+  // 제목이 "Option 1." 인 탭도 있고 "1차 제안." 인 탭도 있다. 제목 글자로 찾으면 놓친다
+  // (서현 님 탭의 "1차 제안."을 건너뛰고 템플릿 잔재인 Option 2를 집어
+  //  사원인데 책임연구원으로 읽혔다 — 2026-09-07).
+  // 그래서 제목이 아니라 '확정 직급' 줄을 기준으로 자른다. 모든 블록에 반드시 있는 줄이다.
   const heads = [];
   for (let r = 0; r < rows.length; r++) {
     const b = text((rows[r] || [])[1]);
-    if (/^Option\s*\d/i.test(b)) heads.push({ row: r, title: b });
+    if (!/확정\s*직급/.test(b)) continue;
+    // 제목은 바로 윗줄(비어 있으면 그 위) — "Option 2." / "1차 제안. : 사원(경력 2년 6개월)"
+    let title = '';
+    for (let k = r - 1; k >= 0 && k >= r - 3; k--) {
+      const t2 = text((rows[k] || [])[1]);
+      if (t2) {
+        title = t2;
+        break;
+      }
+    }
+    heads.push({ row: Math.max(0, r - 1), title });
   }
   const options = [];
   heads.forEach((h, k) => {

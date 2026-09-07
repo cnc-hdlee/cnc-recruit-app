@@ -1023,8 +1023,8 @@ export function EmailToolsPage() {
         try {
           const r = await api.offer.read(tab);
           if (!r.ok || !r.data) continue;
-          // 계약연봉이 가장 큰 옵션 = 실제로 채운 안으로 본다(빈 옵션은 0이다)
-          const best = [...r.data.options].sort((a, b) => b.계약연봉 - a.계약연봉)[0];
+          // 표에 적힌 순서대로 처음 채워진 안을 쓴다 (아래 fillFromOfferSheet와 같은 기준)
+          const best = r.data.options.find((o) => o.계약연봉 > 0);
           if (best && best.계약연봉 > 0) {
             next[c.name] = { grade: best.grade, step: best.step, annual: best.계약연봉 };
           }
@@ -2202,9 +2202,12 @@ function SendModal({
         return;
       }
       const d = r.data;
-      // 계약연봉이 가장 큰 옵션 = 실제로 채운 안 (빈 옵션은 0이다)
-      const best = [...d.options].sort((a, b) => b.계약연봉 - a.계약연봉)[0];
-      if (!best || best.계약연봉 <= 0) {
+      // 표에 적힌 순서대로 "처음 채워진 안"을 쓴다.
+      // 금액이 가장 큰 것을 고르면 템플릿에서 딸려온 잔재 블록이 이긴다 —
+      // 서현 님이 생산운영팀 사원인데 잔재 Option 2 때문에 책임연구원으로 잡혔다(2026-09-07).
+      const filled = d.options.filter((o) => o.계약연봉 > 0);
+      const best = filled[0];
+      if (!best) {
         if (!silent) setOfferNote2('산정표에 아직 호봉·금액이 채워지지 않았습니다.');
         return;
       }
@@ -2248,7 +2251,10 @@ function SendModal({
         }
         return next;
       });
-      setOfferNote2(`산정표에서 가져왔습니다 — ${offerTab} · Option ${best.no} (${best.grade} ${best.step})`);
+      setOfferNote2(
+        `산정표에서 가져왔습니다 — ${offerTab} · ${best.title || '안 ' + best.no} · ${best.grade} ${best.step}` +
+          (filled.length > 1 ? ` (산정 안 ${filled.length}개 중 첫 번째 — 다른 안이면 직접 고쳐주세요)` : '')
+      );
     } catch (e) {
       if (!silent) setOfferNote2(`산정표 읽기 실패: ${(e as Error).message}`);
     } finally {
