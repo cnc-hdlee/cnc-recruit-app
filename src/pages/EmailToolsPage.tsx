@@ -2114,7 +2114,11 @@ export function EmailToolsPage() {
           template={modal.template}
           candidate={modal.candidate}
           initialVars={autoVars(modal.candidate, modal.template)}
-          offerTab={modal.template.stage === 'offer' ? offerOf(modal.candidate.name)?.tab : undefined}
+          offerTab={
+            modal.template.stage === 'offer' || modal.template.stage === 'onboarding'
+              ? offerOf(modal.candidate.name)?.tab
+              : undefined
+          }
           onClose={() => setModal(null)}
           onSend={async (to, vars, override) => {
             const ok = await send(modal.candidate, modal.template, to, vars, override);
@@ -2214,8 +2218,20 @@ function SendModal({
         })
         .join('\n');
 
+      // 최종 입사 안내는 (A)(B)(C) 문단 형식이라 따로 만든다.
+      // 항목 순서대로 글자를 붙이고 마지막에 합계 줄을 붙인다.
+      const 처우내역 = (() => {
+        const items = best.항목 || [];
+        if (!items.length) return '';
+        const letters = items.map((_, i) => String.fromCharCode(65 + i));
+        const lines = items.map((it, i) => `      - (${letters[i]}) ${it.label} : ${won(it.amount)}원`);
+        lines.push(`      - ${letters.map((L) => `(${L})`).join('+')} : 月 ${won(best.월급여액)}원 *월 만근 기준`);
+        return lines.join('\n');
+      })();
+
       const from: Record<string, string> = {
         부서: d.지원부서,
+        처우내역,
         직무: d.지원직무,
         입사일: d.입사예정일,
         // 인정경력은 자동으로 넣지 않는다 — 형도님이 직접 판단해 수기 입력하는 항목이다.
@@ -2294,7 +2310,7 @@ function SendModal({
               className="mt-1 w-full px-3 py-2 border border-slate-300 rounded text-sm text-slate-900"
             />
           </div>
-          {isOffer && (
+          {(isOffer || template.stage === 'onboarding') && (
             <div className="rounded-lg border border-amber-300 bg-amber-50 p-2 text-xs text-slate-900 flex flex-wrap items-center gap-2">
               <b>{offerNote2 || (offerTab ? '산정표를 읽는 중…' : '이 후보자의 처우산정표가 없습니다 — 숫자를 직접 넣어주세요.')}</b>
               {offerTab && (
@@ -2312,12 +2328,12 @@ function SendModal({
           )}
           {template.variables.map((k) => {
             // 급여내역처럼 여러 줄인 값은 한 줄짜리 입력칸에 담기지 않는다
-            const multiline = k === '급여내역' || (vars[k] || '').includes('\n');
+            const multiline = k === '급여내역' || k === '처우내역' || (vars[k] || '').includes('\n');
             return (
               <div key={k}>
                 <label className="text-xs font-bold text-slate-900">
                   {`{{${k}}}`}
-                  {k === '급여내역' && (
+                  {(k === '급여내역' || k === '처우내역') && (
                     <span className="ml-1 font-normal">— 산정표에 있는 항목만 들어갑니다</span>
                   )}
                 </label>
